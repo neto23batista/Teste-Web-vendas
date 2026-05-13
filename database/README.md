@@ -24,6 +24,10 @@ Ordem:
 
 Depois execute os seeders em `database/seeders`, tambem em ordem numerica.
 
+Seeders de demonstracao:
+
+- `004_admin_operational_orders_demo.sql` popula nove pedidos realistas para a fila operacional do admin: pagamento pendente, pagamento aprovado, receita em validacao, item controlado bloqueado, urgente, com problema, separacao, expedicao e concluido. Ao ser reexecutado, ele atualiza os pedidos `FV-DEMO-OP-*` e recria apenas os detalhes filhos desses cenarios.
+
 ## Observacoes
 
 - Os seeders nao incluem credenciais reais.
