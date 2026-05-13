@@ -1,0 +1,120 @@
+-- FarmaVida
+-- Module: estoque
+-- Purpose: professional stock movement, alerts and inventory.
+
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 1;
+
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  public_id CHAR(36) NOT NULL,
+  product_id BIGINT UNSIGNED NOT NULL,
+  batch_id BIGINT UNSIGNED NULL,
+  order_id BIGINT UNSIGNED NULL,
+  movement_type ENUM('entrada_compra','saida_venda','ajuste_positivo','ajuste_negativo','perda','vencimento','devolucao','transferencia_interna','inventario','cancelamento_pedido','estorno') NOT NULL,
+  reason VARCHAR(255) NOT NULL,
+  previous_quantity INT NOT NULL,
+  movement_quantity INT NOT NULL,
+  final_quantity INT NOT NULL,
+  previous_location VARCHAR(160) NULL,
+  new_location VARCHAR(160) NULL,
+  unit_cost DECIMAL(12,2) NULL,
+  total_cost DECIMAL(12,2) NULL,
+  reference_type VARCHAR(80) NULL,
+  reference_id BIGINT UNSIGNED NULL,
+  responsible_user_id BIGINT UNSIGNED NULL,
+  occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_stock_movements_public_id (public_id),
+  KEY idx_stock_movements_product_occurred (product_id, occurred_at),
+  KEY idx_stock_movements_batch_id (batch_id),
+  KEY idx_stock_movements_order_id (order_id),
+  KEY idx_stock_movements_type_occurred (movement_type, occurred_at),
+  KEY idx_stock_movements_responsible (responsible_user_id),
+  CONSTRAINT fk_stock_movements_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_stock_movements_batch FOREIGN KEY (batch_id) REFERENCES product_batches(id) ON DELETE SET NULL,
+  CONSTRAINT fk_stock_movements_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
+  CONSTRAINT fk_stock_movements_responsible FOREIGN KEY (responsible_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS stock_alerts (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  product_id BIGINT UNSIGNED NOT NULL,
+  batch_id BIGINT UNSIGNED NULL,
+  alert_type ENUM('low_stock','out_of_stock','near_expiration','expired','thermosensitive','rupture','overstock') NOT NULL,
+  severity ENUM('info','warning','critical') NOT NULL DEFAULT 'warning',
+  current_quantity INT NULL,
+  threshold_quantity INT NULL,
+  expiration_date DATE NULL,
+  message VARCHAR(500) NOT NULL,
+  status ENUM('open','acknowledged','resolved','ignored') NOT NULL DEFAULT 'open',
+  acknowledged_by BIGINT UNSIGNED NULL,
+  acknowledged_at DATETIME NULL,
+  resolved_by BIGINT UNSIGNED NULL,
+  resolved_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_stock_alerts_product_status (product_id, status),
+  KEY idx_stock_alerts_batch_id (batch_id),
+  KEY idx_stock_alerts_type_status (alert_type, status),
+  KEY idx_stock_alerts_severity_created (severity, created_at),
+  KEY idx_stock_alerts_ack_by (acknowledged_by),
+  KEY idx_stock_alerts_resolved_by (resolved_by),
+  CONSTRAINT fk_stock_alerts_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  CONSTRAINT fk_stock_alerts_batch FOREIGN KEY (batch_id) REFERENCES product_batches(id) ON DELETE SET NULL,
+  CONSTRAINT fk_stock_alerts_ack_by FOREIGN KEY (acknowledged_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_stock_alerts_resolved_by FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS stock_inventories (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  public_id CHAR(36) NOT NULL,
+  inventory_number VARCHAR(40) NOT NULL,
+  inventory_type ENUM('partial','complete','cycle_count') NOT NULL DEFAULT 'partial',
+  status ENUM('draft','in_progress','closed','cancelled') NOT NULL DEFAULT 'draft',
+  scope_description VARCHAR(255) NULL,
+  started_by BIGINT UNSIGNED NULL,
+  closed_by BIGINT UNSIGNED NULL,
+  started_at DATETIME NULL,
+  closed_at DATETIME NULL,
+  notes TEXT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_stock_inventories_public_id (public_id),
+  UNIQUE KEY uq_stock_inventories_number (inventory_number),
+  KEY idx_stock_inventories_status_type (status, inventory_type),
+  KEY idx_stock_inventories_started_by (started_by),
+  KEY idx_stock_inventories_closed_by (closed_by),
+  CONSTRAINT fk_stock_inventories_started_by FOREIGN KEY (started_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_stock_inventories_closed_by FOREIGN KEY (closed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS stock_inventory_items (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  inventory_id BIGINT UNSIGNED NOT NULL,
+  product_id BIGINT UNSIGNED NOT NULL,
+  batch_id BIGINT UNSIGNED NULL,
+  system_quantity INT NOT NULL DEFAULT 0,
+  counted_quantity INT NULL,
+  divergence_quantity INT NULL,
+  status ENUM('pending','counted','adjusted','ignored') NOT NULL DEFAULT 'pending',
+  counted_by BIGINT UNSIGNED NULL,
+  counted_at DATETIME NULL,
+  notes VARCHAR(500) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_stock_inventory_items_scope (inventory_id, product_id, batch_id),
+  KEY idx_stock_inventory_items_product (product_id),
+  KEY idx_stock_inventory_items_batch (batch_id),
+  KEY idx_stock_inventory_items_status (status),
+  KEY idx_stock_inventory_items_counted_by (counted_by),
+  CONSTRAINT fk_stock_inventory_items_inventory FOREIGN KEY (inventory_id) REFERENCES stock_inventories(id) ON DELETE CASCADE,
+  CONSTRAINT fk_stock_inventory_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_stock_inventory_items_batch FOREIGN KEY (batch_id) REFERENCES product_batches(id) ON DELETE SET NULL,
+  CONSTRAINT fk_stock_inventory_items_counted_by FOREIGN KEY (counted_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

@@ -1,0 +1,1466 @@
+Não gere tudo de uma vez. Primeiro entregue somente a arquitetura, estrutura de pastas e banco de dados completo. Depois aguarde eu pedir os próximos módulos.
+
+Você é uma equipe sênior de desenvolvimento formada por:
+
+- Arquiteto de Software
+- Engenheiro Full Stack
+- Especialista em Segurança da Informação
+- Especialista em Banco de Dados
+- Especialista em UX/UI
+- Especialista em Integrações ERP
+- Especialista em Sistemas de Farmácia
+- Especialista em Pagamentos Online
+- Especialista em LGPD
+- Especialista em Qualidade e Testes
+- Especialista em Produto Digital/SaaS
+
+Sua missão é desenvolver um sistema real, completo, profissional e pronto para produção chamado:
+
+FarmaVida — Sistema Completo para Farmácia Online, Gestão de Pedidos, Estoque, Pagamentos, NF-e Simulada, ERP, Receitas, Fidelidade, Marketing e Operação Farmacêutica.
+
+O sistema NÃO deve ser apenas um protótipo visual.
+
+Ele deve ser um sistema funcional, full stack, com frontend, backend, banco de dados, autenticação, painel administrativo, painel do cliente, integrações, segurança, migrações, testes, documentação, relatórios e visão de mercado.
+
+O objetivo é criar uma solução que possa competir com plataformas modernas de farmácia online, com alto padrão de UX, segurança, compliance, automação, relatórios, integrações, operação farmacêutica real e possibilidade de evolução para SaaS.
+
+Sempre que houver dúvida entre fazer algo simples e fazer algo profissional, escolha a solução profissional, desde que continue compatível com a stack definida.
+
+==================================================
+1. STACK OBRIGATÓRIA
+==================================================
+
+Use obrigatoriamente:
+
+- PHP 8.2 ou superior
+- MySQL ou MariaDB
+- HTML5
+- CSS3
+- JavaScript puro
+- AJAX/Fetch API
+- Apache com .htaccess
+- Composer
+- PHPMailer para e-mails
+- Mercado Pago SDK ou integração via API REST
+- Chart.js para gráficos administrativos
+- PDO com prepared statements
+- Estrutura MVC ou arquitetura modular bem separada
+- Sistema de migrations
+- Sistema de logs
+- Sistema de rotas
+- Arquivo .env ou configuração segura
+- README.md completo
+
+Não usar frameworks pesados, a menos que seja extremamente necessário. O sistema deve ser compreensível, organizado e fácil de manter.
+
+==================================================
+2. OBJETIVO DO SISTEMA
+==================================================
+
+Criar uma plataforma chamada FarmaVida para uma farmácia vender produtos online, controlar pedidos, gerenciar estoque, validar receitas, processar pagamentos, emitir NF-e simulada, integrar com ERPs, acompanhar clientes, executar ações de fidelidade e marketing, além de permitir operação real de uma farmácia moderna.
+
+O sistema precisa atender dois públicos principais:
+
+1. Cliente:
+- Compra produtos
+- Pesquisa medicamentos
+- Recebe sugestões
+- Envia receita
+- Paga online
+- Acompanha pedido
+- Gerencia seus dados
+- Visualiza pontos de fidelidade
+- Repete compras anteriores
+- Recebe lembretes de reposição
+
+2. Dono/Farmacêutico/Admin:
+- Gerencia produtos
+- Gerencia pedidos
+- Controla estoque
+- Valida receitas
+- Acompanha pagamentos
+- Visualiza relatórios
+- Emite NF-e simulada
+- Gerencia integrações
+- Analisa alertas operacionais
+- Controla permissões
+- Acompanha logs e auditorias
+
+==================================================
+3. VISÃO DE MERCADO
+==================================================
+
+O FarmaVida deve ser desenvolvido como um produto real de mercado, não como um projeto simples.
+
+O sistema deve conter o que farmácias modernas precisam atualmente:
+
+- Venda online
+- Delivery
+- Retirada na loja
+- Controle de estoque inteligente
+- Controle de validade e lote
+- Gestão de receitas
+- Pagamento online
+- Fidelidade
+- Marketing
+- Relatórios
+- API REST
+- Webhooks
+- Integração com ERP
+- Segurança forte
+- LGPD
+- Auditoria
+- Observabilidade
+- Performance
+- Experiência mobile-first
+- PWA
+- Painel operacional
+- Prontidão para produção
+
+O sistema deve parecer um produto profissional, confiável, moderno e vendável para farmácias reais.
+
+==================================================
+4. COMPLIANCE FARMACÊUTICO
+==================================================
+
+O sistema deve respeitar regras sanitárias brasileiras aplicáveis a farmácias e drogarias.
+
+Criar área para cadastrar informações institucionais da farmácia:
+
+- Razão social
+- Nome fantasia
+- CNPJ
+- Endereço completo
+- Horário de funcionamento
+- Telefone
+- E-mail
+- Farmacêutico responsável
+- Número do CRF
+- Licença/Alvará Sanitário
+- AFE da Anvisa
+- AE, quando aplicável
+- Política de privacidade
+- Termos de uso
+- Canal de atendimento ao cliente
+- Canal para orientação farmacêutica
+
+Essas informações devem aparecer em uma página institucional obrigatória.
+
+Regras importantes:
+
+- Medicamentos sob prescrição devem exigir apresentação e avaliação da receita.
+- Medicamentos sujeitos a controle especial não devem ser vendidos automaticamente pela internet.
+- O sistema deve bloquear a compra remota automática de medicamentos controlados e permitir somente fluxo seguro de orientação, reserva, validação farmacêutica ou retirada presencial, conforme legislação aplicável e configuração do estabelecimento.
+- O sistema deve impedir propaganda inadequada de medicamentos sujeitos à prescrição.
+- O sistema deve permitir exibição controlada de informações permitidas:
+  - Nome comercial
+  - Princípio ativo
+  - Apresentação
+  - Registro Anvisa
+  - Detentor do registro
+  - Preço
+- O sistema deve registrar auditoria de todas as ações farmacêuticas.
+- O transporte deve considerar produtos termossensíveis e condições de conservação.
+- Deve haver orientação clara para o usuário falar com o farmacêutico responsável.
+
+==================================================
+5. LOJA PARA CLIENTES
+==================================================
+
+Criar uma loja moderna, responsiva, profissional e mobile-first para clientes.
+
+Funcionalidades obrigatórias:
+
+- Página inicial com identidade visual da FarmaVida
+- Catálogo de produtos
+- Busca por nome, princípio ativo, categoria, código de barras e marca
+- Autocomplete na busca
+- Filtros por:
+  - Categoria
+  - Preço
+  - Medicamentos com receita
+  - Medicamentos sem receita
+  - Genéricos
+  - Promoções
+  - Disponibilidade em estoque
+  - Marca
+  - Forma de entrega
+- Visualização rápida de produto em modal
+- Página individual do produto
+- Exibição de:
+  - Nome do produto
+  - Imagem
+  - Galeria
+  - Preço
+  - Preço promocional
+  - Categoria
+  - Marca
+  - Estoque disponível
+  - Se exige receita ou não
+  - Tipo de receita
+  - Descrição
+  - Princípio ativo
+  - Registro Anvisa, quando informado
+  - Localização física interna, visível apenas para admin
+  - Sugestão de genérico
+  - Produtos relacionados
+  - Kits pré-montados
+  - Produtos similares
+- Favoritos
+- Produtos vistos recentemente
+- Recompra rápida
+- Sugestão de genéricos
+- Sugestão de kits
+- Produtos relacionados
+- Produtos em promoção
+- Ofertas relâmpago
+- Banners promocionais
+- Cupom de desconto
+- Frete grátis por valor mínimo, se configurado
+
+==================================================
+6. SACOLA, CARRINHO E CHECKOUT
+==================================================
+
+Criar carrinho completo e profissional.
+
+Funcionalidades obrigatórias:
+
+- Sacola de compras com atualização em tempo real via AJAX
+- Adicionar produto sem recarregar a página
+- Remover produto sem recarregar a página
+- Alterar quantidade sem recarregar a página
+- Validar estoque em tempo real
+- Backend deve recalcular preço, desconto, frete e total
+- Nunca confiar em valor vindo do frontend
+- Carrinho persistente por sessão e por usuário logado
+- Recuperação de carrinho abandonado via link seguro compartilhável
+- Carrinho abandonado com envio de e-mail
+- Carrinho com validade configurável
+
+Checkout completo com:
+
+- Nome completo
+- CPF com validação
+- E-mail
+- Telefone
+- Endereço
+- CEP
+- Número
+- Bairro
+- Cidade
+- Estado
+- Complemento
+- Modalidade de entrega
+- Forma de pagamento
+- Cupom de desconto
+- Upload de receita quando necessário
+- Aceite LGPD
+- Observações do cliente
+- Resumo do pedido
+- Total de produtos
+- Desconto
+- Frete
+- Total final
+
+Modalidades de entrega:
+
+- Retirada na loja
+- Delivery local
+- Entrega por motoboy
+- Entrega por transportadora, se configurado
+
+O sistema deve permitir configurar:
+
+- Área de entrega
+- Taxa por bairro
+- Taxa por CEP
+- Taxa por distância, se possível
+- Valor mínimo para entrega
+- Valor mínimo para frete grátis
+- Horário de funcionamento
+- Status da loja:
+  - Aberta
+  - Fechada
+  - Pausada
+  - Somente retirada
+
+==================================================
+7. ACOMPANHAMENTO DE PEDIDOS
+==================================================
+
+Criar acompanhamento de pedidos em tempo real.
+
+Funcionalidades:
+
+- Atualização automática a cada 30 segundos
+- Timeline visual do pedido
+- Mensagens claras para o cliente
+- Histórico de status
+- Previsão de entrega ou retirada
+- Canal de atendimento dentro do pedido
+- Repetir pedido
+- Baixar recibo
+- Visualizar NF-e simulada/DANFE, quando emitida
+
+Status visíveis para o cliente:
+
+- Pedido recebido
+- Aguardando pagamento
+- Pagamento em análise
+- Pagamento confirmado
+- Aguardando receita
+- Receita enviada
+- Receita em validação
+- Receita aprovada
+- Receita rejeitada
+- Liberado pelo farmacêutico
+- Em separação
+- Conferido
+- Saiu para entrega
+- Pronto para retirada
+- Entregue
+- Cancelado
+
+==================================================
+8. PAINEL DO CLIENTE
+==================================================
+
+Criar painel do cliente com:
+
+- Edição de dados pessoais
+- Alteração de senha
+- Histórico de pedidos
+- Detalhes de pedidos
+- Status de pedidos
+- Pontos de fidelidade
+- Histórico de pontos
+- Favoritos
+- Produtos comprados anteriormente
+- Repetir compra
+- Lembretes de reposição
+- Endereços salvos
+- Solicitação de exclusão/anonimização de conta
+- Exportação dos dados pessoais
+- Preferências de comunicação
+
+==================================================
+9. PAINEL ADMINISTRATIVO
+==================================================
+
+Criar painel administrativo profissional, responsivo, seguro e separado da área do cliente.
+
+Perfis de acesso:
+
+- Dono
+- Administrador
+- Farmacêutico
+- Atendente
+- Estoquista
+- Entregador, se necessário
+
+Dashboard inicial com indicadores:
+
+- Total de pedidos do dia
+- Faturamento do dia
+- Ticket médio
+- Pedidos pendentes
+- Pedidos com receita
+- Pedidos com pagamento pendente
+- Pedidos em separação
+- Pedidos em entrega
+- Produtos com estoque baixo
+- Produtos zerados
+- Produtos próximos do vencimento
+- Receitas aguardando validação
+- Pagamentos divergentes
+- Carrinhos abandonados
+- Clientes novos
+- Clientes recorrentes
+
+Painel de pedidos com filtros:
+
+- Todos
+- Delivery
+- Retirada
+- Aguardando receita
+- Receita em validação
+- Requer atenção
+- Pagamento pendente
+- Pagamento confirmado
+- Em separação
+- Conferido
+- Saiu para entrega
+- Entregues
+- Cancelados
+- Urgentes
+- Com problema
+
+Funcionalidades obrigatórias:
+
+- Busca em tempo real na fila de pedidos
+- Atualização de status via AJAX
+- Visualização detalhada do pedido
+- Impressão de recibo
+- Impressão de etiqueta de separação
+- Impressão de DANFE simulada
+- Cancelamento de pedido com justificativa
+- Limpeza de pedidos finalizados com segurança
+- Histórico de alterações de status
+- Indicação visual para pedidos críticos
+- Campo de observação interna
+- Campo de observação para cliente
+- Definição de responsável pelo pedido
+- Kanban operacional para pedidos
+- Fila de prioridades
+- Marcação de pedido urgente
+- Marcação de pedido com problema
+
+==================================================
+10. GERENCIAMENTO DE PRODUTOS
+==================================================
+
+Criar CRUD completo de produtos.
+
+Campos obrigatórios:
+
+- Nome
+- Slug
+- Código interno
+- Código de barras/EAN
+- Marca
+- Categoria
+- Descrição curta
+- Descrição completa
+- Preço de venda
+- Preço promocional
+- Custo
+- Margem de lucro
+- Estoque atual
+- Estoque mínimo
+- Estoque máximo
+- Localização física
+- Corredor
+- Prateleira
+- Gaveta
+- Setor
+- Imagem principal
+- Galeria de imagens
+- Exige receita: sim/não
+- Tipo de receita:
+  - Não exige
+  - Simples
+  - Antibiótico
+  - Controlado
+  - Psicotrópico
+- Produto genérico relacionado
+- Produtos recomendados
+- Kit relacionado
+- Princípio ativo
+- Registro Anvisa
+- Detentor do registro
+- Produto termossensível: sim/não
+- Temperatura ideal de armazenamento
+- Status ativo/inativo
+- Data de cadastro
+- Data de atualização
+
+Funcionalidades:
+
+- Upload seguro de imagens
+- Validação de tipo e tamanho de imagem
+- Redimensionamento/padronização de imagens
+- Remoção de imagem
+- Ativar/inativar produto
+- Busca por nome, código, categoria, marca ou princípio ativo
+- Filtro por estoque baixo
+- Filtro por estoque zerado
+- Filtro por produto com receita
+- Filtro por produto próximo do vencimento
+- Paginação
+- Ordenação
+- Exportação simples em CSV
+- Importação simples em CSV, se possível
+- Logs de alterações importantes
+
+==================================================
+11. CONTROLE DE ESTOQUE PROFISSIONAL
+==================================================
+
+Criar módulo completo de estoque.
+
+Funcionalidades obrigatórias:
+
+- Registro de entrada
+- Registro de saída
+- Ajuste manual
+- Transferência de local físico
+- Histórico de movimentações mantido por 30 dias ou mais, configurável
+- Alerta de estoque baixo
+- Alerta de estoque zerado
+- Alerta de validade próxima
+- Bloqueio de venda de produto vencido
+- Bloqueio de venda de produto sem estoque
+- Configuração de estoque mínimo e máximo por produto
+- Localização física do produto
+- Motivo da movimentação
+- Usuário responsável pela movimentação
+- Data e hora da movimentação
+- Quantidade anterior
+- Quantidade movimentada
+- Quantidade final
+- Controle por lote
+- Controle por validade
+- Inventário parcial
+- Inventário completo
+- Relatório de perdas
+- Relatório de ruptura
+- Relatório de produtos parados
+- Relatório de giro de estoque
+- Curva ABC de produtos
+- Sugestão de reposição
+- Controle de produtos termossensíveis
+
+Tipos de movimentação:
+
+- Entrada por compra
+- Saída por venda
+- Ajuste positivo
+- Ajuste negativo
+- Perda
+- Vencimento
+- Devolução
+- Transferência interna
+- Inventário
+- Cancelamento de pedido
+- Estorno
+
+O sistema deve impedir venda de produto sem estoque, exceto se o administrador habilitar uma configuração específica para pré-venda.
+
+==================================================
+12. PAGAMENTOS COM MERCADO PAGO
+==================================================
+
+Criar integração com Mercado Pago.
+
+Funcionalidades obrigatórias:
+
+- Configuração de modo sandbox e produção
+- Configuração segura de access token
+- Não deixar credenciais expostas no frontend
+- Pagamento via Pix
+- Pagamento via cartão
+- Parcelamento
+- Retorno automático após pagamento
+- Webhook para atualização de status
+- Validação de assinatura de webhook com HMAC SHA-256
+- Log de webhooks recebidos
+- Tratamento de falha de pagamento
+- Tratamento de pagamento pendente
+- Tratamento de pagamento aprovado
+- Tratamento de pagamento recusado
+- Tratamento de pagamento cancelado
+- Tratamento de estorno/chargeback, se disponível
+- Atualização automática do pedido após pagamento confirmado
+- Idempotência de pagamento
+- Prevenção de pagamento duplicado
+- Reconciliação entre pedido e pagamento
+- Tela administrativa de pagamentos divergentes
+
+Status de pagamento:
+
+- Aguardando pagamento
+- Em análise
+- Aprovado
+- Recusado
+- Cancelado
+- Estornado
+- Expirado
+- Divergente
+
+Criar camada de serviço chamada PaymentService para concentrar toda a lógica de pagamento.
+
+==================================================
+13. AUTENTICAÇÃO E SEGURANÇA
+==================================================
+
+Implementar segurança de nível profissional.
+
+Funcionalidades obrigatórias:
+
+- Cadastro de cliente
+- Login de cliente
+- Login de administrador
+- Níveis de permissão
+- Rate limiting no login:
+  - Máximo de 5 tentativas
+  - Bloqueio por 15 minutos
+  - Persistido no banco de dados
+- Rate limit no checkout
+- Rate limit na recuperação de senha
+- Recuperação de senha por e-mail
+- Token de recuperação válido por 1 hora
+- Token único, seguro e armazenado com hash
+- Senhas com bcrypt/password_hash
+- Validação de força de senha
+- Regeneração periódica de ID da sessão
+- Sessões seguras
+- Logout seguro
+- Proteção CSRF em todos os formulários POST
+- Proteção contra XSS
+- Proteção contra SQL Injection usando PDO/prepared statements
+- Proteção contra upload malicioso
+- Proteção contra alteração de preço pelo frontend
+- Backend deve recalcular todos os totais
+- Headers de segurança:
+  - Strict-Transport-Security
+  - X-Frame-Options
+  - X-Content-Type-Options
+  - Referrer-Policy
+  - Permissions-Policy
+  - Content-Security-Policy, quando possível
+- Proteção de diretórios internos via .htaccess
+- Bloqueio de acesso direto a arquivos sensíveis
+- Validação de CPF
+- Aceite de LGPD no cadastro
+- Registro de data/hora do aceite LGPD
+- Registro de IP
+- Registro de user-agent
+- Log de ações administrativas importantes
+- Sanitização e validação de todos os inputs
+- Não exibir stack trace em produção
+- Modo debug apenas em ambiente local
+- Princípio do menor privilégio
+- Controle de permissões por perfil
+
+==================================================
+14. LGPD E PRIVACIDADE
+==================================================
+
+Implementar requisitos básicos de LGPD.
+
+Funcionalidades:
+
+- Checkbox obrigatório de aceite no cadastro
+- Registro do IP, data e hora do aceite
+- Política de privacidade acessível
+- Termos de uso acessíveis
+- Possibilidade de cliente solicitar exclusão ou anonimização de conta
+- Exportação simples de dados pessoais do cliente
+- Minimização de dados
+- Proteção de dados sensíveis
+- Mascaramento de CPF
+- Não exibir CPF completo em telas administrativas sem necessidade
+- Controle de finalidade dos dados
+- Logs de acesso a dados sensíveis
+- Não usar dados de saúde ou compra de medicamentos para publicidade indevida
+- Separar dados operacionais de dados sensíveis
+- Criar painel básico de solicitações LGPD
+
+==================================================
+15. NF-e SIMULADA E DANFE
+==================================================
+
+Criar módulo de NF-e simulada, sem transmissão fiscal real.
+
+Funcionalidades obrigatórias:
+
+- Emissão simulada de NF-e
+- Geração de chave de acesso simulada
+- Número sequencial de nota
+- Série
+- Data de emissão
+- Dados do cliente
+- Dados da farmácia
+- Itens da nota
+- Total dos produtos
+- Valor de entrega
+- Descontos
+- Total final
+- Status da nota:
+  - Emitida
+  - Cancelada
+- DANFE para impressão
+- Cancelamento com justificativa
+- Listagem de notas com filtros
+- Paginação
+- Busca por cliente, número, chave ou pedido
+- Relação entre pedido e nota
+
+Deixar claro no código e na interface que a NF-e é simulada, a menos que futuramente seja integrada a um provedor fiscal real.
+
+Criar estrutura preparada para integração fiscal real no futuro.
+
+==================================================
+16. ERP, API REST E INTEGRAÇÕES
+==================================================
+
+Criar API REST com autenticação por API Key.
+
+Endpoints obrigatórios:
+
+Produtos:
+- GET /api/produtos
+- GET /api/produtos/{id}
+- POST /api/produtos
+- PUT /api/produtos/{id}
+- DELETE /api/produtos/{id}
+
+Pedidos:
+- GET /api/pedidos
+- GET /api/pedidos/{id}
+- POST /api/pedidos
+- PUT /api/pedidos/{id}/status
+
+Estoque:
+- GET /api/estoque
+- GET /api/estoque/{produto_id}
+- POST /api/estoque/movimentacao
+
+Clientes:
+- GET /api/clientes
+- GET /api/clientes/{id}
+
+Financeiro:
+- GET /api/financeiro/pagamentos
+- GET /api/financeiro/vendas
+
+NF-e:
+- GET /api/nfe
+- GET /api/nfe/{id}
+
+Funcionalidades de integração:
+
+- API Key gerada no painel admin
+- Possibilidade de ativar/desativar API Key
+- Escopo de permissão por API Key
+- Rate limit na API
+- Logs de requisições
+- Respostas JSON padronizadas
+- Códigos HTTP corretos
+- Documentação dos endpoints
+- Compatibilidade com Bling, Omie, Conta Azul, SAP, Zapier, Make e qualquer sistema REST
+- Webhook de entrada para receber eventos externos
+- Webhooks de saída para:
+  - Pedido criado
+  - Status atualizado
+  - Pagamento confirmado
+  - Estoque baixo
+  - Estoque zerado
+  - NF-e emitida
+  - Receita aprovada
+  - Receita rejeitada
+- Painel para cadastrar URLs de webhooks
+- Tentativas de reenvio em caso de falha
+- Reenvio com backoff
+- Log de sucesso e erro dos webhooks
+- Idempotência em eventos críticos
+- Logs de payload sem dados sensíveis
+- Estrutura preparada para WhatsApp API no futuro
+- Estrutura preparada para gateways alternativos no futuro
+
+==================================================
+17. MÓDULO CLÍNICO E RECEITAS
+==================================================
+
+Criar módulo para controle de medicamentos que exigem receita.
+
+Funcionalidades obrigatórias:
+
+- Identificar produtos que exigem receita
+- Classificar tipo de receita
+- Bloquear finalização sem upload quando houver produto que exige receita
+- Bloquear venda automática de medicamento controlado
+- Upload seguro de receita no checkout
+- Aceitar PDF, JPG e PNG
+- Validar tamanho máximo
+- Armazenar arquivo em pasta protegida
+- Não deixar receita acessível por URL pública direta
+- Auditoria de receitas enviadas
+- Status clínico do pedido:
+  - Não exige receita
+  - Aguardando receita
+  - Receita enviada
+  - Em validação
+  - Liberado
+  - Rejeitado
+  - Bloqueado para orientação farmacêutica
+- Área administrativa para farmacêutico validar receita
+- Campo de observação do farmacêutico
+- Registro de quem validou
+- Data e hora da validação
+- Motivo de rejeição
+- Cliente deve ser notificado por e-mail quando a receita for aprovada ou rejeitada
+- Logs de auditoria farmacêutica
+
+Criar também FAQ clínico com perguntas comuns:
+
+- Por que alguns medicamentos exigem receita?
+- Como enviar minha receita?
+- Quais formatos são aceitos?
+- O que acontece se minha receita for rejeitada?
+- Posso comprar medicamento controlado online?
+- Quanto tempo demora a validação?
+- Como falar com o farmacêutico?
+
+O sistema deve tratar medicamentos controlados com cuidado e impedir liberação sem validação do farmacêutico.
+
+==================================================
+18. E-MAILS TRANSACIONAIS
+==================================================
+
+Criar sistema de e-mails com PHPMailer e fallback para mail() nativo.
+
+E-mails obrigatórios:
+
+- Boas-vindas ao novo cliente
+- Confirmação de cadastro
+- Recuperação de senha com link seguro
+- Confirmação de pedido com itens e total
+- Atualização de status do pedido
+- Pagamento confirmado
+- Receita aprovada
+- Receita rejeitada
+- Pedido saiu para entrega
+- Pedido pronto para retirada
+- Pedido entregue
+- Carrinho abandonado
+- Lembrete de reposição de produto
+- Cliente inativo
+- Cupom promocional, se configurado
+
+Funcionalidades:
+
+- Templates HTML organizados
+- Variáveis dinâmicas nos templates
+- Configuração SMTP no painel ou arquivo seguro
+- Fallback para mail()
+- Log de falhas de envio
+- Log de e-mails enviados
+- Reenvio manual pelo admin quando necessário
+
+==================================================
+19. BANCO DE DADOS E MIGRAÇÕES
+==================================================
+
+Criar banco de dados completo e bem estruturado.
+
+Usar migrations controladas, sem ALTER TABLE automático em produção.
+
+Criar painel visual de migrações com execução seletiva por módulo.
+
+Módulos de migrations:
+
+- auth
+- clientes
+- produtos
+- categorias
+- estoque
+- pedidos
+- pagamentos
+- receitas
+- nfe
+- erp
+- fidelidade
+- marketing
+- operação
+- segurança
+- integrações
+- logs
+
+Tabelas mínimas esperadas:
+
+- users
+- customers
+- admins
+- roles
+- permissions
+- password_resets
+- login_attempts
+- lgpd_consents
+- products
+- product_images
+- categories
+- product_recommendations
+- product_kits
+- product_batches
+- product_expirations
+- carts
+- cart_items
+- abandoned_carts
+- orders
+- order_items
+- order_status_history
+- payments
+- payment_webhooks
+- stock_movements
+- stock_alerts
+- stock_inventories
+- prescriptions
+- prescription_audits
+- invoices
+- invoice_items
+- api_keys
+- api_logs
+- outgoing_webhooks
+- incoming_webhooks
+- webhook_logs
+- loyalty_points
+- loyalty_movements
+- replenishment_reminders
+- coupons
+- promotions
+- email_logs
+- admin_action_logs
+- sensitive_data_access_logs
+- settings
+- migrations
+- delivery_zones
+- delivery_people
+- support_messages
+
+Banco deve conter:
+
+- Chaves primárias
+- Chaves estrangeiras
+- Índices
+- Campos created_at e updated_at
+- Soft delete quando necessário
+- Tipos corretos
+- Relacionamentos consistentes
+- Dados iniciais/seeds para teste
+- Índices para busca, relatórios e performance
+- Restrições para evitar inconsistência
+
+==================================================
+20. FIDELIDADE E MARKETING
+==================================================
+
+Criar módulo de fidelidade e marketing.
+
+Funcionalidades:
+
+- Acúmulo de pontos por compra
+- Regra padrão: 1 ponto = R$1 em compras aprovadas
+- Pontos só são liberados após pagamento confirmado
+- Histórico de movimentação de pontos
+- Entrada de pontos
+- Saída de pontos
+- Expiração opcional
+- Painel do cliente para visualizar pontos
+- Painel admin para consultar pontos
+- Lembretes de reposição de produtos
+- Identificação de produtos recorrentes
+- Sugestão para recompra
+- E-mail de lembrete de reposição
+- Segmentação simples de clientes por histórico de compra
+- Cupons de desconto
+- Campanhas promocionais
+- Promoções por categoria
+- Promoções por produto
+- Frete grátis por valor mínimo
+- Cashback/pontos
+- Recuperação de clientes inativos
+- Banner promocional no site
+- Campanha por data comemorativa
+- Produtos em destaque
+- Ofertas relâmpago
+- Kits inteligentes
+- Cross-sell
+- Up-sell
+- Indicação de genéricos
+
+Não usar dados sensíveis de saúde ou compra de medicamentos para publicidade indevida.
+
+==================================================
+21. RELATÓRIOS E INDICADORES
+==================================================
+
+Criar relatórios administrativos com gráficos usando Chart.js.
+
+Relatórios obrigatórios:
+
+- Faturamento por dia
+- Faturamento por período
+- Ticket médio
+- Quantidade de pedidos
+- Produtos mais vendidos
+- Produtos menos vendidos
+- Categorias mais vendidas
+- Categorias mais rentáveis
+- Horários de pico
+- Pedidos por status
+- Vendas por forma de pagamento
+- Vendas por tipo de entrega
+- Estoque baixo
+- Estoque zerado
+- Produtos próximos do vencimento
+- Receitas aprovadas e rejeitadas
+- Carrinhos abandonados recuperados
+- Clientes recorrentes
+- Clientes inativos
+- Taxa de conversão
+- Taxa de recompra
+- Vendas por canal
+- Margem de lucro
+- Lucro estimado
+- Custo de produto vendido
+- Descontos concedidos
+- Cupons usados
+- Ruptura de estoque
+- Perdas por vencimento
+
+Filtros:
+
+- Hoje
+- Ontem
+- Últimos 7 dias
+- Últimos 30 dias
+- Mês atual
+- Período personalizado
+
+==================================================
+22. UX/UI E DESIGN
+==================================================
+
+Criar interface moderna, profissional, limpa e responsiva.
+
+Identidade visual sugerida:
+
+- Verde saúde
+- Branco
+- Azul claro
+- Cinza neutro
+- Detalhes em verde escuro
+
+Estilo:
+
+- Visual confiável de farmácia
+- Cards modernos
+- Botões claros
+- Ícones profissionais
+- Layout responsivo
+- Boa hierarquia visual
+- Acessibilidade
+- Feedback visual para ações
+- Loading em operações AJAX
+- Mensagens de sucesso e erro
+- Validação visual em formulários
+- Design adaptado para celular
+- Painel admin organizado
+- Dashboard visual
+- Navegação simples
+- Layout limpo e profissional
+
+O sistema deve parecer produto real de mercado, não trabalho simples de escola.
+
+==================================================
+23. MOBILE-FIRST E PWA
+==================================================
+
+O sistema deve ser totalmente responsivo e funcionar muito bem em celular.
+
+Criar estrutura compatível com PWA:
+
+- manifest.json
+- service worker
+- ícone do app
+- tela inicial
+- cache básico de assets
+- possibilidade de adicionar à tela inicial do celular
+
+O painel administrativo também deve ser usável em tablet.
+
+==================================================
+24. ACESSIBILIDADE
+==================================================
+
+Seguir WCAG 2.2 nível AA sempre que possível.
+
+Implementar:
+
+- Contraste adequado
+- Navegação por teclado
+- Labels corretos nos formulários
+- Textos alternativos em imagens
+- Mensagens de erro claras
+- Botões com nomes acessíveis
+- Layout legível em telas pequenas
+- Não depender apenas de cor para transmitir informação
+
+==================================================
+25. PERFORMANCE E ESCALABILIDADE
+==================================================
+
+Implementar boas práticas de performance:
+
+- Carregamento rápido
+- Paginação em listas grandes
+- Busca otimizada
+- Índices no banco de dados
+- Lazy loading de imagens
+- Compressão de assets
+- Cache de consultas simples
+- Separação de assets públicos
+- Otimização de imagens
+- Evitar consultas N+1
+- Estrutura preparada para Redis no futuro
+- Estrutura preparada para filas no futuro
+- Logs rotacionáveis
+- Tratamento de erros centralizado
+
+==================================================
+26. OBSERVABILIDADE E MONITORAMENTO
+==================================================
+
+Criar recursos de monitoramento:
+
+- Logs de aplicação
+- Logs de erro
+- Logs de pagamento
+- Logs de webhook
+- Logs de e-mail
+- Logs de login
+- Logs de alterações administrativas
+- Logs de acesso a dados sensíveis
+- Tela de saúde do sistema
+- Verificação de integrações
+- Status do banco
+- Status do SMTP
+- Status do Mercado Pago
+- Status dos webhooks
+- Alertas para falhas críticas
+- Registro de tempo de resposta de endpoints importantes
+
+==================================================
+27. QUALIDADE, TESTES E PRONTIDÃO PARA PRODUÇÃO
+==================================================
+
+Criar scripts de qualidade.
+
+Arquivo obrigatório:
+
+market_readiness_checks.php
+
+Esse arquivo deve verificar:
+
+- Versão do PHP
+- Extensões necessárias
+- Conexão com banco de dados
+- Permissões de pastas
+- Existência do arquivo .env ou config seguro
+- Configuração SMTP
+- Configuração Mercado Pago
+- Tabelas obrigatórias
+- Migrations pendentes
+- Diretórios protegidos
+- Headers de segurança
+- CSRF ativo
+- Encoding UTF-8
+- Arquivos PHP com lint
+- Templates essenciais
+- Rotas principais
+- Webhooks configurados
+- Pastas de upload protegidas
+- Logs graváveis
+- Ambiente sandbox/produção
+- Chaves sensíveis não expostas no frontend
+- Configurações de segurança
+- Permissões administrativas
+- Proteção contra acesso direto a uploads sensíveis
+
+Criar também:
+
+- Script de lint para todos os arquivos PHP
+- Testes básicos de autenticação
+- Testes básicos de carrinho
+- Testes básicos de pedido
+- Testes básicos de estoque
+- Testes básicos de pagamento fake/sandbox
+- Testes básicos de API
+- Testes básicos de permissões
+- Testes básicos de upload de receita
+- Testes básicos de webhooks
+- Checklist final de produção
+
+==================================================
+28. ARQUITETURA DO SISTEMA
+==================================================
+
+Criar arquitetura organizada e preparada para evolução.
+
+Camadas obrigatórias:
+
+- Controllers
+- Models
+- Services
+- Repositories, se necessário
+- Middlewares
+- Helpers
+- Views
+- Routes
+- Config
+- Database
+- Migrations
+- Seeders
+- Public
+- Storage
+- Tests
+
+Criar serviços específicos:
+
+- AuthService
+- CartService
+- CheckoutService
+- OrderService
+- StockService
+- PaymentService
+- PrescriptionService
+- InvoiceService
+- EmailService
+- WebhookService
+- LoyaltyService
+- ReportService
+- AuditService
+- LGPDService
+- ProductService
+- DeliveryService
+- CouponService
+- NotificationService
+
+Não misturar regra de negócio diretamente na view.
+
+==================================================
+29. ESTRUTURA DE PASTAS ESPERADA
+==================================================
+
+Organize o projeto de forma parecida com:
+
+/farmavida
+  /app
+    /Controllers
+    /Models
+    /Services
+    /Repositories
+    /Middlewares
+    /Helpers
+  /config
+  /database
+    /migrations
+    /seeders
+  /public
+    /assets
+      /css
+      /js
+      /img
+    index.php
+    .htaccess
+    manifest.json
+    service-worker.js
+  /resources
+    /views
+    /emails
+  /routes
+  /storage
+    /logs
+    /uploads
+      /products
+      /prescriptions
+      /invoices
+  /tests
+  /vendor
+  .env.example
+  composer.json
+  README.md
+  market_readiness_checks.php
+
+Nenhum arquivo sensível deve ficar acessível diretamente pela pasta public.
+
+==================================================
+30. DOCUMENTAÇÃO OBRIGATÓRIA
+==================================================
+
+Criar README.md completo contendo:
+
+- Descrição do sistema
+- Requisitos do servidor
+- Como instalar
+- Como configurar banco de dados
+- Como executar migrations
+- Como criar usuário admin
+- Como configurar Mercado Pago sandbox
+- Como configurar Mercado Pago produção
+- Como configurar SMTP
+- Como configurar webhooks
+- Como rodar testes
+- Como usar o painel administrativo
+- Como usar a loja do cliente
+- Como usar a API
+- Lista de endpoints
+- Checklist de produção
+- Observações sobre NF-e simulada
+- Observações de segurança
+- Observações sobre LGPD
+- Observações sobre medicamentos com receita
+- Estrutura de pastas
+- Como fazer deploy
+- Como colocar em produção
+- Como ativar/desativar modo debug
+
+==================================================
+31. REGRAS IMPORTANTES
+==================================================
+
+Siga estas regras obrigatoriamente:
+
+1. Não crie apenas telas estáticas.
+2. Não entregue código bagunçado.
+3. Não misture regra de negócio diretamente na view.
+4. Não exponha senha, token, API key ou credenciais.
+5. Não use SQL inseguro.
+6. Não deixe formulários POST sem CSRF.
+7. Não ignore validação de dados.
+8. Não permita venda de produto sem estoque.
+9. Não permita medicamento com receita ser liberado sem validação.
+10. Não permita medicamento controlado ser vendido automaticamente.
+11. Não deixe upload de receita público.
+12. Não deixe painel admin sem controle de permissão.
+13. Não use ALTER TABLE automático em produção.
+14. Não gere NF-e real; gerar apenas NF-e simulada, salvo se houver integração fiscal real configurada.
+15. Não use dados sensíveis em logs.
+16. Não esqueça responsividade.
+17. Não esqueça tratamento de erros.
+18. Não esqueça documentação.
+19. Não esqueça scripts de verificação.
+20. Não entregue funcionalidades pela metade.
+21. Não confie em preço vindo do frontend.
+22. Não confie em estoque vindo do frontend.
+23. Não exponha stack trace em produção.
+24. Não use dados sensíveis de saúde para marketing indevido.
+25. Não deixe uploads sensíveis acessíveis diretamente.
+26. Antes de finalizar, revise todo o sistema e corrija erros bobos.
+
+==================================================
+32. FORMA DE ENTREGA
+==================================================
+
+Entregue o sistema por partes organizadas, na seguinte ordem:
+
+1. Arquitetura geral do sistema
+2. Estrutura de pastas
+3. Banco de dados completo com migrations
+4. Configurações iniciais
+5. Sistema de autenticação e segurança
+6. LGPD e privacidade
+7. Loja do cliente
+8. Carrinho e checkout
+9. Painel do cliente
+10. Painel administrativo
+11. Produtos e categorias
+12. Estoque profissional
+13. Pedidos
+14. Pagamentos Mercado Pago
+15. Receitas e módulo clínico
+16. NF-e simulada
+17. API REST e webhooks
+18. E-mails transacionais
+19. Fidelidade e marketing
+20. Relatórios
+21. PWA e mobile-first
+22. Observabilidade e logs
+23. Scripts de testes e prontidão
+24. README completo
+25. Checklist final de produção
+
+Quando for entregar código, entregue os arquivos com nome, caminho correto e conteúdo completo.
+
+Exemplo:
+
+Arquivo: /app/Controllers/ProductController.php
+
+[código completo aqui]
+
+Não entregue trechos soltos sem explicar onde colocar.
+
+==================================================
+33. CRITÉRIOS DE ACEITAÇÃO
+==================================================
+
+O sistema só pode ser considerado finalizado se:
+
+- Cliente consegue se cadastrar, logar, comprar e acompanhar pedido
+- Cliente consegue editar dados pessoais
+- Cliente consegue recuperar senha
+- Cliente consegue visualizar histórico de pedidos
+- Cliente consegue visualizar pontos de fidelidade
+- Admin consegue gerenciar produtos, pedidos, estoque e receitas
+- Farmacêutico consegue validar ou rejeitar receita
+- Carrinho funciona via AJAX
+- Checkout valida estoque, CPF, LGPD e receita
+- Backend recalcula todos os totais do pedido
+- Pagamento via Mercado Pago funciona em sandbox
+- Webhook atualiza status de pagamento
+- Assinatura do webhook é validada
+- Estoque baixa automaticamente após pedido confirmado
+- Medicamento com receita exige upload e validação
+- Medicamento controlado não é liberado automaticamente
+- NF-e simulada é gerada
+- DANFE simulada pode ser impressa
+- API REST responde com autenticação por API Key
+- Webhooks de saída funcionam
+- E-mails transacionais são enviados ou registrados em log
+- Relatórios aparecem com gráficos
+- Login tem rate limiting
+- Recuperação de senha funciona com token de 1 hora
+- CSRF está presente em todos os POST
+- Uploads estão protegidos
+- Diretórios internos estão protegidos
+- Painel admin tem permissões por perfil
+- Logs de auditoria funcionam
+- LGPD tem aceite registrado
+- market_readiness_checks.php roda e mostra o status do sistema
+- README ensina instalar e configurar tudo
+- Código está organizado e sem erros básicos
+- Sistema está responsivo
+- Sistema está preparado para produção
+
+==================================================
+34. CRITÉRIO DE EXCELÊNCIA
+==================================================
+
+O sistema deve ser tratado como se fosse vendido para farmácias reais.
+
+Antes de finalizar qualquer módulo, validar:
+
+- Está seguro?
+- Está responsivo?
+- Está claro para o usuário?
+- Está correto para o mercado farmacêutico?
+- Está preparado para operação real?
+- Tem tratamento de erro?
+- Tem logs?
+- Tem validação?
+- Tem documentação?
+- Tem permissão?
+- Tem auditoria quando necessário?
+- Está sem dados sensíveis expostos?
+- Está pronto para evoluir?
+- Está com boa experiência mobile?
+- Está com performance aceitável?
+- Está seguindo boas práticas?
+
+==================================================
+35. PEDIDO FINAL
+==================================================
+
+Agora desenvolva o sistema FarmaVida completo, seguindo todos os requisitos acima.
+
+Comece pela arquitetura geral, estrutura de pastas e banco de dados com migrations.
+
+Depois continue módulo por módulo, sempre entregando arquivos completos, com caminho correto, código funcional e explicação objetiva.
+
+Antes de cada entrega, revise se o código está seguro, organizado e compatível com PHP 8.2+, MySQL/MariaDB, Apache, JavaScript puro, AJAX/Fetch API e arquitetura modular.
+
+Não entregue um sistema básico.
+
+Entregue uma plataforma FarmaVida com padrão de mercado, com recursos que uma farmácia realmente precisa para vender online, controlar operação, proteger dados, atender clientes, cumprir regras sanitárias, gerenciar estoque, integrar pagamentos, gerar relatórios e crescer como negócio digital.

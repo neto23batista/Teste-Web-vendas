@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid slice">
+  <rect width="1200" height="600" fill="#17845f"/>
+  <g opacity=".18" fill="#fff">
+    <circle cx="160" cy="160" r="90"/>
+    <rect x="720" y="90" width="300" height="150" rx="18"/>
+    <rect x="780" y="280" width="220" height="190" rx="18"/>
+    <path d="M520 180h80v120h120v80H600v120h-80V380H400v-80h120z"/>
+  </g>
+</svg>
+
