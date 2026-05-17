@@ -10,6 +10,7 @@ use App\Core\Session;
 use App\Middlewares\RateLimitMiddleware;
 use App\Validators\Validator;
 use PDO;
+use PDOException;
 use RuntimeException;
 
 final class AuthService
@@ -26,14 +27,19 @@ final class AuthService
             throw new RuntimeException(implode(' ', $validator->errors()));
         }
 
+        $email = strtolower(trim((string) $data['email']));
         $cpf = only_digits((string) $data['cpf']);
-        return (int) Database::transaction(function (PDO $pdo) use ($data, $request, $cpf): int {
+        $cpfHash = hash('sha256', $cpf . (string) config('app.key'));
+        $this->assertCustomerUnique($email, $cpfHash);
+
+        try {
+            return (int) Database::transaction(function (PDO $pdo) use ($data, $request, $email, $cpf, $cpfHash): int {
             $stmt = $pdo->prepare("INSERT INTO users (public_id, user_type, name, email, phone, password_hash, status, created_ip, created_user_agent)
                 VALUES (:public_id, 'customer', :name, :email, :phone, :password_hash, 'active', :ip, :ua)");
             $stmt->execute([
                 'public_id' => uuid_v4(),
                 'name' => trim((string) $data['name']),
-                'email' => strtolower(trim((string) $data['email'])),
+                'email' => $email,
                 'phone' => trim((string) ($data['phone'] ?? '')),
                 'password_hash' => password_hash((string) $data['password'], PASSWORD_BCRYPT),
                 'ip' => $request->ip(),
@@ -45,7 +51,7 @@ final class AuthService
                 VALUES (:user_id, :cpf_hash, :cpf_masked, :cpf_last4, 1, NOW(), :ip, :ua, :marketing, IF(:marketing_for_date = 1, NOW(), NULL), 'active')")
                 ->execute([
                     'user_id' => $userId,
-                    'cpf_hash' => hash('sha256', $cpf . (string) config('app.key')),
+                    'cpf_hash' => $cpfHash,
                     'cpf_masked' => mask_cpf($cpf),
                     'cpf_last4' => substr($cpf, -4),
                     'ip' => $request->ip(),
@@ -67,7 +73,13 @@ final class AuthService
 
             $pdo->prepare('INSERT INTO loyalty_points (customer_id) VALUES (:customer_id)')->execute(['customer_id' => $customerId]);
             return $userId;
-        });
+            });
+        } catch (PDOException $exception) {
+            if ($exception->getCode() === '23000') {
+                throw new RuntimeException('E-mail ou CPF ja cadastrado.');
+            }
+            throw $exception;
+        }
     }
 
     public function login(string $email, string $password, Request $request, bool $adminOnly = false): bool
@@ -90,6 +102,11 @@ final class AuthService
             return false;
         }
 
+        if (!$adminOnly && $user['user_type'] !== 'customer') {
+            $this->securityEvent('permission_denied', (int) $user['id'], $email, $request);
+            return false;
+        }
+
         if ($adminOnly && $user['user_type'] !== 'system') {
             $adminStmt = Database::connection()->prepare("SELECT status FROM admins WHERE user_id = :user_id AND deleted_at IS NULL LIMIT 1");
             $adminStmt->execute(['user_id' => $user['id']]);
@@ -104,19 +121,27 @@ final class AuthService
         }
 
         session_regenerate_id(true);
+        Session::forget('customer_id');
+        Session::forget('selected_filial_id');
         Session::put('user', [
             'id' => (int) $user['id'],
             'name' => $user['name'],
             'email' => $user['email'],
+            'phone' => $user['phone'],
             'user_type' => $user['user_type'],
+            'id_filial' => $user['id_filial'] !== null ? (int) $user['id_filial'] : null,
+            'session_version' => (int) $user['session_version'],
         ]);
         if ($user['user_type'] === 'customer') {
-            $customerStmt = Database::connection()->prepare('SELECT id FROM customers WHERE user_id = :user_id LIMIT 1');
+            $customerStmt = Database::connection()->prepare('SELECT id, account_status FROM customers WHERE user_id = :user_id AND deleted_at IS NULL LIMIT 1');
             $customerStmt->execute(['user_id' => $user['id']]);
-            $customerId = $customerStmt->fetchColumn();
-            if ($customerId) {
-                Session::put('customer_id', (int) $customerId);
+            $customer = $customerStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$customer || in_array((string) $customer['account_status'], ['deleted', 'anonymized'], true)) {
+                Session::destroy();
+                $this->securityEvent('permission_denied', (int) $user['id'], $email, $request);
+                return false;
             }
+            Session::put('customer_id', (int) $customer['id']);
         }
 
         Database::connection()->prepare('UPDATE users SET last_login_at = NOW(), last_login_ip = :ip WHERE id = :id')
@@ -189,5 +214,20 @@ final class AuthService
                 'ip' => $request->ip(),
                 'ua' => $request->userAgent(),
             ]);
+    }
+
+    private function assertCustomerUnique(string $email, string $cpfHash): void
+    {
+        $stmt = Database::connection()->prepare('SELECT COUNT(*) FROM users WHERE email = :email AND deleted_at IS NULL');
+        $stmt->execute(['email' => $email]);
+        if ((int) $stmt->fetchColumn() > 0) {
+            throw new RuntimeException('E-mail ou CPF ja cadastrado.');
+        }
+
+        $stmt = Database::connection()->prepare('SELECT COUNT(*) FROM customers WHERE cpf_hash = :cpf_hash AND deleted_at IS NULL');
+        $stmt->execute(['cpf_hash' => $cpfHash]);
+        if ((int) $stmt->fetchColumn() > 0) {
+            throw new RuntimeException('E-mail ou CPF ja cadastrado.');
+        }
     }
 }

@@ -6,6 +6,9 @@ $fullTitle = $pageTitle === $appName ? $appName . ' | Farmacia online segura' : 
 $metaDescription = (string) ($description ?? 'FarmaVida e uma farmacia online com compra segura, receitas protegidas, entrega local, retirada na loja e atendimento farmaceutico.');
 $canonicalUrl = url($_SERVER['REQUEST_URI'] ?? '/');
 $pharmacyName = (string) (($pharmacy['trade_name'] ?? '') ?: $appName);
+$currentUser = user();
+$isCustomerUser = ($currentUser['user_type'] ?? '') === 'customer';
+$isAdminUser = $currentUser !== null && in_array($currentUser['user_type'] ?? '', ['admin', 'system'], true);
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -58,9 +61,13 @@ $pharmacyName = (string) (($pharmacy['trade_name'] ?? '') ?: $appName);
     <nav class="main-nav" aria-label="Navegacao principal">
       <a class="nav-link" href="/catalogo">Catalogo</a>
       <a class="nav-link" href="/faq-clinico">Receitas</a>
+      <?php if ($isCustomerUser): ?><a class="nav-link" href="/cliente/servicos">Servicos</a><?php endif; ?>
       <a class="nav-link cart-link" href="/sacola">Sacola <span data-cart-count></span></a>
-      <?php if (user()): ?>
+      <?php if ($isCustomerUser): ?>
         <a class="nav-link" href="/cliente">Minha conta</a>
+        <form action="/logout" method="post" class="inline"><?= csrf_field() ?><button type="submit">Sair</button></form>
+      <?php elseif ($isAdminUser): ?>
+        <a class="nav-link" href="/admin">Admin</a>
         <form action="/logout" method="post" class="inline"><?= csrf_field() ?><button type="submit">Sair</button></form>
       <?php else: ?>
         <a class="nav-link" href="/login">Entrar</a>
@@ -104,9 +111,12 @@ $pharmacyName = (string) (($pharmacy['trade_name'] ?? '') ?: $appName);
   <nav class="mobile-bottom-nav" aria-label="Navegacao mobile">
     <a href="/" class="mobile-nav-link">Inicio</a>
     <a href="/catalogo" class="mobile-nav-link">Catalogo</a>
+    <?php if ($isCustomerUser): ?><a href="/cliente/servicos" class="mobile-nav-link">Servicos</a><?php endif; ?>
     <a href="/sacola" class="mobile-nav-link">Sacola</a>
-    <?php if (user()): ?>
+    <?php if ($isCustomerUser): ?>
       <a href="/cliente" class="mobile-nav-link">Conta</a>
+    <?php elseif ($isAdminUser): ?>
+      <a href="/admin" class="mobile-nav-link">Admin</a>
     <?php else: ?>
       <a href="/login" class="mobile-nav-link">Entrar</a>
     <?php endif; ?>

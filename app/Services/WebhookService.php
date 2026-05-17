@@ -31,4 +31,15 @@ final class WebhookService
                 ]);
         }
     }
+
+    public function dispatchQueuedPayload(array $payload): void
+    {
+        $event = (string) ($payload['event'] ?? '');
+        $relatedType = (string) ($payload['related_type'] ?? '');
+        $relatedId = (int) ($payload['related_id'] ?? 0);
+        if ($event === '' || $relatedType === '' || $relatedId <= 0) {
+            return;
+        }
+        $this->dispatch($event, $relatedType, $relatedId, is_array($payload['payload'] ?? null) ? $payload['payload'] : []);
+    }
 }

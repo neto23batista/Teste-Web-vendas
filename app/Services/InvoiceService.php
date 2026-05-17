@@ -12,6 +12,8 @@ final class InvoiceService
 {
     public function issue(int $orderId): int
     {
+        (new FiscalService())->issue($orderId);
+
         return (int) Database::transaction(function (PDO $pdo) use ($orderId): int {
             $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = :id LIMIT 1');
             $stmt->execute(['id' => $orderId]);
@@ -19,6 +21,7 @@ final class InvoiceService
             if (!$order) {
                 throw new RuntimeException('Pedido nao encontrado.');
             }
+            (new BranchService())->assertCanAccess((int) $order['id_filial']);
 
             $sequence = $pdo->query("SELECT * FROM invoice_sequences WHERE series = '1' AND environment = 'simulated' FOR UPDATE")->fetch(PDO::FETCH_ASSOC);
             if (!$sequence) {
@@ -30,11 +33,12 @@ final class InvoiceService
 
             $pharmacy = $pdo->query('SELECT * FROM pharmacy_profiles WHERE is_active = 1 ORDER BY id DESC LIMIT 1')->fetch(PDO::FETCH_ASSOC) ?: [];
             $accessKey = $this->simulatedAccessKey($number);
-            $pdo->prepare("INSERT INTO invoices (public_id, order_id, customer_id, invoice_number, series, access_key_simulated, status, pharmacy_snapshot, customer_snapshot, delivery_address_snapshot, products_total, delivery_fee, discount_total, grand_total, issued_by)
-                VALUES (:public_id, :order_id, :customer_id, :number, '1', :key, 'emitida', :pharmacy, :customer, :address, :products, :delivery, :discount, :total, :user)")
+            $pdo->prepare("INSERT INTO invoices (public_id, order_id, id_filial, customer_id, invoice_number, series, access_key_simulated, status, pharmacy_snapshot, customer_snapshot, delivery_address_snapshot, products_total, delivery_fee, discount_total, grand_total, issued_by)
+                VALUES (:public_id, :order_id, :filial, :customer_id, :number, '1', :key, 'emitida', :pharmacy, :customer, :address, :products, :delivery, :discount, :total, :user)")
                 ->execute([
                     'public_id' => uuid_v4(),
                     'order_id' => $orderId,
+                    'filial' => $order['id_filial'],
                     'customer_id' => $order['customer_id'],
                     'number' => $number,
                     'key' => $accessKey,
@@ -85,4 +89,3 @@ final class InvoiceService
         return 'SIM' . date('Ymd') . str_pad((string) $number, 12, '0', STR_PAD_LEFT) . random_int(100000, 999999);
     }
 }
-

@@ -37,12 +37,20 @@ $router->get('/pedido/{public_id}', 'OrderTrackingController@show');
 $router->get('/pedido/{public_id}/status', 'OrderTrackingController@status');
 $router->post('/pagamento/mercado-pago/{public_id}', 'PaymentController@mercadoPago', ['CsrfMiddleware']);
 
-$router->get('/cliente', 'App\\Controllers\\Customer\\DashboardController@index', ['AuthMiddleware']);
-$router->get('/cliente/pedidos', 'App\\Controllers\\Customer\\DashboardController@orders', ['AuthMiddleware']);
-$router->get('/cliente/pedidos/{id}', 'App\\Controllers\\Customer\\DashboardController@order', ['AuthMiddleware']);
-$router->get('/cliente/perfil', 'App\\Controllers\\Customer\\DashboardController@profile', ['AuthMiddleware']);
-$router->get('/cliente/lgpd/exportar', 'App\\Controllers\\Customer\\DashboardController@lgpdExport', ['AuthMiddleware']);
-$router->post('/cliente/lgpd/solicitar', 'App\\Controllers\\Customer\\DashboardController@lgpdRequest', ['AuthMiddleware', 'CsrfMiddleware']);
+$customer = ['AuthMiddleware', 'CustomerMiddleware'];
+$customerPost = ['AuthMiddleware', 'CustomerMiddleware', 'CsrfMiddleware'];
+
+$router->get('/cliente', 'App\\Controllers\\Customer\\DashboardController@index', $customer);
+$router->get('/cliente/pedidos', 'App\\Controllers\\Customer\\DashboardController@orders', $customer);
+$router->get('/cliente/pedidos/{id}', 'App\\Controllers\\Customer\\DashboardController@order', $customer);
+$router->post('/cliente/avaliacoes', 'App\\Controllers\\Customer\\DashboardController@reviewStore', $customerPost);
+$router->get('/cliente/pontos', 'App\\Controllers\\Customer\\DashboardController@loyalty', $customer);
+$router->get('/cliente/servicos', 'App\\Controllers\\Customer\\DashboardController@services', $customer);
+$router->post('/cliente/servicos', 'App\\Controllers\\Customer\\DashboardController@serviceSchedule', $customerPost);
+$router->get('/cliente/perfil', 'App\\Controllers\\Customer\\DashboardController@profile', $customer);
+$router->post('/cliente/perfil', 'App\\Controllers\\Customer\\DashboardController@profileUpdate', $customerPost);
+$router->get('/cliente/lgpd/exportar', 'App\\Controllers\\Customer\\DashboardController@lgpdExport', $customer);
+$router->post('/cliente/lgpd/solicitar', 'App\\Controllers\\Customer\\DashboardController@lgpdRequest', $customerPost);
 
 $router->post('/webhooks/mercado-pago', 'App\\Controllers\\Webhook\\MercadoPagoController@receive');
 $router->post('/webhooks/incoming/{token}', 'App\\Controllers\\Webhook\\IncomingController@receive');

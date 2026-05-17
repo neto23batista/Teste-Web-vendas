@@ -45,16 +45,19 @@ final class ProductService
             return null;
         }
         $product['recommendations'] = $this->products->recommendations((int) $product['id']);
+        $product['review_summary'] = (new ProductReviewService())->productSummary((int) $product['id']);
         return $product;
     }
 
     public function createFromAdmin(array $input, ?array $image = null): int
     {
         $data = $this->normalizeAdminData($input);
+        $branchId = $this->branchIdFromInput($input);
         $data['public_id'] = uuid_v4();
         $data['created_by'] = user()['id'] ?? null;
         $data['main_image_path'] = $image ? $this->storeImage($image) : null;
         $id = $this->products->create($data);
+        (new StockService())->upsertProductStock($id, $branchId, (int) $data['current_stock'], (int) $data['minimum_stock'], $data['maximum_stock'], (string) $data['physical_location']);
         if ($data['main_image_path']) {
             $this->registerImage($id, $data['main_image_path'], $image);
         }
@@ -65,12 +68,14 @@ final class ProductService
     public function updateFromAdmin(int $id, array $input, ?array $image = null): void
     {
         $data = $this->normalizeAdminData($input, false);
+        $branchId = $this->branchIdFromInput($input);
         $data['updated_by'] = user()['id'] ?? null;
         if ($image && ($image['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
             $data['main_image_path'] = $this->storeImage($image);
             $this->registerImage($id, $data['main_image_path'], $image);
         }
         $this->products->update($id, $data);
+        (new StockService())->upsertProductStock($id, $branchId, (int) $data['current_stock'], (int) $data['minimum_stock'], $data['maximum_stock'], (string) $data['physical_location']);
         (new AuditService())->admin('products', 'updated', 'product', $id, [], $data);
     }
 
@@ -168,5 +173,16 @@ final class ProductService
                 'size' => (int) ($file['size'] ?? 0),
                 'user' => user()['id'] ?? null,
             ]);
+    }
+
+    private function branchIdFromInput(array $input): int
+    {
+        if (is_admin_geral() && isset($input['id_filial']) && $input['id_filial'] !== '' && $input['id_filial'] !== 'all') {
+            $branchId = (int) $input['id_filial'];
+        } else {
+            $branchId = (new BranchService())->currentId();
+        }
+        (new BranchService())->assertCanAccess($branchId);
+        return $branchId;
     }
 }

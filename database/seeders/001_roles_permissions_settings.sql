@@ -27,6 +27,8 @@ INSERT INTO permissions (module, action, slug, description) VALUES
 ('products','manage','products.manage','Gerenciar produtos, categorias, imagens e kits.'),
 ('stock','view','stock.view','Visualizar estoque.'),
 ('stock','manage','stock.manage','Gerenciar movimentos, lotes e inventarios.'),
+('stock_transfers','view','stock.transfers.view','Visualizar transferencias de estoque entre filiais.'),
+('stock_transfers','manage','stock.transfers.manage','Solicitar e atualizar transferencias de estoque entre filiais.'),
 ('orders','view','orders.view','Visualizar pedidos.'),
 ('orders','manage','orders.manage','Gerenciar pedidos e status.'),
 ('orders','cancel','orders.cancel','Cancelar pedidos com justificativa.'),
@@ -65,7 +67,7 @@ SELECT r.id, p.id
 FROM roles r
 INNER JOIN permissions p ON p.slug IN (
   'dashboard.view','orders.view','orders.manage','prescriptions.view','prescriptions.validate',
-  'products.view','stock.view','customers.view','reports.view'
+  'products.view','stock.view','stock.transfers.view','customers.view','reports.view'
 )
 WHERE r.slug = 'pharmacist';
 
@@ -82,7 +84,8 @@ INSERT IGNORE INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r
 INNER JOIN permissions p ON p.slug IN (
-  'dashboard.view','products.view','stock.view','stock.manage','reports.view'
+  'dashboard.view','products.view','stock.view','stock.manage','stock.transfers.view',
+  'stock.transfers.manage','reports.view'
 )
 WHERE r.slug = 'stockist';
 

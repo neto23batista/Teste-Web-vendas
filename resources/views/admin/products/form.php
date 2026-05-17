@@ -5,6 +5,7 @@ $checked = static function (string $key, bool $default = false) use ($p): string
     $value = array_key_exists($key, $p) ? !empty($p[$key]) : $default;
     return $value ? 'checked' : '';
 };
+$branches = is_admin_geral() ? (new App\Services\BranchService())->all() : [];
 ?>
 <form class="product-admin-form" action="<?= $isEdit ? '/admin/produtos/' . (int) $p['id'] : '/admin/produtos' ?>" method="post" enctype="multipart/form-data">
   <?= csrf_field() ?>
@@ -38,6 +39,15 @@ $checked = static function (string $key, bool $default = false) use ($p): string
       <label>Preco venda<input name="sale_price" type="number" step="0.01" min="0" required value="<?= e($p['sale_price'] ?? '0.00') ?>"></label>
       <label>Preco promocional<input name="promotional_price" type="number" step="0.01" min="0" value="<?= e($p['promotional_price'] ?? '') ?>"></label>
       <label>Custo<input name="cost_price" type="number" step="0.01" min="0" value="<?= e($p['cost_price'] ?? '') ?>"></label>
+      <?php if (is_admin_geral()): ?>
+        <label>Filial do estoque
+          <select name="id_filial" required>
+            <?php foreach ($branches as $branch): ?>
+              <option value="<?= (int) $branch['id'] ?>" <?= (int) App\Core\Session::get('selected_filial_id', user_filial_id() ?: 0) === (int) $branch['id'] ? 'selected' : '' ?>><?= e($branch['nome']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </label>
+      <?php endif; ?>
       <label>Estoque atual<input name="current_stock" type="number" min="0" value="<?= e($p['current_stock'] ?? 0) ?>"></label>
       <label>Estoque minimo<input name="minimum_stock" type="number" min="0" value="<?= e($p['minimum_stock'] ?? 0) ?>"></label>
       <label>Estoque maximo<input name="maximum_stock" type="number" min="0" value="<?= e($p['maximum_stock'] ?? '') ?>"></label>

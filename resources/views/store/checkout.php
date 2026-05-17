@@ -79,6 +79,14 @@ $hasPrescription = array_sum(array_map(static fn (array $item): int => (int) ($i
           </select>
         </label>
         <label>Cupom<input name="coupon_code" autocomplete="off" placeholder="Ex.: SAUDE10"></label>
+        <?php if (!empty($loyalty['available_points'])): ?>
+          <label>Pontos de fidelidade
+            <input name="loyalty_points" type="number" min="0" step="<?= (int) ($loyalty['points_per_real'] ?? 10) ?>" max="<?= (int) ($loyalty['max_points'] ?? 0) ?>" placeholder="Max. <?= (int) ($loyalty['max_points'] ?? 0) ?>">
+            <span class="field-help"><?= (int) $loyalty['available_points'] ?> ponto(s) disponiveis. <?= (int) ($loyalty['points_per_real'] ?? 10) ?> pontos = R$ 1,00.</span>
+          </label>
+        <?php elseif (!user()): ?>
+          <p class="helper">Entre na conta para resgatar pontos de fidelidade no checkout.</p>
+        <?php endif; ?>
       </div>
       <?php if ($hasPrescription): ?>
         <div class="alert warning">Sua sacola contem medicamento com receita. Envie PDF, JPG ou PNG para concluir o pedido.</div>
@@ -96,6 +104,9 @@ $hasPrescription = array_sum(array_map(static fn (array $item): int => (int) ($i
       <div class="summary-line"><span><?= e($item['name']) ?> x<?= (int) $item['quantity'] ?></span><strong><?= money($item['line_total']) ?></strong></div>
     <?php endforeach; ?>
     <div class="summary-line"><span>Produtos</span><strong><?= money($summary['cart']['subtotal'] ?? 0) ?></strong></div>
+    <?php if (!empty($loyalty['max_discount'])): ?>
+      <div class="summary-line"><span>Desconto max. por pontos</span><strong><?= money($loyalty['max_discount']) ?></strong></div>
+    <?php endif; ?>
     <div class="summary-line total"><span>Total inicial</span><strong><?= money($summary['cart']['grand_total'] ?? 0) ?></strong></div>
     <ul class="secure-list">
       <li>Ambiente com CSRF e sessao protegida.</li>

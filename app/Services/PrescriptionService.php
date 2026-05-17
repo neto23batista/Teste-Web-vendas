@@ -13,6 +13,10 @@ final class PrescriptionService
 
     public function store(int $orderId, ?int $customerId, array $file): int
     {
+        $orderStmt = Database::connection()->prepare('SELECT id_filial FROM orders WHERE id = :id LIMIT 1');
+        $orderStmt->execute(['id' => $orderId]);
+        $branchId = (int) ($orderStmt->fetchColumn() ?: (new BranchService())->currentId());
+
         if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
             throw new RuntimeException('Falha no upload da receita.');
         }
@@ -44,11 +48,12 @@ final class PrescriptionService
         }
 
         $hash = hash_file('sha256', $target);
-        $stmt = Database::connection()->prepare("INSERT INTO prescriptions (public_id, order_id, customer_id, uploaded_by_user_id, file_storage_path, original_filename, mime_type, file_size, file_hash, prescription_type, status, received_ip, received_user_agent)
-            VALUES (:public_id, :order_id, :customer_id, :user_id, :path, :original, :mime, :size, :hash, :type, 'receita_enviada', :ip, :ua)");
+        $stmt = Database::connection()->prepare("INSERT INTO prescriptions (public_id, order_id, id_filial, customer_id, uploaded_by_user_id, file_storage_path, original_filename, mime_type, file_size, file_hash, prescription_type, status, received_ip, received_user_agent)
+            VALUES (:public_id, :order_id, :filial, :customer_id, :user_id, :path, :original, :mime, :size, :hash, :type, 'receita_enviada', :ip, :ua)");
         $stmt->execute([
             'public_id' => uuid_v4(),
             'order_id' => $orderId,
+            'filial' => $branchId,
             'customer_id' => $customerId,
             'user_id' => user()['id'] ?? null,
             'path' => $target,
@@ -67,13 +72,18 @@ final class PrescriptionService
 
     public function validate(int $prescriptionId, string $decision, string $note = ''): void
     {
+        if (!is_farmaceutico() && !is_admin_geral() && !is_gerente_loja()) {
+            throw new RuntimeException('Apenas farmaceutico, gerente da loja ou admin geral pode validar receitas.');
+        }
+
         $status = $decision === 'approve' ? 'liberado' : ($decision === 'block' ? 'bloqueado_orientacao_farmaceutica' : 'rejeitado');
-        $stmt = Database::connection()->prepare('SELECT * FROM prescriptions WHERE id = :id LIMIT 1');
+        $stmt = Database::connection()->prepare('SELECT pr.*, o.id_filial AS order_filial FROM prescriptions pr INNER JOIN orders o ON o.id = pr.order_id WHERE pr.id = :id LIMIT 1');
         $stmt->execute(['id' => $prescriptionId]);
         $prescription = $stmt->fetch();
         if (!$prescription) {
             throw new RuntimeException('Receita nao encontrada.');
         }
+        (new BranchService())->assertCanAccess((int) $prescription['order_filial']);
 
         Database::connection()->prepare('UPDATE prescriptions SET status = :status, pharmacist_notes = :note, rejection_reason = IF(:status_for_rejection = "rejeitado", :rejection_note, rejection_reason), validated_by_user_id = :user, validated_at = NOW() WHERE id = :id')
             ->execute(['status' => $status, 'status_for_rejection' => $status, 'note' => $note, 'rejection_note' => $note, 'user' => user()['id'] ?? null, 'id' => $prescriptionId]);
@@ -95,10 +105,14 @@ final class PrescriptionService
 
     private function audit(int $prescriptionId, int $orderId, string $action, ?string $previous, ?string $new, ?string $notes = null): void
     {
-        Database::connection()->prepare('INSERT INTO prescription_audits (prescription_id, order_id, action, previous_status, new_status, actor_user_id, actor_role, ip_address, user_agent, notes) VALUES (:prescription, :order_id, :action, :previous, :new, :actor, :role, :ip, :ua, :notes)')
+        $branchStmt = Database::connection()->prepare('SELECT id_filial FROM orders WHERE id = :id LIMIT 1');
+        $branchStmt->execute(['id' => $orderId]);
+        $branchId = (int) ($branchStmt->fetchColumn() ?: 0) ?: null;
+        Database::connection()->prepare('INSERT INTO prescription_audits (prescription_id, order_id, id_filial, action, previous_status, new_status, actor_user_id, actor_role, ip_address, user_agent, notes) VALUES (:prescription, :order_id, :filial, :action, :previous, :new, :actor, :role, :ip, :ua, :notes)')
             ->execute([
                 'prescription' => $prescriptionId,
                 'order_id' => $orderId,
+                'filial' => $branchId,
                 'action' => $action,
                 'previous' => $previous,
                 'new' => $new,

@@ -6,12 +6,15 @@
   </div>
   <div class="actions">
     <a class="btn" href="/cliente/pedidos">Meus pedidos</a>
+    <a class="btn" href="/cliente/pontos">Pontos</a>
+    <a class="btn" href="/cliente/servicos">Servicos</a>
     <a class="btn" href="/cliente/perfil">Perfil</a>
   </div>
 </section>
 
 <div class="metric-grid">
   <div class="metric"><span>Pedidos recentes</span><strong><?= count($orders) ?></strong></div>
+  <div class="metric success"><span>Pontos disponiveis</span><strong><?= (int) (($loyalty['points']['available_points'] ?? 0)) ?></strong></div>
   <div class="metric success"><span>Privacidade</span><strong>LGPD</strong></div>
   <div class="metric"><span>Atendimento</span><strong>Farmacia</strong></div>
 </div>

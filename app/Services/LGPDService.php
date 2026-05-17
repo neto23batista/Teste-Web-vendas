@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\Database;
+use RuntimeException;
 
 final class LGPDService
 {
@@ -24,8 +25,11 @@ final class LGPDService
 
     public function request(int $customerId, string $type, string $description): void
     {
+        if (!in_array($type, ['export', 'delete', 'anonymize', 'rectify', 'revoke_consent', 'information'], true)) {
+            throw new RuntimeException('Tipo de solicitacao LGPD invalido.');
+        }
+
         Database::connection()->prepare('INSERT INTO lgpd_requests (public_id, customer_id, request_type, requested_by_user_id, description, due_at) VALUES (:public_id, :customer, :type, :user, :description, DATE_ADD(NOW(), INTERVAL 15 DAY))')
             ->execute(['public_id' => uuid_v4(), 'customer' => $customerId, 'type' => $type, 'user' => user()['id'] ?? null, 'description' => $description]);
     }
 }
-

@@ -79,6 +79,8 @@ final class OrderService
         $summary = $cartService->summary();
         $cart = $summary['cart'];
         $items = $summary['items'];
+        $branchId = (int) ($cart['id_filial'] ?? (new BranchService())->currentId());
+        (new BranchService())->assertCanAccess($branchId);
 
         if (!$items) {
             throw new RuntimeException('Carrinho vazio.');
@@ -109,31 +111,41 @@ final class OrderService
             'state' => $data['state'] ?? '',
             'complement' => $data['complement'] ?? '',
         ];
-        $delivery = (new DeliveryService())->calculate((string) ($data['delivery_method'] ?? 'pickup'), $address, (float) $cart['subtotal']);
+        $delivery = (new DeliveryService())->calculate((string) ($data['delivery_method'] ?? 'pickup'), $address, (float) $cart['subtotal'], $branchId);
         if (!empty($delivery['error'])) {
             throw new RuntimeException((string) $delivery['error']);
         }
         $coupon = (new CouponService())->apply((string) ($data['coupon_code'] ?? ''), (float) $cart['subtotal'], (float) $delivery['fee']);
-        $discount = $coupon['discount'] + $coupon['delivery_discount'];
+        $eligibleForLoyalty = max(0.0, (float) $cart['subtotal'] - (float) $coupon['discount']);
+        $requestedLoyaltyPoints = (int) ($data['loyalty_points'] ?? 0);
+        $loyalty = ['points' => 0, 'discount' => 0.0, 'coupon_code' => null];
+        if ($requestedLoyaltyPoints > 0) {
+            if (!$customerId) {
+                throw new RuntimeException('Entre na conta para resgatar pontos.');
+            }
+            $loyalty = (new LoyaltyService())->previewRedemption((int) $customerId, $requestedLoyaltyPoints, $eligibleForLoyalty);
+        }
+        $discount = $coupon['discount'] + $coupon['delivery_discount'] + $loyalty['discount'];
         $grandTotal = max(0, (float) $cart['subtotal'] + (float) $delivery['fee'] - $discount);
 
-        return (int) Database::transaction(function (PDO $pdo) use ($cart, $items, $customerId, $data, $address, $delivery, $coupon, $discount, $grandTotal, $hasPrescription, $file): int {
+        return (int) Database::transaction(function (PDO $pdo) use ($cart, $items, $customerId, $data, $address, $delivery, $coupon, $loyalty, $eligibleForLoyalty, $requestedLoyaltyPoints, $discount, $grandTotal, $hasPrescription, $file, $branchId): int {
             $number = 'FV' . date('YmdHis') . random_int(100, 999);
             $status = $hasPrescription ? 'aguardando_receita' : 'aguardando_pagamento';
             $clinical = $hasPrescription ? 'aguardando_receita' : 'nao_exige_receita';
 
             $pdo->prepare("INSERT INTO orders (
-                public_id, order_number, customer_id, cart_id, status, payment_status, clinical_status,
+                public_id, id_filial, order_number, customer_id, cart_id, status, payment_status, clinical_status,
                 delivery_method, requires_prescription, has_controlled_items, subtotal, discount_total,
-                coupon_discount, delivery_fee, grand_total, coupon_code, customer_note, delivery_address_snapshot,
+                coupon_discount, loyalty_points_redeemed, loyalty_discount, delivery_fee, grand_total, coupon_code, customer_note, delivery_address_snapshot,
                 customer_snapshot, created_ip, created_user_agent
             ) VALUES (
-                :public_id, :number, :customer_id, :cart_id, :status, 'aguardando_pagamento', :clinical,
+                :public_id, :filial, :number, :customer_id, :cart_id, :status, 'aguardando_pagamento', :clinical,
                 :delivery_method, :requires_prescription, :controlled, :subtotal, :discount,
-                :coupon_discount, :delivery_fee, :grand_total, :coupon_code, :note, :address,
+                :coupon_discount, :loyalty_points, :loyalty_discount, :delivery_fee, :grand_total, :coupon_code, :note, :address,
                 :customer, :ip, :ua
             )")->execute([
                 'public_id' => uuid_v4(),
+                'filial' => $branchId,
                 'number' => $number,
                 'customer_id' => $customerId ?: null,
                 'cart_id' => $cart['id'],
@@ -145,6 +157,8 @@ final class OrderService
                 'subtotal' => $cart['subtotal'],
                 'discount' => $discount,
                 'coupon_discount' => $coupon['discount'],
+                'loyalty_points' => $loyalty['points'],
+                'loyalty_discount' => $loyalty['discount'],
                 'delivery_fee' => $delivery['fee'],
                 'grand_total' => $grandTotal,
                 'coupon_code' => $coupon['coupon']['code'] ?? null,
@@ -155,6 +169,17 @@ final class OrderService
                 'ua' => substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
             ]);
             $orderId = (int) $pdo->lastInsertId();
+
+            if ($requestedLoyaltyPoints > 0 && $customerId) {
+                $redemption = (new LoyaltyService())->consumeForOrder($pdo, (int) $customerId, $orderId, (int) $cart['id'], $requestedLoyaltyPoints, $eligibleForLoyalty);
+                $pdo->prepare('UPDATE orders SET loyalty_redemption_id = :redemption, loyalty_points_redeemed = :points, loyalty_discount = :discount WHERE id = :id')
+                    ->execute([
+                        'redemption' => $redemption['id'],
+                        'points' => $redemption['points'],
+                        'discount' => $redemption['discount'],
+                        'id' => $orderId,
+                    ]);
+            }
 
             foreach ($items as $item) {
                 $pdo->prepare("INSERT INTO order_items (
@@ -200,6 +225,7 @@ final class OrderService
 
             (new PaymentService())->createPending($orderId, $grandTotal, (string) ($data['payment_method'] ?? 'pix'));
             (new EmailService())->queue('order_confirmation', (string) ($data['email'] ?? ''), 'Pedido recebido - FarmaVida', 'emails/order_confirmation', ['order_number' => $number, 'total' => $grandTotal], $orderId);
+            (new WebhookService())->dispatch('pedido_criado', 'order', $orderId);
             return $orderId;
         });
     }
@@ -211,14 +237,19 @@ final class OrderService
         }
 
         Database::transaction(function (PDO $pdo) use ($orderId, $status, $message, $options): void {
-            $stmt = $pdo->prepare('SELECT status, priority, has_problem, problem_reason, internal_note, pharmacy_note_to_customer FROM orders WHERE id = :id AND deleted_at IS NULL LIMIT 1 FOR UPDATE');
+            $stmt = $pdo->prepare('SELECT id_filial, status, payment_status, clinical_status, requires_prescription, delivery_method, priority, has_problem, problem_reason, internal_note, pharmacy_note_to_customer FROM orders WHERE id = :id AND deleted_at IS NULL LIMIT 1 FOR UPDATE');
             $stmt->execute(['id' => $orderId]);
             $order = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$order) {
                 throw new RuntimeException('Pedido nao encontrado.');
             }
+            (new BranchService())->assertCanAccess((int) $order['id_filial']);
 
             $oldStatus = (string) $order['status'];
+            $warning = self::statusWarning($order, $status);
+            if ($warning !== null && in_array($status, ['em_separacao', 'conferido', 'saiu_para_entrega', 'pronto_para_retirada', 'entregue'], true)) {
+                throw new RuntimeException($warning);
+            }
             $oldPriority = (string) ($order['priority'] ?? 'normal');
             $oldHasProblem = (int) ($order['has_problem'] ?? 0);
             $oldProblemReason = (string) ($order['problem_reason'] ?? '');

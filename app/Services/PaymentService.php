@@ -12,12 +12,16 @@ final class PaymentService
     public function createPending(int $orderId, float $amount, string $method): int
     {
         $idempotency = hash('sha256', 'order:' . $orderId . ':amount:' . number_format($amount, 2, '.', ''));
-        $stmt = Database::connection()->prepare("INSERT INTO payments (public_id, order_id, provider, environment, payment_method, idempotency_key_hash, status, amount, currency)
-            VALUES (:public_id, :order_id, 'mercado_pago', :environment, :method, :idempotency, 'aguardando_pagamento', :amount, 'BRL')
+        $orderStmt = Database::connection()->prepare('SELECT id_filial FROM orders WHERE id = :id LIMIT 1');
+        $orderStmt->execute(['id' => $orderId]);
+        $branchId = (int) ($orderStmt->fetchColumn() ?: (new BranchService())->currentId());
+        $stmt = Database::connection()->prepare("INSERT INTO payments (public_id, order_id, id_filial, provider, environment, payment_method, idempotency_key_hash, status, amount, currency)
+            VALUES (:public_id, :order_id, :filial, 'mercado_pago', :environment, :method, :idempotency, 'aguardando_pagamento', :amount, 'BRL')
             ON DUPLICATE KEY UPDATE amount = VALUES(amount), payment_method = VALUES(payment_method), updated_at = NOW()");
         $stmt->execute([
             'public_id' => uuid_v4(),
             'order_id' => $orderId,
+            'filial' => $branchId,
             'environment' => $this->mercadoPagoEnvironment(),
             'method' => in_array($method, ['pix', 'credit_card', 'debit_card'], true) ? $method : 'unknown',
             'idempotency' => $idempotency,
@@ -41,6 +45,7 @@ final class PaymentService
         if (!$order) {
             return ['ok' => false, 'error' => 'Pedido nao encontrado.'];
         }
+        (new BranchService())->assertCanAccess((int) $order['id_filial']);
 
         $notification = $this->resolveMercadoPagoNotificationUrl();
         $payload = [
@@ -306,9 +311,10 @@ final class PaymentService
         $orderNumber = (string) ($json['external_reference'] ?? '');
         $mapped = $this->mapStatus((string) ($json['status'] ?? ''));
         $pdo = Database::connection();
-        $stmt = $pdo->prepare('SELECT id FROM orders WHERE order_number = :number LIMIT 1');
+        $stmt = $pdo->prepare('SELECT id, id_filial FROM orders WHERE order_number = :number LIMIT 1');
         $stmt->execute(['number' => $orderNumber]);
-        $orderId = (int) ($stmt->fetchColumn() ?: 0);
+        $order = $stmt->fetch(PDO::FETCH_ASSOC);
+        $orderId = (int) ($order['id'] ?? 0);
         if ($orderId <= 0) {
             return;
         }
@@ -322,6 +328,7 @@ final class PaymentService
             (new StockService())->reserveOrDebitForOrder($orderId);
             (new LoyaltyService())->releaseForOrder($orderId);
             (new WebhookService())->dispatch('pagamento_confirmado', 'order', $orderId);
+            (new FileCacheService())->forgetPrefix('dashboard', (int) $order['id_filial']);
         }
     }
 

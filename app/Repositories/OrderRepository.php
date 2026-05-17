@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use App\Services\BranchService;
+
 final class OrderRepository extends BaseRepository
 {
     public function latest(?int $customerId = null, int $limit = 20, array $filters = []): array
@@ -14,6 +16,14 @@ final class OrderRepository extends BaseRepository
         if ($customerId !== null) {
             $where .= ' AND o.customer_id = :customer_id';
             $params['customer_id'] = $customerId;
+        } elseif (!is_admin_geral()) {
+            $where .= ' AND o.id_filial = :id_filial';
+            $params['id_filial'] = (new BranchService())->currentId();
+        } elseif (($filters['id_filial'] ?? 'all') !== 'all' && ($filters['id_filial'] ?? '') !== '') {
+            $branchId = (int) $filters['id_filial'];
+            (new BranchService())->assertCanAccess($branchId);
+            $where .= ' AND o.id_filial = :id_filial';
+            $params['id_filial'] = $branchId;
         }
 
         $status = trim((string) ($filters['status'] ?? ''));
@@ -104,7 +114,13 @@ final class OrderRepository extends BaseRepository
 
     public function adminSummary(): array
     {
-        $row = $this->db->query("SELECT
+        $params = [];
+        $scope = '';
+        if (!is_admin_geral()) {
+            $scope = ' AND id_filial = :id_filial';
+            $params['id_filial'] = (new BranchService())->currentId();
+        }
+        $stmt = $this->db->prepare("SELECT
                 COUNT(*) AS total_orders,
                 COALESCE(SUM(status NOT IN ('entregue', 'cancelado')), 0) AS open_orders,
                 COALESCE(SUM(status = 'aguardando_pagamento'), 0) AS waiting_payment,
@@ -114,7 +130,9 @@ final class OrderRepository extends BaseRepository
                 COALESCE(SUM(has_problem = 1), 0) AS problem_orders,
                 COALESCE(SUM(priority IN ('urgent', 'critical') AND status NOT IN ('entregue', 'cancelado')), 0) AS urgent_orders
             FROM orders
-            WHERE deleted_at IS NULL")->fetch();
+            WHERE deleted_at IS NULL{$scope}");
+        $stmt->execute($params);
+        $row = $stmt->fetch();
 
         return $row ?: [];
     }
@@ -160,6 +178,12 @@ final class OrderRepository extends BaseRepository
 
     public function find(int $id): ?array
     {
+        $branchScope = '';
+        $params = ['id' => $id];
+        if (!is_admin_geral()) {
+            $branchScope = ' AND o.id_filial = :id_filial';
+            $params['id_filial'] = (new BranchService())->currentId();
+        }
         $stmt = $this->db->prepare("SELECT
                 o.*,
                 COALESCE(u.name, JSON_UNQUOTE(JSON_EXTRACT(o.customer_snapshot, '$.name'))) AS customer_name,
@@ -169,9 +193,9 @@ final class OrderRepository extends BaseRepository
             FROM orders o
             LEFT JOIN customers c ON c.id = o.customer_id
             LEFT JOIN users u ON u.id = c.user_id
-            WHERE o.id = :id AND o.deleted_at IS NULL
+            WHERE o.id = :id AND o.deleted_at IS NULL{$branchScope}
             LIMIT 1");
-        $stmt->execute(['id' => $id]);
+        $stmt->execute($params);
         $row = $stmt->fetch();
         return $row ?: null;
     }

@@ -1154,6 +1154,27 @@ tbody tr:last-child td { border-bottom: 0; }
 .inline { display: inline; }
 .inline button { font: inherit; }
 
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.review-list {
+  display: grid;
+  gap: 12px;
+}
+
+.review-item {
+  padding-block: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.review-item:first-child {
+  border-top: 0;
+}
+
 .timeline {
   display: grid;
   gap: 12px;

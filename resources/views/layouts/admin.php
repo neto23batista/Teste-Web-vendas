@@ -5,6 +5,9 @@ $userName = (string) ($currentUser['name'] ?? 'Admin FarmaVida');
 $initials = strtoupper(substr(trim($userName), 0, 1) ?: 'F');
 $pageTitle = (string) ($title ?? 'Admin FarmaVida');
 $isOwnerUser = is_owner();
+$branchService = new App\Services\BranchService();
+$branches = is_admin_geral() ? $branchService->all() : [];
+$currentBranchLabel = is_admin_geral() ? $branchService->branchName(App\Core\Session::get('selected_filial_id')) : $branchService->branchName(user_filial_id());
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -36,6 +39,9 @@ $isOwnerUser = is_owner();
     <a href="/admin/pedidos" data-icon="orders"><span>Pedidos</span></a>
     <a href="/admin/receitas" data-icon="rx"><span>Receitas</span></a>
     <a href="/admin/estoque" data-icon="stock"><span>Estoque</span></a>
+    <a href="/admin/estoque/transferencias" data-icon="stock"><span>Transferencias</span></a>
+    <a href="/admin/caixa" data-icon="money"><span>Caixa</span></a>
+    <a href="/admin/compras" data-icon="orders"><span>Compras</span></a>
     <a href="/admin/clientes" data-icon="customers"><span>Clientes</span></a>
     <?php if ($isOwnerUser): ?>
       <a href="/admin/funcionarios" data-icon="customers"><span>Funcionarios</span></a>
@@ -43,6 +49,8 @@ $isOwnerUser = is_owner();
     <span class="nav-group-title">Catalogo</span>
     <a href="/admin/produtos" data-icon="stock"><span>Produtos</span></a>
     <a href="/admin/marketing" data-icon="dashboard"><span>Marketing</span></a>
+    <a href="/admin/avaliacoes" data-icon="dashboard"><span>Avaliacoes</span></a>
+    <a href="/admin/servicos" data-icon="orders"><span>Servicos</span></a>
     <a href="/admin/entrega" data-icon="orders"><span>Entrega</span></a>
     <span class="nav-group-title">Financeiro</span>
     <a href="/admin/pagamentos" data-icon="money"><span>Pagamentos</span></a>
@@ -53,6 +61,7 @@ $isOwnerUser = is_owner();
     <?php if ($isOwnerUser): ?>
       <a href="/admin/configuracoes" data-icon="stock"><span>Configuracoes</span></a>
     <?php endif; ?>
+    <a href="/admin/jobs" data-icon="dashboard"><span>Jobs</span></a>
     <a href="/admin/logs" data-icon="orders"><span>Logs</span></a>
   </aside>
 
@@ -65,6 +74,18 @@ $isOwnerUser = is_owner();
         </form>
       </div>
       <div class="admin-topbar-actions">
+        <?php if (is_admin_geral()): ?>
+          <form class="branch-switcher" method="get" action="<?= e(parse_url($_SERVER['REQUEST_URI'] ?? '/admin', PHP_URL_PATH) ?: '/admin') ?>">
+            <select name="id_filial" onchange="this.form.submit()" aria-label="Filial">
+              <option value="all">Todas as filiais</option>
+              <?php foreach ($branches as $branch): ?>
+                <option value="<?= (int) $branch['id'] ?>" <?= (int) App\Core\Session::get('selected_filial_id') === (int) $branch['id'] ? 'selected' : '' ?>><?= e($branch['nome']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </form>
+        <?php else: ?>
+          <span class="tag neutral"><?= e($currentBranchLabel) ?></span>
+        <?php endif; ?>
         <button class="icon-btn notification-dot tooltip" type="button" data-notification-demo data-tooltip="Notificacoes" aria-label="Notificacoes"></button>
         <button class="theme-toggle tooltip" type="button" data-theme-toggle data-tooltip="Alternar tema" aria-label="Alternar tema"></button>
         <div class="admin-user-chip">

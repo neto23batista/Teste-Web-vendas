@@ -14,32 +14,37 @@ final class CartService
 {
     public function current(): array
     {
+        $branchId = (new BranchService())->currentId();
         $cartId = Session::get('cart_id');
         if (!$cartId) {
             return $this->createCart();
         }
 
-        $stmt = Database::connection()->prepare("SELECT * FROM carts WHERE id = :id AND status = 'active' LIMIT 1");
-        $stmt->execute(['id' => $cartId]);
+        $stmt = Database::connection()->prepare("SELECT * FROM carts WHERE id = :id AND id_filial = :filial AND status = 'active' LIMIT 1");
+        $stmt->execute(['id' => $cartId, 'filial' => $branchId]);
         $cart = $stmt->fetch(PDO::FETCH_ASSOC);
         return $cart ?: $this->createCart();
     }
 
     public function items(int $cartId): array
     {
-        $stmt = Database::connection()->prepare("SELECT ci.*, p.name, p.slug, p.main_image_path, p.current_stock, p.remote_sale_policy
+        $branchId = (new BranchService())->currentId();
+        $stmt = Database::connection()->prepare("SELECT ci.*, p.name, p.slug, p.main_image_path, COALESCE(ef.quantidade, p.current_stock) AS current_stock, p.remote_sale_policy
             FROM cart_items ci
             INNER JOIN products p ON p.id = ci.product_id
-            WHERE ci.cart_id = :cart_id
+            INNER JOIN carts c ON c.id = ci.cart_id
+            LEFT JOIN estoque_filial ef ON ef.id_produto = p.id AND ef.id_filial = c.id_filial
+            WHERE ci.cart_id = :cart_id AND c.id_filial = :filial
             ORDER BY ci.id");
-        $stmt->execute(['cart_id' => $cartId]);
+        $stmt->execute(['cart_id' => $cartId, 'filial' => $branchId]);
         return $stmt->fetchAll();
     }
 
     public function add(int $productId, int $quantity = 1): array
     {
         $quantity = max(1, $quantity);
-        $product = (new ProductRepository())->find($productId);
+        $branchId = (new BranchService())->currentId();
+        $product = (new ProductRepository())->find($productId, $branchId);
         if (!$product || (int) $product['is_active'] !== 1 || ($product['visibility'] ?? '') !== 'public') {
             throw new RuntimeException('Produto indisponivel.');
         }
@@ -87,8 +92,14 @@ final class CartService
     {
         $quantity = max(1, $quantity);
         $cart = $this->current();
-        $stmt = Database::connection()->prepare('SELECT ci.*, p.current_stock, p.allow_pre_sale, p.sale_price, p.promotional_price FROM cart_items ci INNER JOIN products p ON p.id = ci.product_id WHERE ci.id = :id AND ci.cart_id = :cart_id LIMIT 1');
-        $stmt->execute(['id' => $itemId, 'cart_id' => $cart['id']]);
+        $stmt = Database::connection()->prepare('SELECT ci.*, COALESCE(ef.quantidade, p.current_stock) AS current_stock, p.allow_pre_sale, p.sale_price, p.promotional_price
+            FROM cart_items ci
+            INNER JOIN products p ON p.id = ci.product_id
+            INNER JOIN carts c ON c.id = ci.cart_id
+            LEFT JOIN estoque_filial ef ON ef.id_produto = p.id AND ef.id_filial = c.id_filial
+            WHERE ci.id = :id AND ci.cart_id = :cart_id AND c.id_filial = :filial
+            LIMIT 1');
+        $stmt->execute(['id' => $itemId, 'cart_id' => $cart['id'], 'filial' => (new BranchService())->currentId()]);
         $item = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$item) {
             throw new RuntimeException('Item nao encontrado.');
@@ -131,11 +142,13 @@ final class CartService
     private function createCart(): array
     {
         $customerId = Session::get('customer_id');
+        $branchId = (new BranchService())->currentId();
         $shareToken = bin2hex(random_bytes(32));
-        $stmt = Database::connection()->prepare("INSERT INTO carts (public_id, customer_id, session_id_hash, share_token_hash, status, expires_at)
-            VALUES (:public_id, :customer_id, :session, :share, 'active', DATE_ADD(NOW(), INTERVAL 72 HOUR))");
+        $stmt = Database::connection()->prepare("INSERT INTO carts (public_id, id_filial, customer_id, session_id_hash, share_token_hash, status, expires_at)
+            VALUES (:public_id, :filial, :customer_id, :session, :share, 'active', DATE_ADD(NOW(), INTERVAL 72 HOUR))");
         $stmt->execute([
             'public_id' => uuid_v4(),
+            'filial' => $branchId,
             'customer_id' => $customerId ?: null,
             'session' => hash('sha256', session_id()),
             'share' => hash('sha256', $shareToken),

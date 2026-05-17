@@ -15,11 +15,19 @@ final class EmailService
             return;
         }
 
-        $stmt = Database::connection()->prepare("INSERT INTO email_logs (public_id, order_id, email_type, recipient_email, subject, template_name, provider, status, metadata)
-            VALUES (:public_id, :order_id, :type, :to, :subject, :template, :provider, 'queued', :metadata)");
+        $branchId = null;
+        if ($orderId !== null) {
+            $orderStmt = Database::connection()->prepare('SELECT id_filial FROM orders WHERE id = :id LIMIT 1');
+            $orderStmt->execute(['id' => $orderId]);
+            $branchId = (int) ($orderStmt->fetchColumn() ?: 0) ?: null;
+        }
+
+        $stmt = Database::connection()->prepare("INSERT INTO email_logs (public_id, order_id, id_filial, email_type, recipient_email, subject, template_name, provider, status, metadata)
+            VALUES (:public_id, :order_id, :filial, :type, :to, :subject, :template, :provider, 'queued', :metadata)");
         $stmt->execute([
             'public_id' => uuid_v4(),
             'order_id' => $orderId,
+            'filial' => $branchId,
             'type' => $type,
             'to' => $to,
             'subject' => $subject,
@@ -28,11 +36,32 @@ final class EmailService
             'metadata' => json_encode(sanitize_log_context($data), JSON_UNESCAPED_UNICODE),
         ]);
         $logId = (int) Database::connection()->lastInsertId();
-        $this->send($logId, $to, $subject, $template, $data);
+        (new JobQueueService())->enqueue('enviar_email', [
+            'log_id' => $logId,
+            'to' => $to,
+            'subject' => $subject,
+            'template' => $template,
+            'data' => $data,
+        ]);
+    }
+
+    public function sendQueuedPayload(array $payload): void
+    {
+        $this->send(
+            (int) ($payload['log_id'] ?? 0),
+            (string) ($payload['to'] ?? ''),
+            (string) ($payload['subject'] ?? ''),
+            (string) ($payload['template'] ?? ''),
+            is_array($payload['data'] ?? null) ? $payload['data'] : []
+        );
     }
 
     private function send(int $logId, string $to, string $subject, string $template, array $data): void
     {
+        if ($logId <= 0 || $to === '') {
+            return;
+        }
+
         $body = partial($template, $data);
         $sent = false;
         $error = null;

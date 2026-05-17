@@ -30,10 +30,24 @@ $router->post('/admin/funcionarios/{id}', 'App\\Controllers\\Admin\\DashboardCon
 $router->post('/admin/funcionarios/{id}/status', 'App\\Controllers\\Admin\\DashboardController@staffStatus', $adminPost);
 $router->post('/admin/funcionarios/{id}/excluir', 'App\\Controllers\\Admin\\DashboardController@staffDelete', $adminPost);
 
+$router->get('/admin/caixa', 'App\\Controllers\\Admin\\DashboardController@cash', $admin);
+$router->post('/admin/caixa/abrir', 'App\\Controllers\\Admin\\DashboardController@cashOpen', $adminPost);
+$router->post('/admin/caixa/movimentar', 'App\\Controllers\\Admin\\DashboardController@cashMovement', $adminPost);
+$router->post('/admin/caixa/{id}/fechar', 'App\\Controllers\\Admin\\DashboardController@cashClose', $adminPost);
+
+$router->get('/admin/compras', 'App\\Controllers\\Admin\\DashboardController@purchases', $admin);
+$router->post('/admin/compras/fornecedores', 'App\\Controllers\\Admin\\DashboardController@supplierStore', $adminPost);
+$router->post('/admin/compras/ordens', 'App\\Controllers\\Admin\\DashboardController@purchaseOrderStore', $adminPost);
+$router->post('/admin/compras/ordens/{id}/receber', 'App\\Controllers\\Admin\\DashboardController@purchaseOrderReceive', $adminPost);
+
 $router->get('/admin/estoque', 'App\\Controllers\\Admin\\DashboardController@stock', $admin);
 $router->post('/admin/estoque/movimentar', 'App\\Controllers\\Admin\\DashboardController@stockMove', $adminPost);
+$router->get('/admin/estoque/transferencias', 'App\\Controllers\\Admin\\DashboardController@stockTransfers', $admin);
+$router->post('/admin/estoque/transferencias', 'App\\Controllers\\Admin\\DashboardController@stockTransferStore', $adminPost);
+$router->post('/admin/estoque/transferencias/{id}', 'App\\Controllers\\Admin\\DashboardController@stockTransferAction', $adminPost);
 
 $router->get('/admin/receitas', 'App\\Controllers\\Admin\\DashboardController@prescriptions', $admin);
+$router->get('/admin/receitas/{id}/arquivo', 'App\\Controllers\\Admin\\DashboardController@prescriptionFile', $admin);
 $router->post('/admin/receitas/{id}/validar', 'App\\Controllers\\Admin\\DashboardController@prescriptionValidate', $adminPost);
 
 $router->get('/admin/pagamentos', 'App\\Controllers\\Admin\\DashboardController@payments', $admin);
@@ -50,9 +64,15 @@ $router->get('/admin/marketing', 'App\\Controllers\\Admin\\DashboardController@m
 $router->post('/admin/marketing/cupons', 'App\\Controllers\\Admin\\DashboardController@couponStore', $adminPost);
 $router->post('/admin/marketing/promocoes', 'App\\Controllers\\Admin\\DashboardController@promotionStore', $adminPost);
 $router->post('/admin/marketing/banners', 'App\\Controllers\\Admin\\DashboardController@bannerStore', $adminPost);
+$router->get('/admin/avaliacoes', 'App\\Controllers\\Admin\\DashboardController@reviews', $admin);
+$router->post('/admin/avaliacoes/{id}/moderar', 'App\\Controllers\\Admin\\DashboardController@reviewModerate', $adminPost);
+$router->get('/admin/servicos', 'App\\Controllers\\Admin\\DashboardController@services', $admin);
+$router->post('/admin/servicos', 'App\\Controllers\\Admin\\DashboardController@serviceStore', $adminPost);
+$router->post('/admin/servicos/agendamentos/{id}', 'App\\Controllers\\Admin\\DashboardController@serviceAppointmentStatus', $adminPost);
 $router->get('/admin/entrega', 'App\\Controllers\\Admin\\DashboardController@delivery', $admin);
 $router->post('/admin/entrega/zonas', 'App\\Controllers\\Admin\\DashboardController@deliveryZoneStore', $adminPost);
 $router->post('/admin/entrega/entregadores', 'App\\Controllers\\Admin\\DashboardController@deliveryPersonStore', $adminPost);
 $router->get('/admin/configuracoes', 'App\\Controllers\\Admin\\DashboardController@settings', $admin);
 $router->post('/admin/configuracoes/migrations', 'App\\Controllers\\Admin\\DashboardController@migrationRun', $adminPost);
 $router->get('/admin/logs', 'App\\Controllers\\Admin\\DashboardController@logs', $admin);
+$router->get('/admin/jobs', 'App\\Controllers\\Admin\\DashboardController@jobs', $admin);

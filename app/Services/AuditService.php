@@ -11,9 +11,14 @@ final class AuditService
     public function admin(string $module, string $action, ?string $entityType = null, ?int $entityId = null, array $before = [], array $after = []): void
     {
         $user = user();
-        Database::connection()->prepare('INSERT INTO admin_action_logs (admin_user_id, action, module, entity_type, entity_id, previous_data_sanitized, new_data_sanitized, ip_address, user_agent) VALUES (:user_id, :action, :module, :entity_type, :entity_id, :before, :after, :ip, :ua)')
+        $branchId = $user['id_filial'] ?? null;
+        if (isset($after['id_filial']) && is_numeric($after['id_filial'])) {
+            $branchId = (int) $after['id_filial'];
+        }
+        Database::connection()->prepare('INSERT INTO admin_action_logs (admin_user_id, id_filial, action, module, entity_type, entity_id, previous_data_sanitized, new_data_sanitized, ip_address, user_agent) VALUES (:user_id, :filial, :action, :module, :entity_type, :entity_id, :before, :after, :ip, :ua)')
             ->execute([
                 'user_id' => $user['id'] ?? null,
+                'filial' => $branchId,
                 'action' => $action,
                 'module' => $module,
                 'entity_type' => $entityType,
@@ -42,4 +47,3 @@ final class AuditService
             ]);
     }
 }
-

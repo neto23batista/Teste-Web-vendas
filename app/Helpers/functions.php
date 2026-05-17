@@ -67,7 +67,21 @@ function status_label(?string $status): string
         'near_expiration' => 'Vencimento proximo',
         'expired' => 'Vencido',
         'pendente' => 'Pendente',
+        'pendente_aprovacao' => 'Pendente aprovacao',
         'pending' => 'Pendente',
+        'homologacao_simulada' => 'Homologacao simulada',
+        'homologacao_interna' => 'Homologacao interna',
+        'emitida' => 'Emitida',
+        'cancelada' => 'Cancelada',
+        'erro' => 'Erro',
+        'rascunho' => 'Rascunho',
+        'aprovada' => 'Aprovada',
+        'recebida' => 'Recebida',
+        'aberto' => 'Aberto',
+        'fechado' => 'Fechado',
+        'falhou' => 'Falhou',
+        'concluido' => 'Concluido',
+        'processando' => 'Processando',
         'paid' => 'Pago',
         'approved' => 'Aprovado',
         'failed' => 'Falhou',
@@ -239,7 +253,35 @@ function is_owner(?int $userId = null): bool
     if (($user['user_type'] ?? '') === 'system') {
         return true;
     }
-    return has_role('owner', $userId);
+    return has_role('owner', $userId) || has_role('admin_geral', $userId);
+}
+
+function is_admin_geral(?int $userId = null): bool
+{
+    $user = user();
+    if (($user['user_type'] ?? '') === 'system') {
+        return true;
+    }
+    return has_role('admin_geral', $userId) || has_role('owner', $userId);
+}
+
+function is_gerente_loja(?int $userId = null): bool
+{
+    return has_role('gerente_loja', $userId) || has_role('admin', $userId);
+}
+
+function is_farmaceutico(?int $userId = null): bool
+{
+    return has_role('farmaceutico', $userId) || has_role('pharmacist', $userId);
+}
+
+function user_filial_id(): ?int
+{
+    $user = user();
+    if (!$user || empty($user['id_filial'])) {
+        return null;
+    }
+    return (int) $user['id_filial'];
 }
 
 function admin_account_is_active(?int $userId = null): bool
@@ -268,6 +310,10 @@ function admin_account_is_active(?int $userId = null): bool
 function role_label(?string $role): string
 {
     return [
+        'admin_geral' => 'Admin geral',
+        'gerente_loja' => 'Gerente de loja',
+        'farmaceutico' => 'Farmaceutico',
+        'funcionario' => 'Funcionario',
         'owner' => 'Dono',
         'admin' => 'Administrador',
         'pharmacist' => 'Farmaceutico',
@@ -281,6 +327,10 @@ function role_label(?string $role): string
 function role_class(?string $role): string
 {
     return [
+        'admin_geral' => 'owner',
+        'gerente_loja' => 'blue',
+        'farmaceutico' => 'success',
+        'funcionario' => 'neutral',
         'owner' => 'owner',
         'admin' => 'blue',
         'pharmacist' => 'success',

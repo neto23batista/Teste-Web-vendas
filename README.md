@@ -113,6 +113,7 @@ Se PHPMailer/SMTP nao estiver configurado, o sistema tenta fallback com `mail()`
 Areas criadas:
 
 - Dashboard operacional
+- Multi-filial com isolamento por loja
 - Produtos e categorias
 - Pedidos e timeline
 - Estoque e movimentacoes
@@ -122,9 +123,13 @@ Areas criadas:
 - Relatorios com Chart.js
 - Integracoes/API/Webhooks
 - Marketing: cupons, promocoes e banners
+- Avaliacoes de produtos com moderacao
+- Servicos clinicos e agenda por filial
+- Transferencias formais de estoque entre filiais
 - Entrega: zonas e entregadores
 - Configuracoes e migrations
 - Logs e auditorias
+- Caixa por filial, compras, jobs assincronos e preparacao fiscal real
 
 ## Loja do Cliente
 
@@ -135,8 +140,9 @@ Fluxos criados:
 - Pagina de produto
 - Carrinho AJAX
 - Checkout com CPF, LGPD, entrega, cupom e upload de receita
+- Checkout com resgate de pontos de fidelidade
 - Acompanhamento de pedido com endpoint de status a cada 30s
-- Painel do cliente com pedidos, perfil e solicitacoes LGPD
+- Painel do cliente com pedidos, perfil, pontos, servicos agendados e solicitacoes LGPD
 
 ## API REST
 
@@ -173,9 +179,9 @@ Endpoints:
 - `GET /api/nfe`
 - `GET /api/nfe/{id}`
 
-## NF-e Simulada
+## Fiscal
 
-O modulo de NF-e e apenas simulado. Ele gera numero, serie, chave simulada, itens e dados para DANFE futura, sem transmissao fiscal real.
+O modulo fiscal nao finge emissao real. `FiscalService` grava solicitacoes em `notas_fiscais`; sem credenciais de provedor fiscal, a nota fica em modo `homologacao_simulada`. Configure provedor fiscal, token e ambiente antes de operar em producao.
 
 ## LGPD e Receitas
 
@@ -194,6 +200,7 @@ php tests/Feature/auth_security_test.php
 php tests/Feature/cart_checkout_test.php
 php tests/Feature/payment_webhook_test.php
 php tests/Feature/api_permissions_test.php
+php tests/Feature/customer_experience_workflows_test.php
 php market_readiness_checks.php
 ```
 
@@ -207,7 +214,17 @@ Processar webhooks de saida com retry/backoff:
 php scripts/process_webhooks.php
 ```
 
+Processar jobs de e-mail, WhatsApp e fiscal:
+
+```bash
+php scripts/process_jobs.php
+```
+
 Em producao, configure cron para executar esse script a cada minuto.
+
+## Multi-filial
+
+As migrations `018_multi_branch_operations.sql` e `019_customer_experience_workflows.sql` criam `filiais`, `estoque_filial`, `id_filial` nas tabelas criticas, views segregadas, caixa/compras/fiscal/jobs, resgate de pontos, avaliacoes, agenda e transferencias formais. Veja `docs/MULTI_BRANCH.md`.
 
 ## Deploy
 

@@ -4,6 +4,7 @@
     <h1>Controle de estoque</h1>
     <p>Registre movimentacoes com motivo claro e acompanhe baixo estoque, vencimento e risco.</p>
   </div>
+  <a class="btn" href="/admin/estoque/transferencias">Transferencias</a>
 </section>
 
 <form class="form-card" action="/admin/estoque/movimentar" method="post">
@@ -23,5 +24,5 @@
     <h2>Mapa de risco</h2>
     <span class="tag warn">Priorize baixo estoque e validade proxima</span>
   </div>
-  <div class="table-wrap"><table><thead><tr><th>Produto</th><th>Estoque</th><th>Minimo</th><th>Validade</th><th>Risco</th></tr></thead><tbody><?php foreach ($rows as $row): ?><tr><td><strong><?= e($row['product_name']) ?></strong></td><td><?= (int) $row['current_stock'] ?></td><td><?= (int) $row['minimum_stock'] ?></td><td><?= e($row['nearest_expiration_date'] ?? 'Nao informado') ?></td><td><?= status_pill($row['risk_status']) ?></td></tr><?php endforeach; ?></tbody></table></div>
+  <div class="table-wrap"><table><thead><tr><th>Filial</th><th>ID</th><th>Produto</th><th>Estoque</th><th>Minimo</th><th>Validade</th><th>Risco</th></tr></thead><tbody><?php foreach ($rows as $row): ?><tr><td><?= e($row['filial_nome'] ?? '') ?></td><td><?= (int) $row['product_id'] ?></td><td><strong><?= e($row['product_name']) ?></strong></td><td><?= (int) $row['current_stock'] ?></td><td><?= (int) $row['minimum_stock'] ?></td><td><?= e($row['nearest_expiration_date'] ?? 'Nao informado') ?></td><td><?= status_pill($row['risk_status']) ?></td></tr><?php endforeach; ?></tbody></table></div>
 </section>

@@ -5,6 +5,7 @@ $summary = array_replace(['total' => 0, 'active' => 0, 'owners' => 0, 'pharmacis
 $roleOptions = $roleOptions ?? [];
 $statusOptions = $statusOptions ?? [];
 $canCreateOwner = (bool) ($canCreateOwner ?? false);
+$branches = is_admin_geral() ? (new App\Services\BranchService())->all() : [];
 $currentRole = (string) ($filters['role'] ?? 'all');
 $currentStatus = (string) ($filters['status'] ?? 'all');
 $query = (string) ($filters['q'] ?? '');
@@ -76,7 +77,7 @@ $statusSelect = static function (?string $selected = 'active') use ($statusOptio
 </section>
 
 <?php if (!$canCreateOwner): ?>
-  <section class="alert warning">Apenas usuarios com perfil Dono podem criar, editar, desativar ou excluir funcionarios administrativos.</section>
+  <section class="alert warning">Gerentes podem gerenciar farmaceuticos e funcionarios apenas da propria filial. Admin geral gerencia todos os perfis.</section>
 <?php endif; ?>
 
 <?php if (empty($rows)): ?>
@@ -92,6 +93,7 @@ $statusSelect = static function (?string $selected = 'active') use ($statusOptio
           <th>Funcionario</th>
           <th>Contato</th>
           <th>Cargo</th>
+          <th>Filial</th>
           <th>Perfil</th>
           <th>Permissoes</th>
           <th>Status</th>
@@ -128,6 +130,7 @@ $statusSelect = static function (?string $selected = 'active') use ($statusOptio
           </td>
           <td><?= e($row['email']) ?><br><span class="helper"><?= e($row['phone'] ?? '') ?></span></td>
           <td><?= e($row['position'] ?? 'Administrativo') ?><br><span class="helper">CPF <?= e($row['cpf_masked'] ?? 'pendente') ?></span></td>
+          <td><?= e($row['filial_nome'] ?? 'Matriz') ?></td>
           <td><span class="tag <?= e($row['role_class'] ?? 'neutral') ?>"><?= e($row['role_label'] ?? 'Funcionario') ?></span></td>
           <td>
             <div class="tag-row">
@@ -205,6 +208,15 @@ $statusSelect = static function (?string $selected = 'active') use ($statusOptio
               <label>Cargo
                 <input name="position" value="<?= e($row['position'] ?? '') ?>" required>
               </label>
+              <?php if (is_admin_geral()): ?>
+                <label>Filial
+                  <select name="id_filial" required>
+                    <?php foreach ($branches as $branch): ?>
+                      <option value="<?= (int) $branch['id'] ?>" <?= (int) ($row['id_filial'] ?? 0) === (int) $branch['id'] ? 'selected' : '' ?>><?= e($branch['nome']) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </label>
+              <?php endif; ?>
               <label>Tipo de usuario
                 <select name="role" required>
                   <?= $roleSelect((string) ($row['primary_role'] ?? 'employee')) ?>
@@ -218,6 +230,12 @@ $statusSelect = static function (?string $selected = 'active') use ($statusOptio
               <label>CRF
                 <input name="crf_number" value="<?= e($row['crf_number'] ?? '') ?>" placeholder="Obrigatorio para farmaceutico">
               </label>
+              <label>Carga horaria
+                <input name="carga_horaria" value="<?= e($row['carga_horaria'] ?? '') ?>" placeholder="Ex.: 40h semanais">
+              </label>
+              <label>Turno
+                <input name="turno" value="<?= e($row['turno'] ?? '') ?>" placeholder="Ex.: Manha">
+              </label>
               <label>Nova senha
                 <input type="password" name="password" autocomplete="new-password" minlength="8" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}" title="Minimo 8 caracteres, maiuscula, minuscula, numero e caractere especial">
               </label>
@@ -229,6 +247,7 @@ $statusSelect = static function (?string $selected = 'active') use ($statusOptio
               </label>
             </div>
             <label class="check"><input type="checkbox" name="can_validate_prescriptions" value="1" <?= !empty($row['can_validate_prescriptions']) ? 'checked' : '' ?>> Pode validar receitas medicas</label>
+            <label class="check"><input type="checkbox" name="responsavel_tecnico" value="1" <?= !empty($row['responsavel_tecnico']) ? 'checked' : '' ?>> Responsavel tecnico da filial</label>
             <div class="actions staff-modal-actions">
               <button class="btn primary" type="submit">Salvar alteracoes</button>
               <button class="btn" type="button" data-modal-close>Cancelar</button>
@@ -304,6 +323,15 @@ $statusSelect = static function (?string $selected = 'active') use ($statusOptio
           <label>Cargo
             <input name="position" required placeholder="Ex.: Gerente, Farmaceutico, Atendente">
           </label>
+          <?php if (is_admin_geral()): ?>
+            <label>Filial
+              <select name="id_filial" required>
+                <?php foreach ($branches as $branch): ?>
+                  <option value="<?= (int) $branch['id'] ?>"><?= e($branch['nome']) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </label>
+          <?php endif; ?>
           <label>Tipo de usuario
             <select name="role" required data-staff-role>
               <?= $roleSelect($canCreateOwner ? 'admin' : 'employee') ?>
@@ -323,12 +351,19 @@ $statusSelect = static function (?string $selected = 'active') use ($statusOptio
           <label>CRF
             <input name="crf_number" placeholder="Obrigatorio para farmaceutico">
           </label>
+          <label>Carga horaria
+            <input name="carga_horaria" placeholder="Ex.: 40h semanais">
+          </label>
+          <label>Turno
+            <input name="turno" placeholder="Ex.: Manha">
+          </label>
           <label>Foto de perfil
             <input type="file" name="profile_photo" accept="image/png,image/jpeg,image/webp">
           </label>
         </div>
         <label class="check"><input type="checkbox" name="can_validate_prescriptions" value="1"> Pode validar receitas medicas</label>
-        <p class="helper">A opcao Dono so fica disponivel para usuarios Dono e tambem e validada no back-end antes de salvar.</p>
+        <label class="check"><input type="checkbox" name="responsavel_tecnico" value="1"> Responsavel tecnico da filial</label>
+        <p class="helper">Admin geral pode criar perfis globais. Gerentes ficam limitados a equipe da propria filial.</p>
         <div class="actions staff-modal-actions">
           <button class="btn primary" type="submit">Criar usuario</button>
           <button class="btn" type="button" data-modal-close>Cancelar</button>

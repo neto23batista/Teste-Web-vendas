@@ -5,6 +5,7 @@ $requiresPrescription = (int) $product['requires_prescription'] === 1;
 $stock = (int) $product['current_stock'];
 $policy = (string) ($product['remote_sale_policy'] ?? 'allowed');
 $canBuy = $stock > 0 && !in_array($policy, ['blocked', 'pickup_only'], true);
+$reviewSummary = $product['review_summary'] ?? ['total_reviews' => 0, 'average_rating' => 0, 'reviews' => []];
 ?>
 <article class="product-detail">
   <div class="product-photo">
@@ -79,3 +80,26 @@ $canBuy = $stock > 0 && !in_array($policy, ['blocked', 'pickup_only'], true);
   <?php endforeach; ?>
 </div>
 <?php endif; ?>
+
+<section class="panel">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow">Avaliacoes</p>
+      <h2><?= (int) $reviewSummary['total_reviews'] ?> avaliacao(oes)</h2>
+    </div>
+    <span class="tag success"><?= number_format((float) $reviewSummary['average_rating'], 1, ',', '.') ?> / 5</span>
+  </div>
+  <?php if (empty($reviewSummary['reviews'])): ?>
+    <p>Ainda nao ha avaliacoes aprovadas para este produto.</p>
+  <?php else: ?>
+    <div class="review-list">
+      <?php foreach ($reviewSummary['reviews'] as $review): ?>
+        <article class="review-item">
+          <strong><?= str_repeat('*', (int) $review['rating']) ?> <?= (int) $review['rating'] ?>/5</strong>
+          <p><?= e($review['comment'] ?? '') ?></p>
+          <small><?= e($review['customer_name'] ?? 'Cliente FarmaVida') ?> - <?= e(date('d/m/Y', strtotime((string) $review['created_at']))) ?></small>
+        </article>
+      <?php endforeach; ?>
+    </div>
+  <?php endif; ?>
+</section>

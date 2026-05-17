@@ -43,6 +43,9 @@ final class ApiKeyMiddleware
         $rate->hit('api', (string) $key['id'], $request, (int) ($key['rate_limit_per_minute'] ?? config('security.api_rate_limit_per_minute', 120)), 1);
 
         $_SERVER['FARMAVIDA_API_KEY_ID'] = (string) $key['id'];
+        if (!empty($key['id_filial'])) {
+            $_SERVER['FARMAVIDA_API_FILIAL_ID'] = (string) $key['id_filial'];
+        }
         $pdo->prepare('UPDATE api_keys SET last_used_at = NOW() WHERE id = :id')->execute(['id' => $key['id']]);
         $requestId = uuid_v4();
         $_SERVER['FARMAVIDA_REQUEST_ID'] = $requestId;

@@ -9,6 +9,7 @@ $stockRisk = $stockRisk ?? ['rows' => [], 'summary' => []];
 $prescriptionOutcomes = $prescriptionOutcomes ?? [];
 $prescriptionTypes = $prescriptionTypes ?? [];
 $topProducts = $topProducts ?? [];
+$branchComparison = $branchComparison ?? [];
 
 $asInt = static fn (array $row, string $key): int => (int) ($row[$key] ?? 0);
 $asFloat = static fn (array $row, string $key): float => (float) ($row[$key] ?? 0);
@@ -154,6 +155,32 @@ $chartPayload = [
       </div>
     </div>
     <div class="report-chart compact-chart"><canvas id="prescriptionOutcomeChart" height="270"></canvas></div>
+  </section>
+
+  <section class="panel report-span-2">
+    <div class="section-head compact">
+      <div>
+        <h2>Comparativo por filial</h2>
+        <p>Faturamento, pedidos, ticket medio e cancelamentos no intervalo.</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Filial</th><th>Pedidos</th><th>Receita aprovada</th><th>Ticket medio</th><th>Cancelados</th></tr></thead>
+        <tbody>
+          <?php foreach ($branchComparison as $row): ?>
+            <tr>
+              <td><strong><?= e($row['filial_nome'] ?? '') ?></strong></td>
+              <td><?= $asInt($row, 'order_count') ?></td>
+              <td><?= money($row['approved_revenue'] ?? 0) ?></td>
+              <td><?= money($row['average_ticket'] ?? 0) ?></td>
+              <td><?= $asInt($row, 'cancelled_orders') ?></td>
+            </tr>
+          <?php endforeach; ?>
+          <?php if (empty($branchComparison)): ?><tr><td colspan="5">Sem filiais para comparar.</td></tr><?php endif; ?>
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <section class="panel report-span-2">

@@ -7,6 +7,7 @@ namespace App\Controllers\Api;
 use App\Controllers\Controller;
 use App\Core\Database;
 use App\Core\Request;
+use App\Services\BranchService;
 use App\Services\OrderService;
 use App\Services\PaymentService;
 use App\Services\ProductService;
@@ -48,7 +49,11 @@ final class ApiController extends Controller
 
     public function orders(Request $request): void
     {
-        $this->json(['ok' => true, 'data' => Database::connection()->query('SELECT * FROM orders ORDER BY created_at DESC LIMIT 100')->fetchAll()]);
+        $params = [];
+        $scope = $this->apiBranchScope('orders', $params);
+        $stmt = Database::connection()->prepare("SELECT * FROM orders WHERE deleted_at IS NULL{$scope} ORDER BY created_at DESC LIMIT 100");
+        $stmt->execute($params);
+        $this->json(['ok' => true, 'data' => $stmt->fetchAll()]);
     }
 
     public function orderStore(Request $request): void
@@ -59,12 +64,18 @@ final class ApiController extends Controller
             if (!is_array($items) || $items === []) {
                 throw new RuntimeException('Itens obrigatorios.');
             }
-            $orderId = Database::transaction(function (PDO $pdo) use ($data, $items): int {
+            $branchId = isset($data['id_filial']) ? (int) $data['id_filial'] : (new BranchService())->currentId();
+            (new BranchService())->assertCanAccess($branchId);
+            $orderId = Database::transaction(function (PDO $pdo) use ($data, $items, $branchId): int {
                 $subtotal = 0.0;
                 $normalized = [];
                 foreach ($items as $item) {
-                    $stmt = $pdo->prepare('SELECT * FROM products WHERE id = :id AND deleted_at IS NULL AND is_active = 1 LIMIT 1 FOR UPDATE');
-                    $stmt->execute(['id' => (int) ($item['product_id'] ?? 0)]);
+                    $stmt = $pdo->prepare('SELECT p.*, COALESCE(ef.quantidade, p.current_stock) AS current_stock
+                        FROM products p
+                        LEFT JOIN estoque_filial ef ON ef.id_produto = p.id AND ef.id_filial = :filial
+                        WHERE p.id = :id AND p.deleted_at IS NULL AND p.is_active = 1
+                        LIMIT 1 FOR UPDATE');
+                    $stmt->execute(['id' => (int) ($item['product_id'] ?? 0), 'filial' => $branchId]);
                     $product = $stmt->fetch(PDO::FETCH_ASSOC);
                     if (!$product) {
                         throw new RuntimeException('Produto invalido.');
@@ -84,10 +95,11 @@ final class ApiController extends Controller
 
                 $orderNumber = 'API' . date('YmdHis') . random_int(100, 999);
                 $hasPrescription = array_reduce($normalized, static fn (bool $carry, array $item): bool => $carry || (int) $item['product']['requires_prescription'] === 1, false);
-                $pdo->prepare("INSERT INTO orders (public_id, order_number, customer_id, status, payment_status, clinical_status, delivery_method, requires_prescription, subtotal, delivery_fee, grand_total, customer_note, customer_snapshot, delivery_address_snapshot, created_ip, created_user_agent)
-                    VALUES (:public_id, :number, :customer_id, :status, 'aguardando_pagamento', :clinical, :delivery, :requires, :subtotal, :delivery_fee, :total, :note, :customer, :address, :ip, :ua)")
+                $pdo->prepare("INSERT INTO orders (public_id, id_filial, order_number, customer_id, status, payment_status, clinical_status, delivery_method, requires_prescription, subtotal, delivery_fee, grand_total, customer_note, customer_snapshot, delivery_address_snapshot, created_ip, created_user_agent)
+                    VALUES (:public_id, :filial, :number, :customer_id, :status, 'aguardando_pagamento', :clinical, :delivery, :requires, :subtotal, :delivery_fee, :total, :note, :customer, :address, :ip, :ua)")
                     ->execute([
                         'public_id' => uuid_v4(),
+                        'filial' => $branchId,
                         'number' => $orderNumber,
                         'customer_id' => $data['customer_id'] ?? null,
                         'status' => $hasPrescription ? 'aguardando_receita' : 'aguardando_pagamento',
@@ -141,8 +153,10 @@ final class ApiController extends Controller
 
     public function order(Request $request): void
     {
-        $stmt = Database::connection()->prepare('SELECT * FROM orders WHERE id = :id LIMIT 1');
-        $stmt->execute(['id' => $request->param('id')]);
+        $params = ['id' => $request->param('id')];
+        $scope = $this->apiBranchScope('orders', $params);
+        $stmt = Database::connection()->prepare("SELECT * FROM orders WHERE id = :id{$scope} LIMIT 1");
+        $stmt->execute($params);
         $this->json(['ok' => true, 'data' => $stmt->fetch()]);
     }
 
@@ -155,13 +169,19 @@ final class ApiController extends Controller
 
     public function stock(Request $request): void
     {
-        $this->json(['ok' => true, 'data' => Database::connection()->query('SELECT * FROM v_stock_risk')->fetchAll()]);
+        $params = [];
+        $scope = $this->apiBranchScope('v_stock_risk', $params);
+        $stmt = Database::connection()->prepare("SELECT * FROM v_stock_risk WHERE 1=1{$scope}");
+        $stmt->execute($params);
+        $this->json(['ok' => true, 'data' => $stmt->fetchAll()]);
     }
 
     public function stockProduct(Request $request): void
     {
-        $stmt = Database::connection()->prepare('SELECT * FROM v_stock_risk WHERE product_id = :id LIMIT 1');
-        $stmt->execute(['id' => $request->param('id')]);
+        $params = ['id' => $request->param('id')];
+        $scope = $this->apiBranchScope('v_stock_risk', $params);
+        $stmt = Database::connection()->prepare("SELECT * FROM v_stock_risk WHERE product_id = :id{$scope} LIMIT 1");
+        $stmt->execute($params);
         $this->json(['ok' => true, 'data' => $stmt->fetch()]);
     }
 
@@ -186,23 +206,44 @@ final class ApiController extends Controller
 
     public function payments(Request $request): void
     {
-        $this->json(['ok' => true, 'data' => Database::connection()->query('SELECT * FROM payments ORDER BY created_at DESC LIMIT 100')->fetchAll()]);
+        $params = [];
+        $scope = $this->apiBranchScope('payments', $params);
+        $stmt = Database::connection()->prepare("SELECT * FROM payments WHERE 1=1{$scope} ORDER BY created_at DESC LIMIT 100");
+        $stmt->execute($params);
+        $this->json(['ok' => true, 'data' => $stmt->fetchAll()]);
     }
 
     public function sales(Request $request): void
     {
-        $this->json(['ok' => true, 'data' => Database::connection()->query('SELECT * FROM v_daily_revenue ORDER BY sale_date DESC LIMIT 100')->fetchAll()]);
+        $params = [];
+        $scope = $this->apiBranchScope('v_daily_revenue', $params);
+        $stmt = Database::connection()->prepare("SELECT * FROM v_daily_revenue WHERE 1=1{$scope} ORDER BY sale_date DESC LIMIT 100");
+        $stmt->execute($params);
+        $this->json(['ok' => true, 'data' => $stmt->fetchAll()]);
     }
 
     public function invoices(Request $request): void
     {
-        $this->json(['ok' => true, 'data' => Database::connection()->query('SELECT * FROM invoices ORDER BY issued_at DESC LIMIT 100')->fetchAll()]);
+        $params = [];
+        $scope = $this->apiBranchScope('invoices', $params);
+        $stmt = Database::connection()->prepare("SELECT * FROM invoices WHERE 1=1{$scope} ORDER BY issued_at DESC LIMIT 100");
+        $stmt->execute($params);
+        $this->json(['ok' => true, 'data' => $stmt->fetchAll()]);
     }
 
     public function invoice(Request $request): void
     {
-        $stmt = Database::connection()->prepare('SELECT * FROM invoices WHERE id = :id LIMIT 1');
-        $stmt->execute(['id' => $request->param('id')]);
+        $params = ['id' => $request->param('id')];
+        $scope = $this->apiBranchScope('invoices', $params);
+        $stmt = Database::connection()->prepare("SELECT * FROM invoices WHERE id = :id{$scope} LIMIT 1");
+        $stmt->execute($params);
         $this->json(['ok' => true, 'data' => $stmt->fetch()]);
+    }
+
+    private function apiBranchScope(string $alias, array &$params): string
+    {
+        $branchId = (new BranchService())->currentId();
+        $params['id_filial'] = $branchId;
+        return " AND {$alias}.id_filial = :id_filial";
     }
 }

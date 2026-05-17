@@ -8,13 +8,17 @@ use App\Core\Request;
 use App\Core\Session;
 use App\Repositories\OrderRepository;
 use App\Services\CartService;
+use App\Services\LoyaltyService;
 use App\Services\OrderService;
 
 final class CheckoutController extends Controller
 {
     public function show(Request $request): void
     {
-        $this->render('store/checkout', ['title' => 'Checkout', 'summary' => (new CartService())->summary()]);
+        $summary = (new CartService())->summary();
+        $customerId = Session::get('customer_id');
+        $loyalty = (new LoyaltyService())->checkoutPreview($customerId ? (int) $customerId : null, (float) ($summary['cart']['subtotal'] ?? 0));
+        $this->render('store/checkout', ['title' => 'Checkout', 'summary' => $summary, 'loyalty' => $loyalty]);
     }
 
     public function process(Request $request): void

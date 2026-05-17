@@ -7,6 +7,7 @@ namespace App\Middlewares;
 use App\Core\Database;
 use App\Core\Request;
 use App\Core\Response;
+use App\Core\Session;
 
 final class RateLimitMiddleware
 {
@@ -24,8 +25,7 @@ final class RateLimitMiddleware
         $row = $stmt->fetch();
 
         if ($row && $row['locked_until'] !== null && strtotime((string) $row['locked_until']) > time()) {
-            Response::json(['ok' => false, 'error' => 'Muitas tentativas. Aguarde antes de tentar novamente.'], 429);
-            exit;
+            $this->deny($context, $request, 'Muitas tentativas. Aguarde antes de tentar novamente.');
         }
 
         if (!$row) {
@@ -48,8 +48,7 @@ final class RateLimitMiddleware
             ]);
 
         if ($lockedUntil !== null) {
-            Response::json(['ok' => false, 'error' => 'Limite de tentativas excedido.'], 429);
-            exit;
+            $this->deny($context, $request, 'Limite de tentativas excedido.');
         }
     }
 
@@ -59,5 +58,23 @@ final class RateLimitMiddleware
             ->prepare('DELETE FROM login_attempts WHERE context = :context AND identifier = :identifier AND ip_address = :ip')
             ->execute(['context' => $context, 'identifier' => $identifier, 'ip' => $ip]);
     }
-}
 
+    private function deny(string $context, Request $request, string $message): never
+    {
+        http_response_code(429);
+        if (is_json_request() || $context === 'api') {
+            Response::json(['ok' => false, 'error' => $message], 429);
+            exit;
+        }
+
+        Session::flash('error', $message);
+        $target = match ($context) {
+            'admin_login' => '/admin/login',
+            'checkout' => '/checkout',
+            'password_reset' => '/esqueci-senha',
+            default => '/login',
+        };
+        Response::redirect($target);
+        exit;
+    }
+}

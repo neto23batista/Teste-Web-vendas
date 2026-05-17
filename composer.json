@@ -22,6 +22,7 @@
   "scripts": {
     "migrate": "php scripts/migrate.php",
     "seed": "php scripts/seed.php",
+    "jobs": "php scripts/process_jobs.php",
     "lint": "php scripts/lint_php.php",
     "readiness": "php market_readiness_checks.php"
   },

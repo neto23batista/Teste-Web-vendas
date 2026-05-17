@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use App\Services\BranchService;
+
 final class ProductRepository extends BaseRepository
 {
     public function paginate(array $filters = [], int $page = 1, int $perPage = 16): array
@@ -20,6 +22,8 @@ final class ProductRepository extends BaseRepository
     {
         $where = ['p.deleted_at IS NULL'];
         $params = [];
+        $branchId = $this->branchIdForFilters($filters, !$publicOnly);
+        [$stockJoin, $stockSelect] = $this->stockJoin($branchId, $params);
 
         if ($publicOnly) {
             $where[] = 'p.is_active = 1';
@@ -59,22 +63,23 @@ final class ProductRepository extends BaseRepository
         }
         if (!empty($filters['stock'])) {
             if ($filters['stock'] === 'low') {
-                $where[] = 'p.current_stock <= p.minimum_stock AND p.current_stock > 0';
+                $where[] = 'COALESCE(ef.quantidade, p.current_stock) <= COALESCE(ef.estoque_minimo, p.minimum_stock) AND COALESCE(ef.quantidade, p.current_stock) > 0';
             } elseif ($filters['stock'] === 'zero') {
-                $where[] = 'p.current_stock <= 0';
+                $where[] = 'COALESCE(ef.quantidade, p.current_stock) <= 0';
             } elseif ($filters['stock'] === 'available') {
-                $where[] = 'p.current_stock > 0';
+                $where[] = 'COALESCE(ef.quantidade, p.current_stock) > 0';
             }
         }
 
         $perPage = max(1, min(100, $perPage));
         $offset = max(0, ($page - 1) * $perPage);
-        $sql = "SELECT p.*, c.name AS category_name, c.slug AS category_slug, b.name AS brand_name
+        $sql = "SELECT p.*, {$stockSelect}, c.name AS category_name, c.slug AS category_slug, b.name AS brand_name
                 FROM products p
+                {$stockJoin}
                 LEFT JOIN categories c ON c.id = p.category_id
                 LEFT JOIN brands b ON b.id = p.brand_id
                 WHERE " . implode(' AND ', $where) . "
-                ORDER BY p.is_active DESC, p.current_stock > 0 DESC, p.is_featured DESC, p.name ASC
+                ORDER BY p.is_active DESC, COALESCE(ef.quantidade, p.current_stock) > 0 DESC, p.is_featured DESC, p.name ASC
                 LIMIT :limit OFFSET :offset";
         $stmt = $this->db->prepare($sql);
         foreach ($params as $key => $value) {
@@ -88,13 +93,19 @@ final class ProductRepository extends BaseRepository
 
     public function featured(int $limit = 8): array
     {
-        $stmt = $this->db->prepare("SELECT p.*, c.name AS category_name, b.name AS brand_name
+        $params = [];
+        [$stockJoin, $stockSelect] = $this->stockJoin((new BranchService())->currentId(), $params);
+        $stmt = $this->db->prepare("SELECT p.*, {$stockSelect}, c.name AS category_name, b.name AS brand_name
             FROM products p
+            {$stockJoin}
             LEFT JOIN categories c ON c.id = p.category_id
             LEFT JOIN brands b ON b.id = p.brand_id
             WHERE p.deleted_at IS NULL AND p.is_active = 1 AND p.visibility = 'public'
             ORDER BY p.is_featured DESC, p.updated_at DESC
             LIMIT :limit");
+        foreach ($params as $key => $value) {
+            $stmt->bindValue(':' . $key, $value, \PDO::PARAM_INT);
+        }
         $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
@@ -102,21 +113,29 @@ final class ProductRepository extends BaseRepository
 
     public function findBySlug(string $slug): ?array
     {
-        $stmt = $this->db->prepare("SELECT p.*, c.name AS category_name, c.slug AS category_slug, b.name AS brand_name
+        $params = ['slug' => $slug];
+        [$stockJoin, $stockSelect] = $this->stockJoin((new BranchService())->currentId(), $params);
+        $stmt = $this->db->prepare("SELECT p.*, {$stockSelect}, c.name AS category_name, c.slug AS category_slug, b.name AS brand_name
             FROM products p
+            {$stockJoin}
             LEFT JOIN categories c ON c.id = p.category_id
             LEFT JOIN brands b ON b.id = p.brand_id
             WHERE p.slug = :slug AND p.deleted_at IS NULL AND p.is_active = 1 AND p.visibility = 'public'
             LIMIT 1");
-        $stmt->execute(['slug' => $slug]);
+        $stmt->execute($params);
         $row = $stmt->fetch();
         return $row ?: null;
     }
 
-    public function find(int $id): ?array
+    public function find(int $id, ?int $branchId = null): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM products WHERE id = :id AND deleted_at IS NULL LIMIT 1');
-        $stmt->execute(['id' => $id]);
+        $params = ['id' => $id];
+        [$stockJoin, $stockSelect] = $this->stockJoin($branchId ?? (new BranchService())->currentId(), $params);
+        $stmt = $this->db->prepare("SELECT p.*, {$stockSelect}
+            FROM products p
+            {$stockJoin}
+            WHERE p.id = :id AND p.deleted_at IS NULL LIMIT 1");
+        $stmt->execute($params);
         $row = $stmt->fetch();
         return $row ?: null;
     }
@@ -133,13 +152,18 @@ final class ProductRepository extends BaseRepository
 
     public function recommendations(int $productId, int $limit = 4): array
     {
-        $stmt = $this->db->prepare("SELECT p.*
+        $params = ['id' => $productId];
+        [$stockJoin, $stockSelect] = $this->stockJoin((new BranchService())->currentId(), $params);
+        $stmt = $this->db->prepare("SELECT p.*, {$stockSelect}
             FROM product_recommendations pr
             INNER JOIN products p ON p.id = pr.recommended_product_id
+            {$stockJoin}
             WHERE pr.product_id = :id AND pr.is_active = 1 AND p.deleted_at IS NULL AND p.is_active = 1 AND p.visibility = 'public'
             ORDER BY pr.priority DESC
             LIMIT :limit");
-        $stmt->bindValue('id', $productId, \PDO::PARAM_INT);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue(':' . $key, $value, \PDO::PARAM_INT);
+        }
         $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
@@ -177,5 +201,38 @@ final class ProductRepository extends BaseRepository
         $data['id'] = $id;
         $sql = 'UPDATE products SET ' . implode(', ', $sets) . ', updated_at = NOW() WHERE id = :id';
         $this->db->prepare($sql)->execute($data);
+    }
+
+    private function branchIdForFilters(array $filters, bool $admin): ?int
+    {
+        if ($admin && is_admin_geral() && (($filters['id_filial'] ?? 'all') === 'all' || ($filters['id_filial'] ?? '') === '')) {
+            return null;
+        }
+        if (isset($filters['id_filial']) && $filters['id_filial'] !== 'all' && (int) $filters['id_filial'] > 0) {
+            return (int) $filters['id_filial'];
+        }
+        return (new BranchService())->currentId();
+    }
+
+    private function stockJoin(?int $branchId, array &$params): array
+    {
+        $select = 'COALESCE(ef.quantidade, p.current_stock) AS current_stock,
+            COALESCE(ef.estoque_minimo, p.minimum_stock) AS minimum_stock,
+            COALESCE(ef.estoque_maximo, p.maximum_stock) AS maximum_stock,
+            COALESCE(ef.localizacao, p.physical_location) AS physical_location';
+
+        if ($branchId === null) {
+            return [
+                'LEFT JOIN (
+                    SELECT id_produto, SUM(quantidade) AS quantidade, MIN(estoque_minimo) AS estoque_minimo, MAX(estoque_maximo) AS estoque_maximo, MIN(localizacao) AS localizacao
+                    FROM estoque_filial
+                    GROUP BY id_produto
+                ) ef ON ef.id_produto = p.id',
+                $select,
+            ];
+        }
+
+        $params['stock_filial_id'] = $branchId;
+        return ['LEFT JOIN estoque_filial ef ON ef.id_produto = p.id AND ef.id_filial = :stock_filial_id', $select];
     }
 }
