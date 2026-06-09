@@ -1,0 +1,49 @@
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { Providers } from "@/components/providers";
+
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "FarmaVida";
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+
+export const metadata: Metadata = {
+  metadataBase: new URL(BASE_URL),
+  title: {
+    default: `${APP_NAME} — Farmácia online`,
+    template: `%s | ${APP_NAME}`,
+  },
+  description:
+    "Farmácia online com compra segura, receitas protegidas, entrega rápida e atendimento farmacêutico.",
+  applicationName: APP_NAME,
+  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  openGraph: {
+    type: "website",
+    siteName: APP_NAME,
+    locale: "pt_BR",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#2563eb" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1220" },
+  ],
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
+      <body className="min-h-dvh antialiased">
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
+}

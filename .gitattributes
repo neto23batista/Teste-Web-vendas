@@ -1,2 +1,9 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Normaliza finais de linha (silencia avisos CRLF no Windows)
+* text=auto eol=lf
+
+# Binários
+*.woff2 binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.webp binary

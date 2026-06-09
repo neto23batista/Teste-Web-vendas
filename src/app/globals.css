@@ -1,0 +1,301 @@
+@import "tailwindcss";
+
+/* Dark mode controlado por classe (.dark no <html>, via next-themes) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+   Tokens de marca — disponíveis como utilitários Tailwind
+   (bg-brand-600, text-accent-500, etc.)
+   ============================================================ */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Arial, sans-serif;
+
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e3a8a;
+  --color-brand-900: #1e3a8a;
+  --color-brand-950: #172554;
+
+  --color-accent-400: #22d3ee;
+  --color-accent-500: #06b6d4;
+  --color-accent-600: #0891b2;
+
+  --color-success-500: #16a34a;
+  --color-success-600: #15803d;
+  --color-warn-500: #f59e0b;
+  --color-danger-500: #dc2626;
+
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.75rem;
+
+  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 24px -8px rgba(15, 23, 42, 0.12);
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06),
+    0 18px 40px -16px rgba(37, 99, 235, 0.18);
+  --shadow-glow: 0 18px 52px -12px rgba(37, 99, 235, 0.45);
+
+  --animate-fade-up: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  --animate-gradient: gradient-pan 8s ease infinite;
+  --animate-glow: glow-pulse 3.5s ease-in-out infinite;
+  --animate-blob: blob 14s ease-in-out infinite;
+}
+
+/* ============================================================
+   Tokens semânticos (trocam entre claro/escuro)
+   ============================================================ */
+:root {
+  --background: #f6f8fc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --muted: #eef2f7;
+  --muted-foreground: #5b6b85;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --accent: #06b6d4;
+  --accent-foreground: #06303a;
+  --ring: #2563eb;
+}
+
+.dark {
+  --background: #0b1220;
+  --foreground: #e6edf7;
+  --card: #111a2e;
+  --card-foreground: #e6edf7;
+  --muted: #18233a;
+  --muted-foreground: #93a4c0;
+  --border: #1f2c45;
+  --input: #1f2c45;
+  --primary: #3b82f6;
+  --primary-foreground: #0b1220;
+  --accent: #22d3ee;
+  --accent-foreground: #04222a;
+  --ring: #3b82f6;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent-DEFAULT: var(--accent);
+  --color-ring: var(--ring);
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 25%, transparent);
+  }
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 45%, transparent);
+    border-radius: 0.5rem;
+  }
+  /* Scrollbar discreta */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+}
+
+/* ============================================================
+   Utilitários do design system
+   ============================================================ */
+@layer utilities {
+  .container-page {
+    width: 100%;
+    max-width: 80rem;
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+  @media (min-width: 768px) {
+    .container-page {
+      padding-inline: 1.5rem;
+    }
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+  .gradient-brand {
+    background-image: linear-gradient(
+      135deg,
+      #1e3a8a 0%,
+      #2563eb 48%,
+      #0891b2 100%
+    );
+  }
+  /* Versão animada: o gradiente desliza suavemente (hero). */
+  .gradient-brand-animated {
+    background-image: linear-gradient(
+      120deg,
+      #1e3a8a 0%,
+      #2563eb 30%,
+      #0891b2 55%,
+      #2563eb 80%,
+      #1e3a8a 100%
+    );
+    background-size: 220% 220%;
+    animation: var(--animate-gradient);
+  }
+  /* Texto com preenchimento em gradiente da marca. */
+  .text-gradient-brand {
+    background-image: linear-gradient(120deg, #2563eb, #06b6d4);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .gradient-brand-soft {
+    background-image: linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--primary) 12%, var(--card)),
+      var(--card)
+    );
+  }
+  .glass {
+    background: color-mix(in oklab, #ffffff 12%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .animate-fade-up {
+    animation: var(--animate-fade-up);
+  }
+  .animate-float {
+    animation: var(--animate-float);
+  }
+  .animate-blob {
+    animation: var(--animate-blob);
+  }
+  .animate-glow {
+    animation: var(--animate-glow);
+  }
+  /* Esqueleto com brilho deslizante (melhor que o pulse puro). */
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in oklab, var(--foreground) 8%, transparent) 50%,
+      transparent 100%
+    );
+    animation: var(--animate-shimmer);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+@keyframes gradient-pan {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.08);
+  }
+}
+@keyframes blob {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(18px, -12px) scale(1.12);
+  }
+  66% {
+    transform: translate(-14px, 10px) scale(0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

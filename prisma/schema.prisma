@@ -1,0 +1,332 @@
+// FarmaVida Next — Prisma schema (MySQL)
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextIndex"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── Enums ───────────────────────────
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PREPARING
+  SHIPPED
+  DELIVERED
+  CANCELED
+}
+
+enum PaymentProvider {
+  MERCADO_PAGO
+  PIX
+  CASH
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REFUNDED
+}
+
+enum PrescriptionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
+}
+
+// ─────────────────────────── Usuário ───────────────────────────
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(CUSTOMER)
+  cpf          String?
+  phone        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  addresses     Address[]
+  orders        Order[]
+  reviews       Review[]
+  prescriptions Prescription[]
+  loyalty       LoyaltyAccount?
+  carts         Cart[]
+  resetTokens   PasswordResetToken[]
+
+  @@index([role])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  userId     String
+  label      String   @default("Casa")
+  recipient  String
+  zip        String
+  street     String
+  number     String
+  complement String?
+  district   String
+  city       String
+  state      String
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@index([userId])
+}
+
+// ─────────────────────────── Catálogo ───────────────────────────
+model Category {
+  id       String    @id @default(cuid())
+  name     String
+  slug     String    @unique
+  icon     String?
+  emoji    String?
+  sort     Int       @default(0)
+  products Product[]
+}
+
+model Brand {
+  id       String    @id @default(cuid())
+  name     String
+  slug     String    @unique
+  products Product[]
+}
+
+model Product {
+  id                   String   @id @default(cuid())
+  name                 String
+  slug                 String   @unique
+  description          String   @db.Text
+  shortDescription     String?  @db.Text
+  emoji                String?
+  sku                  String?  @unique
+  ean                  String?
+  price                Float
+  promoPrice           Float?
+  requiresPrescription Boolean  @default(false)
+  isGeneric            Boolean  @default(false)
+  activeIngredient     String?
+  stock                Int      @default(0)
+  minStock             Int      @default(5)
+  rating               Float    @default(0)
+  ratingCount          Int      @default(0)
+  active               Boolean  @default(true)
+  featured             Boolean  @default(false)
+  categoryId           String
+  brandId              String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  category  Category       @relation(fields: [categoryId], references: [id])
+  brand     Brand?         @relation(fields: [brandId], references: [id])
+  images    ProductImage[]
+  cartItems CartItem[]
+  orderItems OrderItem[]
+  reviews   Review[]
+
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([active, featured])
+  @@fulltext([name, shortDescription, description, activeIngredient])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  url       String  @db.Text
+  alt       String?
+  sort      Int     @default(0)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+// ─────────────────────────── Carrinho ───────────────────────────
+model Cart {
+  id           String   @id @default(cuid())
+  userId       String?
+  sessionToken String?  @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user  User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items CartItem[]
+
+  @@index([userId])
+}
+
+model CartItem {
+  id        String @id @default(cuid())
+  cartId    String
+  productId String
+  qty       Int    @default(1)
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+  @@index([productId])
+}
+
+// ─────────────────────────── Pedidos ───────────────────────────
+model Order {
+  id            String      @id @default(cuid())
+  number        String      @unique
+  userId        String
+  status        OrderStatus @default(PENDING)
+  requiresPrescription Boolean @default(false)
+  subtotal      Float
+  discount      Float       @default(0)
+  shipping      Float       @default(0)
+  total         Float
+  paymentMethod String?
+  couponCode    String?
+  addressId     String?
+  notes         String?     @db.Text
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  user          User                 @relation(fields: [userId], references: [id])
+  address       Address?             @relation(fields: [addressId], references: [id])
+  items         OrderItem[]
+  payment       Payment?
+  prescriptions Prescription[]
+  loyaltyTx     LoyaltyTransaction[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String?
+  name      String
+  price     Float
+  qty       Int
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+}
+
+model Payment {
+  id         String          @id @default(cuid())
+  orderId    String          @unique
+  provider   PaymentProvider @default(MERCADO_PAGO)
+  status     PaymentStatus   @default(PENDING)
+  externalId String?
+  amount     Float
+  raw        Json?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────── Receitas ───────────────────────────
+model Prescription {
+  id        String             @id @default(cuid())
+  userId    String
+  orderId   String?
+  fileUrl   String             @db.Text
+  status    PrescriptionStatus @default(PENDING)
+  createdAt DateTime           @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+}
+
+// ─────────────────────────── Fidelidade ───────────────────────────
+model LoyaltyAccount {
+  id           String               @id @default(cuid())
+  userId       String               @unique
+  points       Int                  @default(0)
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions LoyaltyTransaction[]
+}
+
+model LoyaltyTransaction {
+  id        String   @id @default(cuid())
+  accountId String
+  points    Int
+  reason    String
+  orderId   String?
+  createdAt DateTime @default(now())
+
+  account LoyaltyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  order   Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([accountId])
+}
+
+// ─────────────────────────── Marketing ───────────────────────────
+model Coupon {
+  id         String     @id @default(cuid())
+  code       String     @unique
+  type       CouponType @default(PERCENT)
+  value      Float
+  minTotal   Float      @default(0)
+  expiresAt  DateTime?
+  active     Boolean    @default(true)
+  usageLimit Int?
+  usedCount  Int        @default(0)
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  userId    String
+  rating    Int
+  comment   String?  @db.Text
+  approved  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, userId])
+  @@index([productId])
+}
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String @db.Text
+}
