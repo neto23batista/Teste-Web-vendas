@@ -23,9 +23,6 @@
     "db:studio": "prisma studio",
     "shots": "node scripts/shot.cjs"
   },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
-  },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1063.0",
     "@hookform/resolvers": "^5.4.0",

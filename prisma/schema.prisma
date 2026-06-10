@@ -1,8 +1,7 @@
 // FarmaVida Next — Prisma schema (MySQL)
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["fullTextIndex"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
