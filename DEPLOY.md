@@ -81,6 +81,14 @@ A Vercel **não** roda migrations sozinha. Escolha:
 - [ ] Upload de receita no checkout → o admin consegue abrir (confirma que o S3 está ok).
 - [ ] Conferir o rodapé com os dados regulatórios da farmácia (CNPJ/farmacêutico).
 
+### Features de praticidade (cliente e dono)
+- [ ] **Busca instantânea:** digitar 2+ letras no header mostra o dropdown de sugestões.
+- [ ] **Favoritos:** o coração nos cards/produto salva e a página `/conta/favoritos` lista.
+- [ ] **Comprar novamente:** botão em um pedido antigo repõe os itens na sacola.
+- [ ] **Dashboard:** `/admin` mostra ticket médio e as variações de 30 dias (▲▼).
+- [ ] **Badges no admin:** a sidebar mostra contadores (pedidos/receitas/estoque).
+- [ ] **Exportar CSV:** `/admin/pedidos` → "Exportar CSV" baixa o arquivo (respeita o filtro).
+
 ---
 
 ## Recomendação importante
