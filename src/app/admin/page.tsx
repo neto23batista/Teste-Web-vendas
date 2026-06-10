@@ -4,6 +4,9 @@ import {
   ShoppingCart,
   Users,
   Boxes,
+  Receipt,
+  TrendingUp,
+  TrendingDown,
   AlertTriangle,
   ArrowRight,
 } from "lucide-react";
@@ -28,10 +31,11 @@ export default async function AdminDashboard() {
   ]);
 
   const cards = [
-    { icon: DollarSign, label: "Receita", value: formatBRL(stats.revenue), accent: "bg-success-500/10 text-success-600" },
-    { icon: ShoppingCart, label: "Pedidos", value: stats.ordersCount, accent: "bg-brand-100 text-brand-600 dark:bg-brand-600/20 dark:text-brand-300" },
-    { icon: Users, label: "Clientes", value: stats.customersCount, accent: "bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300" },
-    { icon: Boxes, label: "Produtos ativos", value: stats.productsCount, accent: "bg-cyan-100 text-cyan-600 dark:bg-cyan-500/20 dark:text-cyan-300" },
+    { icon: DollarSign, label: "Receita", value: formatBRL(stats.revenue), delta: stats.deltas.revenue, accent: "bg-success-500/10 text-success-600" },
+    { icon: ShoppingCart, label: "Pedidos", value: stats.ordersCount, delta: stats.deltas.orders, accent: "bg-brand-100 text-brand-600 dark:bg-brand-600/20 dark:text-brand-300" },
+    { icon: Receipt, label: "Ticket médio", value: formatBRL(stats.avgTicket), delta: stats.deltas.avgTicket, accent: "bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300" },
+    { icon: Users, label: "Clientes", value: stats.customersCount, delta: stats.deltas.customers, accent: "bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300" },
+    { icon: Boxes, label: "Produtos ativos", value: stats.productsCount, delta: null, accent: "bg-cyan-100 text-cyan-600 dark:bg-cyan-500/20 dark:text-cyan-300" },
   ];
 
   return (
@@ -42,18 +46,35 @@ export default async function AdminDashboard() {
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map(({ icon: Icon, label, value, accent }) => (
-          <div key={label} className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
-            <div className="flex items-center justify-between">
-              <span className={`grid size-11 place-items-center rounded-xl ${accent}`}>
-                <Icon className="size-5" />
-              </span>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {cards.map(({ icon: Icon, label, value, delta, accent }) => {
+          const up = delta != null && delta >= 0;
+          return (
+            <div key={label} className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+              <div className="flex items-center justify-between">
+                <span className={`grid size-11 place-items-center rounded-xl ${accent}`}>
+                  <Icon className="size-5" />
+                </span>
+                {delta != null && (
+                  <span
+                    className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-bold ${
+                      up
+                        ? "bg-success-500/10 text-success-600"
+                        : "bg-danger-500/10 text-danger-500"
+                    }`}
+                    title="Últimos 30 dias vs. 30 dias anteriores"
+                  >
+                    {up ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
+                    {up ? "+" : ""}
+                    {delta}%
+                  </span>
+                )}
+              </div>
+              <p className="mt-3 text-2xl font-extrabold">{value}</p>
+              <p className="text-sm text-muted-foreground">{label}</p>
             </div>
-            <p className="mt-3 text-2xl font-extrabold">{value}</p>
-            <p className="text-sm text-muted-foreground">{label}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {stats.lowStock > 0 && (

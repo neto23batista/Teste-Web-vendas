@@ -21,6 +21,7 @@ import { formatBRL, discountPercent } from "@/lib/utils";
 import { ProductGallery } from "@/components/store/product-gallery";
 import { StarRating } from "@/components/store/star-rating";
 import { ProductPurchase } from "@/components/store/product-purchase";
+import { FavoriteButton } from "@/components/store/favorite-button";
 import { ProductRow } from "@/components/store/product-row";
 import { ReviewForm } from "@/components/store/review-form";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/motion";
@@ -157,12 +158,18 @@ export default async function ProductPage({
               )}
             </div>
 
-            <div className="mt-5">
+            <div className="mt-5 space-y-3">
               <ProductPurchase
                 productId={product.id}
                 name={product.name}
                 maxStock={product.stock}
                 disabled={out}
+              />
+              <FavoriteButton
+                productId={product.id}
+                name={product.name}
+                withLabel
+                className="w-full sm:w-auto"
               />
             </div>
           </div>

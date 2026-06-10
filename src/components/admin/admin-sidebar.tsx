@@ -27,7 +27,11 @@ const items = [
   { href: "/admin/cupons", label: "Cupons", icon: TicketPercent },
 ];
 
-export function AdminSidebar() {
+export function AdminSidebar({
+  badges,
+}: {
+  badges?: Record<string, number>;
+}) {
   const pathname = usePathname();
 
   return (
@@ -48,6 +52,7 @@ export function AdminSidebar() {
         <nav className="no-scrollbar flex gap-2 overflow-x-auto p-3 lg:flex-1 lg:flex-col lg:overflow-visible lg:px-3 lg:py-2">
           {items.map(({ href, label, icon: Icon, exact }) => {
             const active = exact ? pathname === href : pathname.startsWith(href);
+            const count = badges?.[href] ?? 0;
             return (
               <Link
                 key={href}
@@ -61,6 +66,18 @@ export function AdminSidebar() {
               >
                 <Icon className="size-5" />
                 {label}
+                {count > 0 && (
+                  <span
+                    className={cn(
+                      "ml-auto grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-xs font-bold tabular-nums",
+                      active
+                        ? "bg-white/25 text-white"
+                        : "bg-danger-500 text-white"
+                    )}
+                  >
+                    {count > 99 ? "99+" : count}
+                  </span>
+                )}
               </Link>
             );
           })}

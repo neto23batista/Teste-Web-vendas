@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Download } from "lucide-react";
 import { getAdminOrders } from "@/lib/admin";
 import { formatBRL, cn } from "@/lib/utils";
 import { StatusBadge, STATUS_META } from "@/components/store/order-status";
@@ -21,9 +21,17 @@ export default async function AdminOrdersPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold">Pedidos</h1>
-        <p className="text-sm text-muted-foreground">{total} pedidos</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold">Pedidos</h1>
+          <p className="text-sm text-muted-foreground">{total} pedidos</p>
+        </div>
+        <a
+          href={`/api/admin/orders/export${status ? `?status=${status}` : ""}`}
+          className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:border-brand-300 hover:bg-muted"
+        >
+          <Download className="size-4" /> Exportar CSV
+        </a>
       </div>
 
       <div className="no-scrollbar flex gap-2 overflow-x-auto">

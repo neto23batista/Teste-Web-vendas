@@ -2,15 +2,20 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { formatBRL } from "@/lib/utils";
 import { StatusBadge } from "@/components/store/order-status";
+import { ReorderButton } from "@/components/store/reorder-button";
 import type { UserOrder } from "@/lib/account";
 
 export function OrderCard({ order }: { order: UserOrder }) {
   const itemCount = order.items.reduce((s, i) => s + i.qty, 0);
   return (
-    <Link
-      href={`/pedido/${order.number}`}
-      className="group block rounded-2xl border border-border bg-card p-5 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]"
-    >
+    // Link "esticado" cobre o card; os botões de ação ficam acima (z-10).
+    <article className="group relative rounded-2xl border border-border bg-card p-5 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]">
+      <Link
+        href={`/pedido/${order.number}`}
+        aria-label={`Ver pedido ${order.number}`}
+        className="absolute inset-0 rounded-2xl"
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="font-bold">Pedido {order.number}</p>
@@ -52,9 +57,17 @@ export function OrderCard({ order }: { order: UserOrder }) {
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-1 text-sm font-semibold text-brand-600 opacity-0 transition group-hover:opacity-100 dark:text-brand-400">
-        Ver detalhes <ArrowRight className="size-4" />
+      <div className="relative z-10 mt-4 flex items-center gap-2">
+        <ReorderButton
+          orderNumber={order.number}
+          variant="soft"
+          size="sm"
+          className="flex-1"
+        />
+        <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 opacity-0 transition group-hover:opacity-100 dark:text-brand-400">
+          Detalhes <ArrowRight className="size-4" />
+        </span>
       </div>
-    </Link>
+    </article>
   );
 }

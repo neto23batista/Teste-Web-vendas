@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Package,
+  Heart,
   MapPin,
   Gift,
   FileText,
@@ -17,6 +18,7 @@ import { logout } from "@/actions/auth";
 const items = [
   { href: "/conta", label: "Visão geral", icon: LayoutDashboard, exact: true },
   { href: "/conta/pedidos", label: "Meus pedidos", icon: Package },
+  { href: "/conta/favoritos", label: "Favoritos", icon: Heart },
   { href: "/conta/enderecos", label: "Endereços", icon: MapPin },
   { href: "/conta/fidelidade", label: "Fidelidade", icon: Gift },
   { href: "/conta/receitas", label: "Receitas", icon: FileText },

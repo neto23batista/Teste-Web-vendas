@@ -75,6 +75,19 @@ export function parseCsvRecords(text: string): Record<string, string>[] {
   });
 }
 
+/**
+ * Serializa uma matriz em CSV (RFC 4180). Células com vírgula, aspas ou quebra
+ * de linha são envoltas em aspas, com aspas internas dobradas. Separador vírgula
+ * — par do `parseCsv` acima.
+ */
+export function toCsv(rows: (string | number | null | undefined)[][]): string {
+  const escape = (v: string | number | null | undefined) => {
+    const s = v == null ? "" : String(v);
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return rows.map((r) => r.map(escape).join(",")).join("\r\n");
+}
+
 function normalizeKey(s: string): string {
   return s
     .normalize("NFD")

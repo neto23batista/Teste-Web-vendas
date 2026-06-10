@@ -4,6 +4,7 @@ import { formatBRL, discountPercent, cn } from "@/lib/utils";
 import { ProductImage } from "@/components/store/product-image";
 import { StarRating } from "@/components/store/star-rating";
 import { AddToCartButton } from "@/components/store/add-to-cart-button";
+import { FavoriteButton } from "@/components/store/favorite-button";
 import type { ProductCard as ProductCardData } from "@/lib/products";
 
 export function ProductCard({
@@ -46,6 +47,13 @@ export function ProductCard({
           </span>
         )}
       </div>
+
+      {/* Favoritar (fica acima da imagem/link) */}
+      <FavoriteButton
+        productId={product.id}
+        name={product.name}
+        className="absolute right-3 top-3 z-10"
+      />
 
       <Link href={href} className="block overflow-hidden" aria-label={product.name}>
         <ProductImage

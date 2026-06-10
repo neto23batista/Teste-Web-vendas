@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Search, ShoppingBag, User } from "lucide-react";
+import { ShoppingBag, User } from "lucide-react";
 import { Brand } from "@/components/store/brand";
+import { SearchBox } from "@/components/store/search-box";
 import { CartBadge } from "@/components/store/cart-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -15,21 +16,7 @@ export async function SiteHeader() {
       <div className="container-page flex h-16 items-center gap-3 md:h-18">
         <Brand />
 
-        <form
-          action="/catalogo"
-          method="get"
-          role="search"
-          className="relative ml-2 hidden flex-1 md:block"
-        >
-          <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="search"
-            name="q"
-            placeholder="Buscar medicamento, marca ou princípio ativo…"
-            aria-label="Buscar produtos"
-            className="h-12 w-full rounded-2xl border border-border bg-muted/60 pl-12 pr-4 text-sm outline-none transition focus:border-brand-400 focus:bg-card"
-          />
-        </form>
+        <SearchBox className="ml-2 hidden flex-1 md:block" />
 
         <nav className="ml-auto flex items-center gap-1 md:gap-2">
           <Link
@@ -60,16 +47,7 @@ export async function SiteHeader() {
       </div>
 
       <div className="container-page pb-3 md:hidden">
-        <form action="/catalogo" method="get" role="search" className="relative">
-          <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="search"
-            name="q"
-            placeholder="Buscar na farmácia…"
-            aria-label="Buscar produtos"
-            className="h-12 w-full rounded-2xl border border-border bg-muted/60 pl-12 pr-4 text-sm outline-none transition focus:border-brand-400 focus:bg-card"
-          />
-        </form>
+        <SearchBox placeholder="Buscar na farmácia…" />
       </div>
     </header>
   );

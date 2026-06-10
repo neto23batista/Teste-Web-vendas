@@ -3,25 +3,84 @@ import type { Prisma, OrderStatus } from "@prisma/client";
 
 const PAID_STATUSES = ["PAID", "PREPARING", "SHIPPED", "DELIVERED"] as const;
 
-export async function getAdminStats() {
-  const [revenueAgg, ordersCount, customersCount, productsCount, lowStock] =
-    await Promise.all([
-      prisma.order.aggregate({
-        _sum: { total: true },
-        where: { status: { in: [...PAID_STATUSES] } },
-      }),
-      prisma.order.count(),
-      prisma.user.count({ where: { role: "CUSTOMER" } }),
-      prisma.product.count({ where: { active: true } }),
-      prisma.product.count({ where: { active: true, stock: { lte: 5 } } }),
-    ]);
+/** Variação percentual (arredondada) entre dois períodos. null quando não há
+ *  base de comparação (período anterior zerado) — aí o card não mostra delta. */
+function pctChange(curr: number, prev: number): number | null {
+  if (prev === 0) return null;
+  return Math.round(((curr - prev) / prev) * 100);
+}
 
-  return {
-    revenue: revenueAgg._sum.total ?? 0,
+export async function getAdminStats() {
+  const now = new Date();
+  const d30 = new Date(now);
+  d30.setDate(now.getDate() - 30);
+  const d60 = new Date(now);
+  d60.setDate(now.getDate() - 60);
+
+  const [
+    revenueAgg,
+    paidCount,
     ordersCount,
     customersCount,
     productsCount,
     lowStock,
+    paidOrders60,
+    newCust30,
+    newCust3060,
+  ] = await Promise.all([
+    prisma.order.aggregate({
+      _sum: { total: true },
+      where: { status: { in: [...PAID_STATUSES] } },
+    }),
+    prisma.order.count({ where: { status: { in: [...PAID_STATUSES] } } }),
+    prisma.order.count(),
+    prisma.user.count({ where: { role: "CUSTOMER" } }),
+    prisma.product.count({ where: { active: true } }),
+    prisma.product.count({ where: { active: true, stock: { lte: 5 } } }),
+    prisma.order.findMany({
+      where: { status: { in: [...PAID_STATUSES] }, createdAt: { gte: d60 } },
+      select: { total: true, createdAt: true },
+    }),
+    prisma.user.count({ where: { role: "CUSTOMER", createdAt: { gte: d30 } } }),
+    prisma.user.count({
+      where: { role: "CUSTOMER", createdAt: { gte: d60, lt: d30 } },
+    }),
+  ]);
+
+  // Particiona os pedidos pagos dos últimos 60 dias em duas janelas de 30 dias.
+  let rev30 = 0;
+  let rev3060 = 0;
+  let ord30 = 0;
+  let ord3060 = 0;
+  for (const o of paidOrders60) {
+    if (o.createdAt >= d30) {
+      rev30 += o.total;
+      ord30++;
+    } else {
+      rev3060 += o.total;
+      ord3060++;
+    }
+  }
+
+  const revenue = revenueAgg._sum.total ?? 0;
+  const avgTicket = paidCount > 0 ? revenue / paidCount : 0;
+  const avg30 = ord30 > 0 ? rev30 / ord30 : 0;
+  const avg3060 = ord3060 > 0 ? rev3060 / ord3060 : 0;
+
+  return {
+    revenue,
+    ordersCount,
+    customersCount,
+    productsCount,
+    lowStock,
+    avgTicket,
+    // Variação dos últimos 30 dias vs. os 30 dias anteriores.
+    deltas: {
+      revenue: pctChange(rev30, rev3060),
+      orders: pctChange(ord30, ord3060),
+      customers: pctChange(newCust30, newCust3060),
+      avgTicket: pctChange(avg30, avg3060),
+    },
   };
 }
 
@@ -213,6 +272,16 @@ export function getAdminOrder(id: string) {
       prescriptions: true,
     },
   });
+}
+
+/** Contadores que viram badges de atenção na sidebar do admin. */
+export async function getAdminBadges() {
+  const [pendingPrescriptions, ordersToProcess, lowStock] = await Promise.all([
+    prisma.prescription.count({ where: { status: "PENDING" } }),
+    prisma.order.count({ where: { status: { in: ["PAID", "PREPARING"] } } }),
+    prisma.product.count({ where: { active: true, stock: { lte: 5 } } }),
+  ]);
+  return { pendingPrescriptions, ordersToProcess, lowStock };
 }
 
 export function getPendingPrescriptions() {

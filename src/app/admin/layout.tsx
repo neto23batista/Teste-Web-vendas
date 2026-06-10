@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/session";
+import { getAdminBadges } from "@/lib/admin";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -20,9 +21,16 @@ export default async function AdminLayout({
   const user = await getCurrentUser();
   if (!user || user.role !== "ADMIN") redirect("/login");
 
+  const b = await getAdminBadges();
+  const badges = {
+    "/admin/pedidos": b.ordersToProcess,
+    "/admin/receitas": b.pendingPrescriptions,
+    "/admin/estoque": b.lowStock,
+  };
+
   return (
     <div className="min-h-dvh bg-background lg:pl-64">
-      <AdminSidebar />
+      <AdminSidebar badges={badges} />
       <div className="flex min-h-dvh flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-xl md:px-6">
           <span className="font-extrabold lg:hidden">FarmaVida Admin</span>

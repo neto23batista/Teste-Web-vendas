@@ -22,6 +22,7 @@ import {
 import { SimulatePaymentButton } from "@/components/store/simulate-payment-button";
 import { PrescriptionResubmit } from "@/components/store/prescription-resubmit";
 import { CancelOrderButton } from "@/components/store/cancel-order-button";
+import { ReorderButton } from "@/components/store/reorder-button";
 
 export const metadata: Metadata = { title: "Pedido" };
 
@@ -239,14 +240,20 @@ export default async function OrderPage({
       </div>
 
       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-        <Button asChild variant="outline" size="lg">
-          <Link href="/conta/pedidos">Ver meus pedidos</Link>
-        </Button>
+        <ReorderButton orderNumber={order.number} variant="outline" size="lg" />
         <Button asChild variant="primary" size="lg">
           <Link href="/catalogo">
             Continuar comprando <ArrowRight className="size-5" />
           </Link>
         </Button>
+      </div>
+      <div className="mt-3 text-center">
+        <Link
+          href="/conta/pedidos"
+          className="text-sm font-semibold text-muted-foreground transition hover:text-foreground"
+        >
+          Ver meus pedidos
+        </Link>
       </div>
 
       {canCancel && (
