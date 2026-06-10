@@ -8,6 +8,10 @@ export const metadata: Metadata = {
   title: { default: "Admin", template: "%s | Admin FarmaVida" },
 };
 
+// O admin é sempre por sessão e lê o banco a cada requisição.
+// `force-dynamic` evita que o build tente pré-renderizar (e bater no banco).
+export const dynamic = "force-dynamic";
+
 export default async function AdminLayout({
   children,
 }: {

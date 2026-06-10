@@ -3,14 +3,25 @@ import { prisma } from "@/lib/prisma";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
 
+// Gerado sob demanda (não no build): depende do banco, que pode não estar
+// acessível durante o build na Vercel.
+export const dynamic = "force-dynamic";
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [products, categories] = await Promise.all([
-    prisma.product.findMany({
-      where: { active: true },
-      select: { slug: true, updatedAt: true },
-    }),
-    prisma.category.findMany({ select: { slug: true } }),
-  ]);
+  // Resiliente: se o banco falhar, o sitemap ainda responde com as rotas fixas.
+  let products: { slug: string; updatedAt: Date }[] = [];
+  let categories: { slug: string }[] = [];
+  try {
+    [products, categories] = await Promise.all([
+      prisma.product.findMany({
+        where: { active: true },
+        select: { slug: true, updatedAt: true },
+      }),
+      prisma.category.findMany({ select: { slug: true } }),
+    ]);
+  } catch {
+    // sem banco: devolve apenas as rotas estáticas abaixo
+  }
 
   const staticRoutes = ["", "/catalogo", "/sobre", "/privacidade", "/termos"].map(
     (path) => ({
