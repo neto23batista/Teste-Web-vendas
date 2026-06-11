@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE `order` ADD COLUMN `requiresPrescription` BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE `Order` ADD COLUMN `requiresPrescription` BOOLEAN NOT NULL DEFAULT false;
 
 -- AlterTable
-ALTER TABLE `product` ADD COLUMN `activeIngredient` VARCHAR(191) NULL;
+ALTER TABLE `Product` ADD COLUMN `activeIngredient` VARCHAR(191) NULL;

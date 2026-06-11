@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE `product` ADD COLUMN `emoji` VARCHAR(191) NULL;
+ALTER TABLE `Product` ADD COLUMN `emoji` VARCHAR(191) NULL;
