@@ -1,7 +1,16 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+// Fotos reais validadas por scripts/check-product-images.cjs (name → url).
+// DESATIVADAS por padrão (o dono preferiu o visual de emoji estilizado).
+// Para popular com fotos: SEED_PRODUCT_PHOTOS=1 npm run db:seed
+import productImages from "./product-images.json";
 
 const prisma = new PrismaClient();
+
+const USE_PHOTOS = process.env.SEED_PRODUCT_PHOTOS === "1";
+
+const imageFor = (name: string): string | undefined =>
+  USE_PHOTOS ? (productImages as Record<string, string>)[name] : undefined;
 
 // ───────── Categorias ─────────
 const categories = [
@@ -186,6 +195,7 @@ async function main() {
     let slug = slugify(p.name);
     while (seen.has(slug)) slug = `${slug}-x`;
     seen.add(slug);
+    const imageUrl = imageFor(p.name);
     await prisma.product.create({
       data: {
         name: p.name,
@@ -203,6 +213,9 @@ async function main() {
         featured: p.featured ?? false,
         categoryId: catMap.get(p.cat)!,
         brandId: brandMap.get(p.brand) ?? null,
+        ...(imageUrl
+          ? { images: { create: [{ url: imageUrl, alt: p.name, sort: 0 }] } }
+          : {}),
       },
     });
   }

@@ -12,7 +12,7 @@ export async function SiteHeader() {
   const [count, user] = await Promise.all([getCartCount(), getCurrentUser()]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 shadow-[0_1px_0_0_color-mix(in_oklab,var(--border)_50%,transparent)] backdrop-blur-xl backdrop-saturate-150">
       <div className="container-page flex h-16 items-center gap-3 md:h-18">
         <Brand />
 

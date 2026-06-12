@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ShoppingBag, ArrowRight, Truck, Tag } from "lucide-react";
 import { getCart } from "@/lib/cart";
-import { shippingFor, missingForFreeShipping, FREE_SHIPPING_MIN } from "@/lib/shipping";
+import { shippingFor, missingForFreeShipping } from "@/lib/shipping";
+import { getShippingConfig } from "@/lib/settings";
 import { formatBRL } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CartItemRow } from "@/components/store/cart-item-row";
@@ -35,8 +36,9 @@ export default async function CartPage() {
     );
   }
 
-  const shipping = shippingFor(cart.subtotal);
-  const missing = missingForFreeShipping(cart.subtotal);
+  const shippingConfig = await getShippingConfig();
+  const shipping = shippingFor(cart.subtotal, undefined, shippingConfig);
+  const missing = missingForFreeShipping(cart.subtotal, shippingConfig);
   const total = cart.subtotal + shipping;
 
   return (
@@ -51,12 +53,38 @@ export default async function CartPage() {
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
         {/* Itens */}
         <div className="space-y-4">
-          {missing > 0 && (
+          {missing > 0 ? (
+            <div className="space-y-2.5 rounded-2xl border border-promo-200 bg-promo-50 p-4 text-sm dark:border-promo-500/25 dark:bg-promo-500/10">
+              <div className="flex items-center gap-3">
+                <Truck className="size-5 shrink-0 text-promo-600 dark:text-promo-400" />
+                <p>
+                  Faltam <strong>{formatBRL(missing)}</strong> para você ganhar{" "}
+                  <strong>frete grátis</strong>!
+                </p>
+              </div>
+              {/* Progresso até o frete grátis */}
+              <div
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={shippingConfig.freeMin}
+                aria-valuenow={Math.min(cart.subtotal, shippingConfig.freeMin)}
+                aria-label="Progresso para o frete grátis"
+                className="h-2 overflow-hidden rounded-full bg-promo-200/60 dark:bg-promo-500/20"
+              >
+                <div
+                  className="gradient-promo h-full rounded-full transition-[width] duration-500"
+                  style={{
+                    width: `${Math.min(100, Math.round((cart.subtotal / shippingConfig.freeMin) * 100))}%`,
+                  }}
+                />
+              </div>
+            </div>
+          ) : (
             <div className="flex items-center gap-3 rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm dark:border-brand-600/30 dark:bg-brand-600/10">
               <Truck className="size-5 shrink-0 text-brand-600 dark:text-brand-400" />
               <p>
-                Faltam <strong>{formatBRL(missing)}</strong> para você ganhar{" "}
-                <strong>frete grátis</strong>!
+                <strong>Você ganhou frete grátis!</strong> Aproveite e finalize a
+                compra.
               </p>
             </div>
           )}
@@ -96,7 +124,7 @@ export default async function CartPage() {
               </div>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Tag className="size-3.5" /> Frete grátis acima de{" "}
-                {formatBRL(FREE_SHIPPING_MIN)}
+                {formatBRL(shippingConfig.freeMin)}
               </div>
             </dl>
             <div className="flex items-end justify-between border-t border-border pt-4">

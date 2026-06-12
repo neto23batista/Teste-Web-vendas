@@ -8,24 +8,36 @@
    (bg-brand-600, text-accent-500, etc.)
    ============================================================ */
 @theme {
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, Arial, sans-serif;
 
-  --color-brand-50: #eff6ff;
-  --color-brand-100: #dbeafe;
-  --color-brand-200: #bfdbfe;
-  --color-brand-300: #93c5fd;
-  --color-brand-400: #60a5fa;
-  --color-brand-500: #3b82f6;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
-  --color-brand-800: #1e3a8a;
-  --color-brand-900: #1e3a8a;
-  --color-brand-950: #172554;
+  /* Vermelho vibrante (estilo iFood) como marca; azul confiança como apoio. */
+  --color-brand-50: #fef2f2;
+  --color-brand-100: #fee2e2;
+  --color-brand-200: #fecaca;
+  --color-brand-300: #fca5a5;
+  --color-brand-400: #f87171;
+  --color-brand-500: #ef4444;
+  --color-brand-600: #ea1d2c;
+  --color-brand-700: #c81622;
+  --color-brand-800: #a3131d;
+  --color-brand-900: #82141b;
+  --color-brand-950: #45060b;
 
-  --color-accent-400: #22d3ee;
-  --color-accent-500: #06b6d4;
-  --color-accent-600: #0891b2;
+  --color-accent-400: #38bdf8;
+  --color-accent-500: #0ea5e9;
+  --color-accent-600: #0284c7;
+
+  /* Teal "oferta/economia" (como o iFood usa para descontos): badges de
+     desconto, barra de frete grátis e contadores. Texto claro usa 600+. */
+  --color-promo-50: #f0fdfa;
+  --color-promo-100: #ccfbf1;
+  --color-promo-200: #99f6e4;
+  --color-promo-300: #5eead4;
+  --color-promo-400: #2dd4bf;
+  --color-promo-500: #14b8a6;
+  --color-promo-600: #0d9488;
+  --color-promo-700: #0f766e;
 
   --color-success-500: #16a34a;
   --color-success-600: #15803d;
@@ -36,11 +48,13 @@
   --radius-2xl: 1.25rem;
   --radius-3xl: 1.75rem;
 
-  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04),
-    0 8px 24px -8px rgba(15, 23, 42, 0.12);
-  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06),
-    0 18px 40px -16px rgba(37, 99, 235, 0.18);
-  --shadow-glow: 0 18px 52px -12px rgba(37, 99, 235, 0.45);
+  --shadow-soft: 0 1px 2px rgba(40, 8, 12, 0.04),
+    0 8px 24px -8px rgba(40, 8, 12, 0.12);
+  --shadow-card: 0 1px 3px rgba(40, 8, 12, 0.06),
+    0 18px 40px -16px rgba(234, 29, 44, 0.18);
+  --shadow-glow: 0 18px 52px -12px rgba(234, 29, 44, 0.4);
+  /* Glow para banners/CTAs de oferta (teal). */
+  --shadow-promo: 0 16px 44px -12px rgba(20, 184, 166, 0.4);
 
   --animate-fade-up: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-float: float 6s ease-in-out infinite;
@@ -54,35 +68,35 @@
    Tokens semânticos (trocam entre claro/escuro)
    ============================================================ */
 :root {
-  --background: #f6f8fc;
-  --foreground: #0f172a;
+  --background: #faf9f9;
+  --foreground: #221416;
   --card: #ffffff;
-  --card-foreground: #0f172a;
-  --muted: #eef2f7;
-  --muted-foreground: #5b6b85;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --primary: #2563eb;
+  --card-foreground: #221416;
+  --muted: #f2ebec;
+  --muted-foreground: #6e5d60;
+  --border: #ecdfe1;
+  --input: #ecdfe1;
+  --primary: #ea1d2c;
   --primary-foreground: #ffffff;
-  --accent: #06b6d4;
-  --accent-foreground: #06303a;
-  --ring: #2563eb;
+  --accent: #0ea5e9;
+  --accent-foreground: #082f49;
+  --ring: #ea1d2c;
 }
 
 .dark {
-  --background: #0b1220;
-  --foreground: #e6edf7;
-  --card: #111a2e;
-  --card-foreground: #e6edf7;
-  --muted: #18233a;
-  --muted-foreground: #93a4c0;
-  --border: #1f2c45;
-  --input: #1f2c45;
-  --primary: #3b82f6;
-  --primary-foreground: #0b1220;
-  --accent: #22d3ee;
-  --accent-foreground: #04222a;
-  --ring: #3b82f6;
+  --background: #150a0b;
+  --foreground: #f5e9ea;
+  --card: #1f1314;
+  --card-foreground: #f5e9ea;
+  --muted: #281a1c;
+  --muted-foreground: #ab9598;
+  --border: #382427;
+  --input: #382427;
+  --primary: #f87171;
+  --primary-foreground: #45060b;
+  --accent: #38bdf8;
+  --accent-foreground: #082f49;
+  --ring: #f87171;
 }
 
 @theme inline {
@@ -117,6 +131,9 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    /* Nunca permitir scroll horizontal da página no celular (clip não cria
+       scroll container, então não quebra position: sticky). */
+    overflow-x: clip;
   }
   ::selection {
     background: color-mix(in oklab, var(--primary) 25%, transparent);
@@ -154,27 +171,27 @@
   .gradient-brand {
     background-image: linear-gradient(
       135deg,
-      #1e3a8a 0%,
-      #2563eb 48%,
-      #0891b2 100%
+      #82141b 0%,
+      #ea1d2c 50%,
+      #f43f5e 100%
     );
   }
   /* Versão animada: o gradiente desliza suavemente (hero). */
   .gradient-brand-animated {
     background-image: linear-gradient(
       120deg,
-      #1e3a8a 0%,
-      #2563eb 30%,
-      #0891b2 55%,
-      #2563eb 80%,
-      #1e3a8a 100%
+      #82141b 0%,
+      #ea1d2c 30%,
+      #f43f5e 55%,
+      #ea1d2c 80%,
+      #82141b 100%
     );
     background-size: 220% 220%;
     animation: var(--animate-gradient);
   }
   /* Texto com preenchimento em gradiente da marca. */
   .text-gradient-brand {
-    background-image: linear-gradient(120deg, #2563eb, #06b6d4);
+    background-image: linear-gradient(120deg, #ea1d2c, #f43f5e);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -186,10 +203,46 @@
       var(--card)
     );
   }
+  /* Gradiente de OFERTA/economia (teal, como o iFood usa em descontos). */
+  .gradient-promo {
+    background-image: linear-gradient(
+      135deg,
+      #0f766e 0%,
+      #0d9488 40%,
+      #14b8a6 70%,
+      #2dd4bf 100%
+    );
+  }
   .glass {
     background: color-mix(in oklab, #ffffff 12%, transparent);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
+  }
+  /* Superfície "liquid glass": translúcida sobre o tema atual (cards flutuantes,
+     header, bottom-nav). Mais opaca que .glass para manter contraste do texto. */
+  .glass-surface {
+    background: color-mix(in oklab, var(--card) 72%, transparent);
+    backdrop-filter: blur(18px) saturate(1.4);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  }
+  /* Fundo aurora: manchas de luz da marca para seções de destaque. */
+  .aurora {
+    background-image: radial-gradient(
+        38rem 38rem at 8% -10%,
+        color-mix(in oklab, #f87171 20%, transparent),
+        transparent 60%
+      ),
+      radial-gradient(
+        32rem 32rem at 95% 15%,
+        color-mix(in oklab, #fbbf24 16%, transparent),
+        transparent 60%
+      ),
+      radial-gradient(
+        30rem 30rem at 50% 110%,
+        color-mix(in oklab, #f43f5e 12%, transparent),
+        transparent 60%
+      );
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -274,6 +327,23 @@
   50% {
     opacity: 0.9;
     transform: scale(1.08);
+  }
+}
+/* Entrada do bottom-sheet (filtros mobile) e do seu overlay. */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 @keyframes blob {

@@ -30,10 +30,12 @@ export function CartItemRow({ item }: { item: CartItemView }) {
     <div className="flex gap-4 py-4">
       <Link href={`/produto/${item.product.slug}`} className="shrink-0">
         <ProductImage
+          src={item.product.images[0]?.url}
           emoji={item.product.emoji}
           name={item.product.name}
           className="size-20 rounded-2xl"
           emojiClassName="text-3xl"
+          sizes="80px"
         />
       </Link>
 
@@ -59,9 +61,9 @@ export function CartItemRow({ item }: { item: CartItemView }) {
               onClick={() => change(item.qty - 1)}
               disabled={pending}
               aria-label="Diminuir"
-              className="grid size-9 place-items-center rounded-l-xl text-muted-foreground transition hover:bg-muted disabled:opacity-40"
+              className="grid size-11 place-items-center rounded-l-xl text-muted-foreground transition hover:bg-muted disabled:opacity-40"
             >
-              <Minus className="size-3.5" />
+              <Minus className="size-4" />
             </button>
             <span className="w-8 text-center text-sm font-bold">
               {pending ? <Loader2 className="mx-auto size-3.5 animate-spin" /> : item.qty}
@@ -70,9 +72,9 @@ export function CartItemRow({ item }: { item: CartItemView }) {
               onClick={() => change(item.qty + 1)}
               disabled={pending || item.qty >= item.product.stock}
               aria-label="Aumentar"
-              className="grid size-9 place-items-center rounded-r-xl text-muted-foreground transition hover:bg-muted disabled:opacity-40"
+              className="grid size-11 place-items-center rounded-r-xl text-muted-foreground transition hover:bg-muted disabled:opacity-40"
             >
-              <Plus className="size-3.5" />
+              <Plus className="size-4" />
             </button>
           </div>
 

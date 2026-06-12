@@ -1,9 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { SearchX, ChevronLeft, ChevronRight } from "lucide-react";
-import { getCategories, searchProducts, type CatalogParams } from "@/lib/products";
+import { getCategories, getBrands, searchProducts, type CatalogParams } from "@/lib/products";
 import { ProductGrid } from "@/components/store/product-grid";
 import { CatalogControls } from "@/components/store/catalog-controls";
+import { categoryIcon } from "@/components/store/category-visual";
 import { Reveal } from "@/components/motion/motion";
 import { cn } from "@/lib/utils";
 
@@ -20,14 +21,24 @@ export default async function CatalogPage({
   const sp = await searchParams;
   const q = one(sp.q)?.trim() || undefined;
   const cat = one(sp.cat) || undefined;
+  const brand = one(sp.marca) || undefined;
   const sort = (one(sp.sort) as CatalogParams["sort"]) || "relevancia";
   const promo = !!one(sp.promo);
   const generic = !!one(sp.generic);
+  // rx=0 → só produtos de venda livre (sem receita).
+  const rx = one(sp.rx) === "0" ? false : undefined;
+  const num = (v?: string) => {
+    const n = Number((v ?? "").replace(",", "."));
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  };
+  const priceMin = num(one(sp.pmin));
+  const priceMax = num(one(sp.pmax));
   const page = Math.max(1, Number(one(sp.page)) || 1);
 
-  const [categories, result] = await Promise.all([
+  const [categories, brands, result] = await Promise.all([
     getCategories(),
-    searchProducts({ q, cat, sort, promo, generic, page }),
+    getBrands(),
+    searchProducts({ q, cat, brand, sort, promo, generic, rx, priceMin, priceMax, page }),
   ]);
 
   const activeCat = categories.find((c) => c.slug === cat);
@@ -39,23 +50,32 @@ export default async function CatalogPage({
         ? "Ofertas"
         : "Catálogo completo";
 
-  // helper para montar URL de categoria preservando q
-  const catHref = (slug?: string) => {
+  // Querystring com todos os filtros ativos — base para os links de
+  // categoria e paginação (troca de categoria preserva os demais filtros).
+  const baseParams = () => {
     const p = new URLSearchParams();
     if (q) p.set("q", q);
-    if (slug) p.set("cat", slug);
+    if (cat) p.set("cat", cat);
+    if (brand) p.set("marca", brand);
+    if (promo) p.set("promo", "1");
+    if (generic) p.set("generic", "1");
+    if (rx === false) p.set("rx", "0");
+    if (priceMin != null) p.set("pmin", String(priceMin));
+    if (priceMax != null) p.set("pmax", String(priceMax));
     if (sort !== "relevancia") p.set("sort", sort);
+    return p;
+  };
+
+  const catHref = (slug?: string) => {
+    const p = baseParams();
+    p.delete("cat");
+    if (slug) p.set("cat", slug);
     const s = p.toString();
     return `/catalogo${s ? `?${s}` : ""}`;
   };
 
   const pageHref = (n: number) => {
-    const p = new URLSearchParams();
-    if (q) p.set("q", q);
-    if (cat) p.set("cat", cat);
-    if (promo) p.set("promo", "1");
-    if (generic) p.set("generic", "1");
-    if (sort !== "relevancia") p.set("sort", sort);
+    const p = baseParams();
     if (n > 1) p.set("page", String(n));
     const s = p.toString();
     return `/catalogo${s ? `?${s}` : ""}`;
@@ -81,20 +101,23 @@ export default async function CatalogPage({
         >
           Todos
         </Link>
-        {categories.map((c) => (
-          <Link
-            key={c.id}
-            href={catHref(c.slug)}
-            className={cn(
-              "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition active:scale-95",
-              cat === c.slug
-                ? "border-brand-600 bg-brand-600 text-white shadow-[var(--shadow-soft)]"
-                : "border-border bg-card hover:border-brand-300 hover:-translate-y-0.5"
-            )}
-          >
-            {c.emoji} {c.name}
-          </Link>
-        ))}
+        {categories.map((c) => {
+          const Icon = categoryIcon(c.icon);
+          return (
+            <Link
+              key={c.id}
+              href={catHref(c.slug)}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-semibold transition active:scale-95",
+                cat === c.slug
+                  ? "border-brand-600 bg-brand-600 text-white shadow-[var(--shadow-soft)]"
+                  : "border-border bg-card hover:border-brand-300 hover:-translate-y-0.5"
+              )}
+            >
+              <Icon className="size-4" /> {c.name}
+            </Link>
+          );
+        })}
       </div>
 
       {/* Toolbar */}
@@ -104,7 +127,9 @@ export default async function CatalogPage({
           {result.total === 1 ? "produto" : "produtos"}
         </p>
         <div className="sm:ml-auto sm:w-auto">
-          <CatalogControls />
+          <CatalogControls
+            brands={brands.map((b) => ({ slug: b.slug, name: b.name }))}
+          />
         </div>
       </div>
 

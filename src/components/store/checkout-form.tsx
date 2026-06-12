@@ -13,12 +13,18 @@ import {
   FileText,
   ShieldCheck,
   Gift,
+  MessageSquareText,
 } from "lucide-react";
+import { toast } from "sonner";
 import { placeOrder } from "@/actions/checkout";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 import { maxRedeemablePoints, pointsToBRL } from "@/lib/loyalty";
-import { shippingFor } from "@/lib/shipping";
+import {
+  shippingFor,
+  DEFAULT_SHIPPING_CONFIG,
+  type ShippingConfig,
+} from "@/lib/shipping";
 import { lookupCep } from "@/lib/viacep";
 import { formatBRL, cn } from "@/lib/utils";
 
@@ -46,14 +52,22 @@ export function CheckoutForm({
   subtotal,
   requiresPrescription,
   points,
+  shippingConfig = DEFAULT_SHIPPING_CONFIG,
 }: {
   addresses: Address[];
   subtotal: number;
   requiresPrescription: boolean;
   points: number;
+  shippingConfig?: ShippingConfig;
 }) {
   const formRef = React.useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState(placeOrder, undefined);
+
+  // O banner de erro fica no topo do form; o toast garante que o aviso seja
+  // visto mesmo com a página rolada até o botão (ex.: rate limit no duplo clique).
+  React.useEffect(() => {
+    if (state?.error) toast.error(state.error);
+  }, [state]);
   const [addressId, setAddressId] = React.useState(addresses[0]?.id ?? "new");
   const [method, setMethod] = React.useState("pix");
   const [newZip, setNewZip] = React.useState("");
@@ -63,7 +77,7 @@ export function CheckoutForm({
   // Frete é calculado pelo CEP de destino (o servidor recalcula na confirmação).
   const selectedAddress = addresses.find((a) => a.id === addressId);
   const currentZip = isNew ? newZip : selectedAddress?.zip ?? "";
-  const shipping = shippingFor(subtotal, currentZip);
+  const shipping = shippingFor(subtotal, currentZip, shippingConfig);
 
   // Resgate de pontos (cálculo ao vivo; o servidor revalida o saldo na confirmação).
   const maxRedeem = maxRedeemablePoints(points, subtotal);
@@ -99,7 +113,10 @@ export function CheckoutForm({
 
         {/* Endereço */}
         <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
-          <h2 className="flex items-center gap-2 font-bold">
+          <h2 className="flex items-center gap-2.5 font-bold">
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-extrabold text-white">
+              1
+            </span>
             <MapPin className="size-5 text-brand-600 dark:text-brand-400" /> Endereço de entrega
           </h2>
 
@@ -201,18 +218,30 @@ export function CheckoutForm({
 
         {/* Pagamento */}
         <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
-          <h2 className="font-bold">Forma de pagamento</h2>
+          <h2 className="flex items-center gap-2.5 font-bold">
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-extrabold text-white">
+              2
+            </span>
+            Forma de pagamento
+          </h2>
           <div className="grid gap-3 sm:grid-cols-3">
             {methods.map((m) => (
               <label
                 key={m.id}
                 className={cn(
-                  "cursor-pointer rounded-xl border p-4 text-center transition",
+                  "relative cursor-pointer rounded-xl border p-4 text-center transition active:scale-[0.98]",
                   method === m.id
-                    ? "border-brand-600 bg-brand-50 dark:bg-brand-600/10"
+                    ? "border-brand-600 bg-brand-50 ring-2 ring-brand-500/25 dark:bg-brand-600/10"
                     : "border-border hover:border-brand-300"
                 )}
               >
+                {method === m.id && (
+                  <span className="absolute right-2.5 top-2.5 grid size-5 place-items-center rounded-full bg-brand-600 text-white">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" className="size-3">
+                      <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                )}
                 <input
                   type="radio"
                   name="paymentMethod"
@@ -232,6 +261,21 @@ export function CheckoutForm({
               </label>
             ))}
           </div>
+        </section>
+
+        {/* Observações */}
+        <section className="space-y-3 rounded-2xl border border-border bg-card p-5">
+          <h2 className="flex items-center gap-2 font-bold">
+            <MessageSquareText className="size-5 text-brand-600 dark:text-brand-400" />{" "}
+            Observações <span className="text-sm font-medium text-muted-foreground">(opcional)</span>
+          </h2>
+          <textarea
+            name="notes"
+            rows={3}
+            maxLength={500}
+            placeholder="Ex.: entregar na portaria, interfone 12, troco para R$ 100…"
+            className="w-full resize-y rounded-xl border border-border bg-card px-4 py-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
+          />
         </section>
 
         {/* Receita */}
@@ -263,7 +307,12 @@ export function CheckoutForm({
       {/* Resumo */}
       <aside className="lg:sticky lg:top-24 lg:h-fit">
         <div className="space-y-4 rounded-2xl border border-border bg-card p-5">
-          <h2 className="font-bold">Resumo</h2>
+          <h2 className="flex items-center gap-2.5 font-bold">
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-extrabold text-white">
+              3
+            </span>
+            Revisão do pedido
+          </h2>
           <Field label="Cupom de desconto" htmlFor="coupon">
             <Input id="coupon" name="coupon" placeholder="Ex.: BEMVINDO10" />
           </Field>

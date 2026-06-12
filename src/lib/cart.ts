@@ -19,6 +19,11 @@ const cartItemSelect = {
       promoPrice: true,
       stock: true,
       requiresPrescription: true,
+      images: {
+        select: { url: true },
+        orderBy: { sort: "asc" as const },
+        take: 1,
+      },
     },
   },
 } satisfies Prisma.CartItemSelect;

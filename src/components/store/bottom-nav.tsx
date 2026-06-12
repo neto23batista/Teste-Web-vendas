@@ -5,24 +5,25 @@ import { usePathname } from "next/navigation";
 import { Home, LayoutGrid, ShoppingBag, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { CartBadge } from "@/components/store/cart-badge";
 
 const items = [
   { href: "/", label: "Início", icon: Home, exact: true },
   { href: "/catalogo", label: "Catálogo", icon: LayoutGrid },
-  { href: "/sacola", label: "Sacola", icon: ShoppingBag },
+  { href: "/sacola", label: "Sacola", icon: ShoppingBag, badge: true },
   { href: "/conta", label: "Conta", icon: User },
 ];
 
-export function BottomNav() {
+export function BottomNav({ cartCount = 0 }: { cartCount?: number }) {
   const pathname = usePathname();
   return (
     <nav
       aria-label="Navegação"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur-md md:hidden"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      className="fixed inset-x-3 bottom-3 z-40 rounded-3xl glass-surface shadow-[var(--shadow-card)] md:hidden"
+      style={{ marginBottom: "env(safe-area-inset-bottom)" }}
     >
       <ul className="grid grid-cols-4">
-        {items.map(({ href, label, icon: Icon, exact }) => {
+        {items.map(({ href, label, icon: Icon, exact, badge }) => {
           const active = exact ? pathname === href : pathname.startsWith(href);
           return (
             <li key={href}>
@@ -51,6 +52,7 @@ export function BottomNav() {
                     className="relative z-10 grid place-items-center"
                   >
                     <Icon className="size-5" />
+                    {badge && <CartBadge count={cartCount} />}
                   </motion.span>
                 </span>
                 {label}

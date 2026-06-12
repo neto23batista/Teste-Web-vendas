@@ -21,6 +21,7 @@ import { formatBRL, discountPercent } from "@/lib/utils";
 import { ProductGallery } from "@/components/store/product-gallery";
 import { StarRating } from "@/components/store/star-rating";
 import { ProductPurchase } from "@/components/store/product-purchase";
+import { StickyBuyBar } from "@/components/store/sticky-buy-bar";
 import { FavoriteButton } from "@/components/store/favorite-button";
 import { ProductRow } from "@/components/store/product-row";
 import { ReviewForm } from "@/components/store/review-form";
@@ -62,8 +63,63 @@ export default async function ProductPage({
       })
     : null;
 
+  // Ficha técnica: só as linhas com valor preenchido no cadastro.
+  const specs: [string, string][] = [];
+  if (product.activeIngredient) specs.push(["Princípio ativo", product.activeIngredient]);
+  if (product.brand) specs.push(["Marca", product.brand.name]);
+  specs.push(["Categoria", product.category.name]);
+  if (product.ean) specs.push(["Código de barras (EAN)", product.ean]);
+  if (product.sku) specs.push(["Código interno (SKU)", product.sku]);
+  if (product.isGeneric) specs.push(["Medicamento genérico", "Sim"]);
+  if (product.requiresPrescription) specs.push(["Venda sob prescrição", "Sim"]);
+
+  // Rich snippet de produto (Google Shopping/busca orgânica).
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.shortDescription ?? product.description,
+    ...(product.images.length > 0
+      ? { image: product.images.map((i) => i.url) }
+      : {}),
+    ...(product.sku ? { sku: product.sku } : {}),
+    ...(product.ean ? { gtin13: product.ean } : {}),
+    ...(product.brand
+      ? { brand: { "@type": "Brand", name: product.brand.name } }
+      : {}),
+    offers: {
+      "@type": "Offer",
+      price: price.toFixed(2),
+      priceCurrency: "BRL",
+      availability: out
+        ? "https://schema.org/OutOfStock"
+        : "https://schema.org/InStock",
+    },
+    ...(product.ratingCount > 0
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: product.rating,
+            reviewCount: product.ratingCount,
+          },
+        }
+      : {}),
+  };
+
   return (
-    <div className="container-page space-y-12 py-6 md:py-8">
+    <div className="container-page space-y-12 py-6 pb-28 md:py-8 md:pb-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      {/* CTA fixo no mobile (acima do bottom-nav) */}
+      <StickyBuyBar
+        productId={product.id}
+        name={product.name}
+        price={price}
+        oldPrice={product.promoPrice != null ? product.price : null}
+        disabled={out}
+      />
       {/* Breadcrumb */}
       <nav className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
         <Link href="/" className="hover:text-foreground">Início</Link>
@@ -83,7 +139,7 @@ export default async function ProductPage({
         <Reveal className="relative">
           <div className="sticky top-24">
             {off > 0 && (
-              <span className="absolute left-4 top-4 z-10 rounded-full bg-success-500 px-3 py-1.5 text-sm font-bold text-white shadow">
+              <span className="absolute left-4 top-4 z-10 rounded-full bg-promo-500 px-3 py-1.5 text-sm font-bold text-white shadow">
                 -{off}% OFF
               </span>
             )}
@@ -136,7 +192,7 @@ export default async function ProductPage({
                 {formatBRL(price)}
               </span>
               {off > 0 && (
-                <span className="mb-1 rounded-full bg-success-500/10 px-2 py-0.5 text-sm font-bold text-success-600">
+                <span className="mb-1 rounded-full bg-promo-100 px-2 py-0.5 text-sm font-bold text-promo-700 dark:bg-promo-500/15 dark:text-promo-400">
                   Economize {formatBRL(product.price - price)}
                 </span>
               )}
@@ -198,6 +254,22 @@ export default async function ProductPage({
             <p className="text-sm leading-relaxed text-muted-foreground">
               {product.description}
             </p>
+          </div>
+
+          {/* Ficha técnica */}
+          <div className="space-y-2">
+            <h2 className="text-lg font-bold">Ficha técnica</h2>
+            <dl className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card text-sm">
+              {specs.map(([label, value]) => (
+                <div
+                  key={label}
+                  className="grid grid-cols-[10rem_1fr] gap-3 px-4 py-2.5 sm:grid-cols-[12rem_1fr]"
+                >
+                  <dt className="font-medium text-muted-foreground">{label}</dt>
+                  <dd className="font-semibold">{value}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
 
           {product.requiresPrescription && (

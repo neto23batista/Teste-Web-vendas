@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { CategoryStrip } from "@/components/store/category-strip";
 import { ProductRow } from "@/components/store/product-row";
 import { HomeHero } from "@/components/store/home-hero";
+import { PromoCarousel } from "@/components/store/promo-carousel";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/motion";
 import {
   getCategories,
@@ -17,6 +18,7 @@ import {
   getPromoProducts,
   getProductsByCategory,
 } from "@/lib/products";
+import { getShippingConfig } from "@/lib/settings";
 
 const benefits = [
   { icon: Truck, title: "Entrega expressa", text: "Receba em casa com rastreio em tempo real." },
@@ -26,11 +28,12 @@ const benefits = [
 ];
 
 export default async function HomePage() {
-  const [categories, promos, featured, vitaminas] = await Promise.all([
+  const [categories, promos, featured, vitaminas, shipping] = await Promise.all([
     getCategories(),
     getPromoProducts(10),
     getFeaturedProducts(10),
     getProductsByCategory("vitaminas", 10),
+    getShippingConfig(),
   ]);
 
   const jsonLd = {
@@ -50,13 +53,17 @@ export default async function HomePage() {
   };
 
   return (
-    <div className="container-page space-y-12 py-6 md:space-y-16 md:py-10">
+    <div className="aurora">
+      <div className="container-page space-y-12 py-6 md:space-y-16 md:py-10">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       {/* HERO */}
       <HomeHero />
+
+      {/* BANNERS PROMOCIONAIS */}
+      <PromoCarousel freeShippingMin={shipping.freeMin} />
 
       {/* CATEGORIAS */}
       <section className="space-y-5">
@@ -79,6 +86,7 @@ export default async function HomePage() {
         subtitle="Descontos que cuidam do seu bolso"
         href="/catalogo?promo=1"
         products={promos}
+        tone="promo"
       />
 
       {/* BENEFÍCIOS */}
@@ -130,6 +138,7 @@ export default async function HomePage() {
           </Link>
         </Button>
       </Reveal>
+      </div>
     </div>
   );
 }

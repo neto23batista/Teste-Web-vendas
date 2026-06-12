@@ -25,14 +25,14 @@ export function ProductCard({
     // sem JS por card). A entrada animada vem do <RevealItem> que o envolve.
     <article
       className={cn(
-        "group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)] transition-[transform,box-shadow] duration-300 hover:-translate-y-1.5 hover:shadow-[var(--shadow-card)] active:scale-[0.99]",
+        "group relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-[var(--shadow-soft)] transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1.5 hover:border-brand-300/70 hover:shadow-[var(--shadow-card)] active:scale-[0.99] dark:hover:border-brand-400/40",
         className
       )}
     >
       {/* Selos */}
       <div className="absolute left-3 top-3 z-10 flex flex-col items-start gap-1.5">
         {off > 0 && (
-          <span className="rounded-full bg-success-500 px-2.5 py-1 text-xs font-bold text-white shadow">
+          <span className="rounded-full bg-promo-500 px-2.5 py-1 text-xs font-bold text-white shadow">
             -{off}%
           </span>
         )}
@@ -65,7 +65,7 @@ export function ProductCard({
         />
       </Link>
 
-      <div className="flex flex-1 flex-col gap-2 p-4">
+      <div className="flex flex-1 flex-col gap-2 p-3 md:p-4">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {product.brand?.name ?? product.category.name}
         </p>
@@ -84,7 +84,7 @@ export function ProductCard({
                 {formatBRL(product.price)}
               </p>
             )}
-            <p className="text-lg font-extrabold text-brand-700 dark:text-brand-400">
+            <p className="text-xl font-extrabold tracking-tight text-brand-700 dark:text-brand-400">
               {formatBRL(price)}
             </p>
           </div>
