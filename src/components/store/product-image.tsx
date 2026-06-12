@@ -2,13 +2,14 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 // Paleta de gradientes suaves — escolhidos deterministicamente pelo nome.
+// Tons quentes, alinhados à marca vermelha (sem azuis frios).
 const gradients = [
-  "from-sky-100 to-blue-200 dark:from-sky-500/20 dark:to-blue-500/10",
-  "from-cyan-100 to-teal-200 dark:from-cyan-500/20 dark:to-teal-500/10",
-  "from-emerald-100 to-green-200 dark:from-emerald-500/20 dark:to-green-500/10",
-  "from-violet-100 to-indigo-200 dark:from-violet-500/20 dark:to-indigo-500/10",
-  "from-rose-100 to-pink-200 dark:from-rose-500/20 dark:to-pink-500/10",
+  "from-rose-100 to-red-200 dark:from-rose-500/20 dark:to-red-500/10",
   "from-amber-100 to-orange-200 dark:from-amber-500/20 dark:to-orange-500/10",
+  "from-pink-100 to-rose-200 dark:from-pink-500/20 dark:to-rose-500/10",
+  "from-orange-100 to-amber-200 dark:from-orange-500/20 dark:to-amber-500/10",
+  "from-red-100 to-rose-200 dark:from-red-500/20 dark:to-rose-500/10",
+  "from-yellow-100 to-amber-200 dark:from-yellow-500/20 dark:to-amber-500/10",
 ];
 
 function hash(str: string): number {

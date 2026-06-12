@@ -57,7 +57,7 @@ export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) 
       cta: "Começar a comprar",
       href: "/catalogo",
       icon: Truck,
-      bg: "bg-gradient-to-br from-sky-700 via-sky-600 to-cyan-500",
+      bg: "bg-gradient-to-br from-orange-700 via-orange-600 to-amber-500",
     },
   ];
 
