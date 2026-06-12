@@ -69,3 +69,17 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
   revalidatePath("/admin");
   return { ok: true as const };
 }
+
+/** Observações do pedido: recado do cliente no checkout + anotações internas
+ *  da equipe (mesmo campo, editável pelo admin). */
+export async function saveOrderNotes(id: string, notes: string) {
+  await requireAdmin();
+  const exists = await prisma.order.findUnique({ where: { id }, select: { id: true } });
+  if (!exists) return { ok: false as const, error: "Pedido não encontrado." };
+  await prisma.order.update({
+    where: { id },
+    data: { notes: notes.trim().slice(0, 1000) || null },
+  });
+  revalidatePath(`/admin/pedidos/${id}`);
+  return { ok: true as const };
+}

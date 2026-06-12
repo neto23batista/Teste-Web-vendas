@@ -32,6 +32,14 @@ export const getCategories = unstable_cache(
   { tags: ["categories"], revalidate: 3600 }
 );
 
+// Marcas alimentam o filtro do catálogo. Revalidação curta cobre marcas novas
+// criadas pela importação CSV (que não invalida tags).
+export const getBrands = unstable_cache(
+  () => prisma.brand.findMany({ orderBy: { name: "asc" } }),
+  ["brands"],
+  { tags: ["brands"], revalidate: 300 }
+);
+
 // Listas da home: cacheadas sob a tag "products". As mutações de produto
 // (admin) e a baixa de estoque (fulfillOrder) chamam revalidateTag("products").
 export function getFeaturedProducts(take = 8) {
@@ -79,9 +87,12 @@ export function getProductsByCategory(slug: string, take = 8) {
 export type CatalogParams = {
   q?: string;
   cat?: string;
+  brand?: string;
   generic?: boolean;
   rx?: boolean;
   promo?: boolean;
+  priceMin?: number;
+  priceMax?: number;
   sort?: "relevancia" | "menor" | "maior" | "nome";
   page?: number;
   perPage?: number;
@@ -126,9 +137,18 @@ async function fulltextSearch(
 
   const conds: Prisma.Sql[] = [Prisma.sql`p.active = 1`, ftMatch(bool)];
   if (params.cat) conds.push(Prisma.sql`c.slug = ${params.cat}`);
+  if (params.brand)
+    conds.push(
+      Prisma.sql`p.brandId IN (SELECT id FROM Brand WHERE slug = ${params.brand})`
+    );
   if (params.generic) conds.push(Prisma.sql`p.isGeneric = 1`);
   if (params.rx === false) conds.push(Prisma.sql`p.requiresPrescription = 0`);
   if (params.promo) conds.push(Prisma.sql`p.promoPrice IS NOT NULL`);
+  // Faixa de preço considera o valor efetivo (promo quando houver).
+  if (params.priceMin != null)
+    conds.push(Prisma.sql`COALESCE(p.promoPrice, p.price) >= ${params.priceMin}`);
+  if (params.priceMax != null)
+    conds.push(Prisma.sql`COALESCE(p.promoPrice, p.price) <= ${params.priceMax}`);
   const whereSql = Prisma.join(conds, " AND ");
 
   const countRows = await prisma.$queryRaw<{ cnt: bigint }[]>(Prisma.sql`
@@ -196,9 +216,31 @@ export async function searchProducts(params: CatalogParams): Promise<SearchResul
     }
   }
   if (params.cat) where.category = { slug: params.cat };
+  if (params.brand) where.brand = { slug: params.brand };
   if (params.generic) where.isGeneric = true;
   if (params.rx === false) where.requiresPrescription = false;
   if (params.promo) where.promoPrice = { not: null };
+  // Faixa de preço sobre o valor efetivo (promoPrice quando houver, senão price).
+  const priceConds: Prisma.ProductWhereInput[] = [];
+  if (params.priceMin != null) {
+    priceConds.push({
+      OR: [
+        { promoPrice: { gte: params.priceMin } },
+        { promoPrice: null, price: { gte: params.priceMin } },
+      ],
+    });
+  }
+  if (params.priceMax != null) {
+    priceConds.push({
+      OR: [
+        { promoPrice: { lte: params.priceMax } },
+        { promoPrice: null, price: { lte: params.priceMax } },
+      ],
+    });
+  }
+  if (priceConds.length > 0) {
+    where.AND = [...((where.AND as Prisma.ProductWhereInput[]) ?? []), ...priceConds];
+  }
 
   const orderBy: Prisma.ProductOrderByWithRelationInput =
     params.sort === "menor"

@@ -34,7 +34,40 @@ export default async function AdminCustomersPage({
       </form>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        <div className="overflow-x-auto">
+        {/* Mobile: lista em cards (a tabela não cabe na tela). */}
+        <div className="divide-y divide-border md:hidden">
+          {customers.length === 0 && (
+            <p className="p-8 text-center text-sm text-muted-foreground">
+              Nenhum cliente encontrado.
+            </p>
+          )}
+          {customers.map((c) => (
+            <Link
+              key={c.id}
+              href={`/admin/clientes/${c.id}`}
+              className="flex items-center justify-between gap-3 p-4 transition active:bg-muted/40"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-semibold">{c.name}</p>
+                <p className="truncate text-xs text-muted-foreground">{c.email}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {c._count.orders}{" "}
+                  {c._count.orders === 1 ? "pedido" : "pedidos"} · desde{" "}
+                  {new Date(c.createdAt).toLocaleDateString("pt-BR")}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span className="inline-flex items-center gap-1 text-sm font-semibold text-amber-600 dark:text-amber-400">
+                  <Star className="size-3.5 fill-current" />
+                  {c.loyalty?.points ?? 0}
+                </span>
+                <ChevronRight className="size-4 text-muted-foreground" />
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-muted/50 text-left text-xs uppercase text-muted-foreground">
               <tr>

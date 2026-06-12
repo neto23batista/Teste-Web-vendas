@@ -32,6 +32,7 @@ type CreateInput = {
   total: number;
   couponCode: string | null;
   requiresPrescription: boolean;
+  notes?: string | null;
   items: { productId: string; name: string; price: number; qty: number }[];
 };
 
@@ -49,6 +50,7 @@ export async function createOrder(input: CreateInput) {
       discount: input.discount,
       total: input.total,
       couponCode: input.couponCode,
+      notes: input.notes ?? null,
       items: {
         create: input.items.map((i) => ({
           productId: i.productId,

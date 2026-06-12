@@ -1,29 +1,74 @@
 import Link from "next/link";
 import { FileText, Inbox } from "lucide-react";
-import { getPendingPrescriptions } from "@/lib/admin";
+import type { PrescriptionStatus } from "@prisma/client";
+import { getPrescriptionsByStatus } from "@/lib/admin";
 import { PrescriptionReview } from "@/components/admin/prescription-review";
+import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Receitas" };
 
-export default async function AdminPrescriptionsPage() {
-  const prescriptions = await getPendingPrescriptions();
+const tabs: { status: PrescriptionStatus; label: string }[] = [
+  { status: "PENDING", label: "Pendentes" },
+  { status: "APPROVED", label: "Aprovadas" },
+  { status: "REJECTED", label: "Recusadas" },
+];
+
+export default async function AdminPrescriptionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
+  const sp = await searchParams;
+  const status: PrescriptionStatus = tabs.some((t) => t.status === sp.status)
+    ? (sp.status as PrescriptionStatus)
+    : "PENDING";
+  const prescriptions = await getPrescriptionsByStatus(status);
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-extrabold">Receitas a validar</h1>
+        <h1 className="text-2xl font-extrabold">Receitas</h1>
         <p className="text-sm text-muted-foreground">
-          {prescriptions.length}{" "}
-          {prescriptions.length === 1 ? "pendente" : "pendentes"} de validação
-          farmacêutica
+          {status === "PENDING"
+            ? `${prescriptions.length} ${prescriptions.length === 1 ? "pendente" : "pendentes"} de validação farmacêutica`
+            : `Histórico das ${prescriptions.length} mais recentes`}
         </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {tabs.map((t) => (
+          <Link
+            key={t.status}
+            href={
+              t.status === "PENDING"
+                ? "/admin/receitas"
+                : `/admin/receitas?status=${t.status}`
+            }
+            className={cn(
+              "rounded-full border px-4 py-2 text-sm font-semibold transition",
+              status === t.status
+                ? "border-brand-600 bg-brand-600 text-white"
+                : "border-border bg-card hover:border-brand-300"
+            )}
+          >
+            {t.label}
+          </Link>
+        ))}
       </div>
 
       {prescriptions.length === 0 ? (
         <div className="grid place-items-center gap-2 rounded-2xl border border-dashed border-border bg-card py-16 text-center">
           <Inbox className="size-8 text-muted-foreground" />
-          <p className="font-semibold">Nenhuma receita pendente</p>
-          <p className="text-sm text-muted-foreground">Tudo validado por aqui.</p>
+          <p className="font-semibold">
+            {status === "PENDING"
+              ? "Nenhuma receita pendente"
+              : "Nada por aqui ainda"}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {status === "PENDING"
+              ? "Tudo validado por aqui."
+              : "Nenhuma receita com este status."}
+          </p>
         </div>
       ) : (
         <div className="space-y-3">

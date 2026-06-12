@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Prisma, OrderStatus } from "@prisma/client";
+import type { Prisma, OrderStatus, PrescriptionStatus } from "@prisma/client";
 
 const PAID_STATUSES = ["PAID", "PREPARING", "SHIPPED", "DELIVERED"] as const;
 
@@ -171,8 +171,35 @@ export async function getAdminProducts(q?: string, page = 1) {
   };
 }
 
-export async function getAdminOrders(status?: OrderStatus, page = 1) {
-  const where: Prisma.OrderWhereInput = status ? { status } : {};
+export type AdminOrderFilters = {
+  status?: OrderStatus;
+  /** Busca por número do pedido, nome ou e-mail do cliente. */
+  q?: string;
+  /** Datas no formato yyyy-mm-dd (input type="date"). */
+  from?: string;
+  to?: string;
+};
+
+export async function getAdminOrders(filters: AdminOrderFilters = {}, page = 1) {
+  const where: Prisma.OrderWhereInput = {};
+  if (filters.status) where.status = filters.status;
+  if (filters.q) {
+    where.OR = [
+      { number: { contains: filters.q } },
+      { user: { name: { contains: filters.q } } },
+      { user: { email: { contains: filters.q } } },
+    ];
+  }
+  const createdAt: Prisma.DateTimeFilter = {};
+  if (filters.from) {
+    const d = new Date(`${filters.from}T00:00:00`);
+    if (!Number.isNaN(d.getTime())) createdAt.gte = d;
+  }
+  if (filters.to) {
+    const d = new Date(`${filters.to}T23:59:59.999`);
+    if (!Number.isNaN(d.getTime())) createdAt.lte = d;
+  }
+  if (createdAt.gte || createdAt.lte) where.createdAt = createdAt;
   const current = Math.max(1, page);
   const [items, total] = await Promise.all([
     prisma.order.findMany({
@@ -284,14 +311,18 @@ export async function getAdminBadges() {
   return { pendingPrescriptions, ordersToProcess, lowStock };
 }
 
-export function getPendingPrescriptions() {
+/** Receitas por status: pendentes em fila (mais antiga primeiro); histórico
+ *  de aprovadas/recusadas em ordem inversa, limitado às 100 mais recentes. */
+export function getPrescriptionsByStatus(status: PrescriptionStatus) {
+  const pending = status === "PENDING";
   return prisma.prescription.findMany({
-    where: { status: "PENDING" },
+    where: { status },
     include: {
       user: { select: { name: true, email: true } },
       order: { select: { id: true, number: true } },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: pending ? "asc" : "desc" },
+    ...(pending ? {} : { take: 100 }),
   });
 }
 

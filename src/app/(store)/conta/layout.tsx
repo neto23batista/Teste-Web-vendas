@@ -17,7 +17,9 @@ export default async function AccountLayout({
         </h1>
       </div>
       <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
-        <aside className="lg:sticky lg:top-24 lg:h-fit">
+        {/* min-w-0: sem isso o grid não deixa a faixa de chips (overflow-x)
+            encolher, e a página inteira ganha scroll horizontal no celular. */}
+        <aside className="min-w-0 lg:sticky lg:top-24 lg:h-fit">
           <AccountNav />
         </aside>
         <div className="min-w-0">{children}</div>

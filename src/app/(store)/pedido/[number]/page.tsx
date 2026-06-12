@@ -9,6 +9,7 @@ import {
   ArrowRight,
   FileText,
   XCircle,
+  MessageSquareText,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
@@ -234,6 +235,16 @@ export default async function OrderPage({
                 <br />
                 CEP {order.address.zip}
               </p>
+            </div>
+          )}
+
+          {order.notes && (
+            <div className="space-y-1 rounded-2xl border border-border bg-card p-5 text-sm">
+              <p className="flex items-center gap-2 font-bold">
+                <MessageSquareText className="size-4 text-brand-600 dark:text-brand-400" />{" "}
+                Observações
+              </p>
+              <p className="text-muted-foreground">{order.notes}</p>
             </div>
           )}
         </aside>

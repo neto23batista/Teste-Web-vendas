@@ -48,7 +48,49 @@ export default async function AdminCouponsPage() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-border bg-card">
-          <div className="overflow-x-auto">
+          {/* Mobile: lista em cards (a tabela não cabe na tela). */}
+          <div className="divide-y divide-border md:hidden">
+            {coupons.map((c) => {
+              const expired = c.expiresAt && c.expiresAt < now;
+              return (
+                <div key={c.id} className="space-y-2.5 p-4">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-2 font-bold">
+                      <TicketPercent className="size-4 text-brand-600 dark:text-brand-400" />
+                      {c.code}
+                    </span>
+                    <span
+                      className={cn(
+                        "ml-auto inline-flex rounded-full px-2.5 py-1 text-xs font-bold",
+                        expired
+                          ? "bg-muted text-muted-foreground"
+                          : c.active
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+                            : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {expired ? "Expirado" : c.active ? "Ativo" : "Inativo"}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    <strong className="text-foreground">
+                      {c.type === "PERCENT" ? `${c.value}%` : formatBRL(c.value)}
+                    </strong>{" "}
+                    de desconto
+                    {c.minTotal > 0 && <> · mínimo {formatBRL(c.minTotal)}</>} ·{" "}
+                    {c.expiresAt
+                      ? `até ${new Date(c.expiresAt).toLocaleDateString("pt-BR")}`
+                      : "sem prazo"}{" "}
+                    · {c.usedCount}
+                    {c.usageLimit ? `/${c.usageLimit}` : ""} usos
+                  </p>
+                  <CouponRowActions id={c.id} active={c.active} code={c.code} />
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead className="border-b border-border bg-muted/50 text-left text-xs uppercase text-muted-foreground">
                 <tr>

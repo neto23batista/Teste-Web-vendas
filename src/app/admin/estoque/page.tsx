@@ -45,7 +45,46 @@ export default async function AdminStockPage() {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        <div className="overflow-x-auto">
+        {/* Mobile: lista em cards (a tabela não cabe na tela). */}
+        <div className="divide-y divide-border md:hidden">
+          {products.map((p) => {
+            const out = p.stock <= 0;
+            const low = !out && p.stock <= p.minStock;
+            return (
+              <div key={p.id} className="space-y-3 p-4">
+                <div className="flex items-center gap-3">
+                  <ProductImage
+                    emoji={p.emoji}
+                    name={p.name}
+                    className="size-11 shrink-0 rounded-xl"
+                    emojiClassName="text-lg"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{p.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {p.category.name} · mín. {p.minStock} un
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-bold",
+                      out
+                        ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"
+                        : low
+                          ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+                    )}
+                  >
+                    {out ? "Esgotado" : low ? "Baixo" : "Ok"}
+                  </span>
+                </div>
+                <StockAdjust id={p.id} stock={p.stock} />
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-muted/50 text-left text-xs uppercase text-muted-foreground">
               <tr>

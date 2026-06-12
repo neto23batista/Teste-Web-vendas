@@ -3,6 +3,7 @@ import { MapPin, Star } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { getUserWithAddresses } from "@/lib/account";
 import { ProfileForm } from "@/components/account/profile-form";
+import { PasswordForm } from "@/components/account/password-form";
 
 export const metadata: Metadata = { title: "Meus dados" };
 
@@ -23,6 +24,11 @@ export default async function ProfilePage() {
             phone: user.phone ?? "",
           }}
         />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-bold">Alterar senha</h2>
+        <PasswordForm />
       </section>
 
       <section className="space-y-3">

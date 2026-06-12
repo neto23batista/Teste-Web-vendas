@@ -1,6 +1,17 @@
 import Link from "next/link";
 import { Brand } from "@/components/store/brand";
-import { ShieldCheck, Truck, CreditCard, Stethoscope } from "lucide-react";
+import { getStoreSettings } from "@/lib/settings";
+import {
+  ShieldCheck,
+  Truck,
+  CreditCard,
+  Stethoscope,
+  Phone,
+  MessageCircle,
+  Mail,
+  Clock,
+  MapPin,
+} from "lucide-react";
 
 const trust = [
   { icon: ShieldCheck, label: "Compra segura" },
@@ -9,17 +20,26 @@ const trust = [
   { icon: Truck, label: "Entrega rápida" },
 ];
 
-// Dados regulatórios da farmácia (exigência ANVISA: responsável técnico visível).
-// Configure no .env — exibimos placeholders até lá.
-const PHARMACIST =
-  process.env.NEXT_PUBLIC_PHARMACIST_NAME || "Responsável Técnico(a) a definir";
-const CRF = process.env.NEXT_PUBLIC_PHARMACIST_CRF || "CRF/UF 00000";
-const CNPJ = process.env.NEXT_PUBLIC_CNPJ || "";
+export async function SiteFooter() {
+  // Dados regulatórios e de contato vêm de /admin/configuracoes (fallback .env).
+  const s = await getStoreSettings();
+  const contact = [
+    { icon: Phone, value: s.phone },
+    { icon: MessageCircle, value: s.whatsapp ? `WhatsApp ${s.whatsapp}` : "" },
+    { icon: Mail, value: s.email },
+    { icon: Clock, value: s.hours },
+    { icon: MapPin, value: s.address },
+  ].filter((c) => c.value);
 
-export function SiteFooter() {
   return (
     <footer className="mt-16 border-t border-border bg-card">
-      <div className="container-page grid gap-10 py-12 md:grid-cols-[1.4fr_1fr_1fr]">
+      <div
+        className={
+          contact.length > 0
+            ? "container-page grid gap-10 py-12 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1.2fr]"
+            : "container-page grid gap-10 py-12 md:grid-cols-[1.4fr_1fr_1fr]"
+        }
+      >
         <div className="space-y-4">
           <Brand />
           <p className="max-w-sm text-sm text-muted-foreground">
@@ -74,6 +94,21 @@ export function SiteFooter() {
             </Link>
           ))}
         </nav>
+
+        {contact.length > 0 && (
+          <div className="space-y-3 text-sm">
+            <p className="font-semibold">Atendimento</p>
+            {contact.map(({ icon: Icon, value }) => (
+              <p
+                key={value}
+                className="flex items-start gap-2 text-muted-foreground"
+              >
+                <Icon className="mt-0.5 size-4 shrink-0 text-brand-600 dark:text-brand-400" />
+                {value}
+              </p>
+            ))}
+          </div>
+        )}
       </div>
       <div className="border-t border-border">
         <div className="container-page flex flex-col items-center justify-between gap-2 py-5 text-xs text-muted-foreground md:flex-row">
@@ -83,8 +118,8 @@ export function SiteFooter() {
           </span>
           <span className="inline-flex items-center gap-1.5 text-center">
             <Stethoscope className="size-3.5 text-brand-600 dark:text-brand-400" />
-            Farmacêutico(a) responsável: {PHARMACIST} · {CRF}
-            {CNPJ && ` · CNPJ ${CNPJ}`}
+            Farmacêutico(a) responsável: {s.pharmacistName} · {s.pharmacistCrf}
+            {s.cnpj && ` · CNPJ ${s.cnpj}`}
           </span>
         </div>
       </div>

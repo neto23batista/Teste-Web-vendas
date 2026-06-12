@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getCart } from "@/lib/cart";
 import { shippingFor } from "@/lib/shipping";
+import { getShippingConfig } from "@/lib/settings";
 import { validateCoupon } from "@/lib/coupons";
 import { maxRedeemablePoints, pointsToBRL } from "@/lib/loyalty";
 import { saveUpload } from "@/lib/uploads";
@@ -153,7 +154,7 @@ export async function placeOrder(
         select: { zip: true },
       })
     : null;
-  const shipping = shippingFor(subtotal, shipAddr?.zip);
+  const shipping = shippingFor(subtotal, shipAddr?.zip, await getShippingConfig());
   const total = Math.max(0, subtotal - discount) + shipping;
 
   // Reserva atômica dos pontos (antes do cupom): decrementa só se o saldo
@@ -205,6 +206,7 @@ export async function placeOrder(
     total,
     couponCode,
     requiresPrescription: cart.requiresPrescription,
+    notes: str(formData, "notes").slice(0, 500) || null,
     items: cart.items.map((i) => ({
       productId: i.product.id,
       name: i.product.name,

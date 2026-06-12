@@ -2,11 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, User, MapPin, CreditCard, FileText } from "lucide-react";
 import { getAdminOrder } from "@/lib/admin";
+import { getStoreSettings } from "@/lib/settings";
 import { formatBRL } from "@/lib/utils";
 import { StatusBadge } from "@/components/store/order-status";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { PrescriptionReview } from "@/components/admin/prescription-review";
 import { ProductImage } from "@/components/store/product-image";
+import { PrintButton } from "@/components/admin/print-button";
+import { OrderNotes } from "@/components/admin/order-notes";
 
 export const metadata = { title: "Pedido" };
 
@@ -16,16 +19,35 @@ export default async function AdminOrderDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const order = await getAdminOrder(id);
+  const [order, store] = await Promise.all([getAdminOrder(id), getStoreSettings()]);
   if (!order) notFound();
 
   return (
     <div className="space-y-6">
+      {/* Cabeçalho do recibo — aparece somente na impressão */}
+      <div className="hidden print:block">
+        <p className="text-xl font-extrabold">FarmaVida</p>
+        <p className="text-xs text-muted-foreground">
+          {[
+            store.cnpj && `CNPJ ${store.cnpj}`,
+            store.address,
+            store.phone,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+        {order.notes && (
+          <p className="mt-2 text-sm">
+            <strong>Observações:</strong> {order.notes}
+          </p>
+        )}
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Link
             href="/admin/pedidos"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground transition hover:text-foreground"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground transition hover:text-foreground print:hidden"
           >
             <ArrowLeft className="size-4" /> Pedidos
           </Link>
@@ -36,6 +58,7 @@ export default async function AdminOrderDetail({
             {new Date(order.createdAt).toLocaleString("pt-BR")}
           </p>
         </div>
+        <PrintButton />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
@@ -78,10 +101,12 @@ export default async function AdminOrderDetail({
 
         {/* Lateral */}
         <aside className="space-y-4">
-          <div className="space-y-3 rounded-2xl border border-border bg-card p-5">
+          <div className="space-y-3 rounded-2xl border border-border bg-card p-5 print:hidden">
             <h2 className="font-bold">Atualizar status</h2>
             <OrderStatusControl id={order.id} current={order.status} />
           </div>
+
+          <OrderNotes orderId={order.id} initialNotes={order.notes} />
 
           <div className="space-y-2 rounded-2xl border border-border bg-card p-5 text-sm">
             <p className="flex items-center gap-2 font-bold">
@@ -120,7 +145,7 @@ export default async function AdminOrderDetail({
           </div>
 
           {order.requiresPrescription && (
-            <div className="space-y-3 rounded-2xl border border-border bg-card p-5 text-sm">
+            <div className="space-y-3 rounded-2xl border border-border bg-card p-5 text-sm print:hidden">
               <p className="flex items-center gap-2 font-bold">
                 <FileText className="size-4 text-brand-600 dark:text-brand-400" /> Receitas
               </p>

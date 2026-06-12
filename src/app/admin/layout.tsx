@@ -29,10 +29,10 @@ export default async function AdminLayout({
   };
 
   return (
-    <div className="min-h-dvh bg-background lg:pl-64">
+    <div className="min-h-dvh bg-background lg:pl-64 print:pl-0">
       <AdminSidebar badges={badges} />
       <div className="flex min-h-dvh flex-col">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-xl md:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-xl md:px-6 print:hidden">
           <span className="font-extrabold lg:hidden">FarmaVida Admin</span>
           <div className="ml-auto flex items-center gap-3">
             <ThemeToggle />

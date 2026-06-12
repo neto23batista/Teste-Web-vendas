@@ -18,9 +18,9 @@ import { formatBRL } from "@/lib/utils";
 import { STATUS_META } from "@/components/store/order-status";
 import type { OrderStatus } from "@prisma/client";
 
-const BRAND = "#2563eb";
-const ACCENT = "#06b6d4";
-const PALETTE = ["#2563eb", "#06b6d4", "#7c3aed", "#f59e0b", "#16a34a", "#dc2626"];
+const BRAND = "#059669";
+const ACCENT = "#0ea5e9";
+const PALETTE = ["#059669", "#0ea5e9", "#8b5cf6", "#f59e0b", "#34d399", "#f43f5e"];
 
 export function SalesAreaChart({ data }: { data: { date: string; total: number }[] }) {
   return (
@@ -63,7 +63,7 @@ export function TopProductsBar({ data }: { data: { name: string; qty: number }[]
         <Tooltip
           formatter={(v) => [Number(v), "Unidades"]}
           contentStyle={{ borderRadius: 12, border: "1px solid rgba(148,163,184,0.3)", fontSize: 12 }}
-          cursor={{ fill: "rgba(37,99,235,0.06)" }}
+          cursor={{ fill: "rgba(5,150,105,0.06)" }}
         />
         <Bar dataKey="qty" fill={ACCENT} radius={[0, 6, 6, 0]} barSize={18} />
       </BarChart>

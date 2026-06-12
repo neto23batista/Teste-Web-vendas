@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getCart } from "@/lib/cart";
+import { getShippingConfig } from "@/lib/settings";
 import { CheckoutForm } from "@/components/store/checkout-form";
 
 export const metadata: Metadata = { title: "Checkout" };
@@ -12,7 +13,7 @@ export default async function CheckoutPage() {
   const cart = await getCart();
   if (!cart || cart.items.length === 0) redirect("/sacola");
 
-  const [addresses, loyalty] = await Promise.all([
+  const [addresses, loyalty, shippingConfig] = await Promise.all([
     prisma.address.findMany({
       where: { userId: user.id },
       orderBy: { isDefault: "desc" },
@@ -21,6 +22,7 @@ export default async function CheckoutPage() {
       where: { userId: user.id },
       select: { points: true },
     }),
+    getShippingConfig(),
   ]);
 
   return (
@@ -33,6 +35,7 @@ export default async function CheckoutPage() {
         subtotal={cart.subtotal}
         requiresPrescription={cart.requiresPrescription}
         points={loyalty?.points ?? 0}
+        shippingConfig={shippingConfig}
       />
     </div>
   );

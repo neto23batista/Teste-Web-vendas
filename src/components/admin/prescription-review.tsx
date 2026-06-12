@@ -35,8 +35,18 @@ export function PrescriptionReview({
   const [pending, start] = React.useTransition();
 
   function set(next: PrescriptionStatus) {
+    // Na recusa, o motivo segue no e-mail ao cliente (cancelar aborta a ação).
+    let reason: string | undefined;
+    if (next === "REJECTED") {
+      const input = window.prompt(
+        "Motivo da recusa (enviado ao cliente por e-mail):",
+        ""
+      );
+      if (input === null) return;
+      reason = input.trim() || undefined;
+    }
     start(async () => {
-      const res = await setPrescriptionStatus(id, next);
+      const res = await setPrescriptionStatus(id, next, reason);
       if (res.ok) {
         toast.success(next === "APPROVED" ? "Receita aprovada" : "Receita recusada");
         router.refresh();

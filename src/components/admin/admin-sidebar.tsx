@@ -13,6 +13,7 @@ import {
   Store,
   LogOut,
   Plus,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/actions/auth";
@@ -25,6 +26,7 @@ const items = [
   { href: "/admin/produtos", label: "Produtos", icon: Boxes },
   { href: "/admin/estoque", label: "Estoque", icon: PackageSearch },
   { href: "/admin/cupons", label: "Cupons", icon: TicketPercent },
+  { href: "/admin/configuracoes", label: "Configurações", icon: Settings },
 ];
 
 export function AdminSidebar({
@@ -35,7 +37,7 @@ export function AdminSidebar({
   const pathname = usePathname();
 
   return (
-    <aside className="lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:border-r lg:border-border lg:bg-card">
+    <aside className="lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:border-r lg:border-border lg:bg-card print:hidden">
       <div className="flex h-full flex-col">
         <div className="hidden items-center gap-2.5 px-6 py-5 lg:flex">
           <span className="grid size-10 place-items-center rounded-2xl gradient-brand text-white">

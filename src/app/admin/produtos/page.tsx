@@ -51,7 +51,72 @@ export default async function AdminProductsPage({
       </form>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        <div className="overflow-x-auto">
+        {/* Mobile: lista em cards (a tabela não cabe na tela). */}
+        <div className="divide-y divide-border md:hidden">
+          {products.length === 0 && (
+            <p className="p-8 text-center text-sm text-muted-foreground">
+              Nenhum produto encontrado.
+            </p>
+          )}
+          {products.map((p) => {
+            const price = p.promoPrice ?? p.price;
+            return (
+              <div key={p.id} className="space-y-3 p-4">
+                <div className="flex items-center gap-3">
+                  <ProductImage
+                    emoji={p.emoji}
+                    name={p.name}
+                    className="size-11 shrink-0 rounded-xl"
+                    emojiClassName="text-lg"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{p.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {p.brand?.name ?? "—"} · {p.category.name}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-bold tabular-nums">{formatBRL(price)}</p>
+                    {p.promoPrice != null && (
+                      <p className="text-xs text-muted-foreground line-through">
+                        {formatBRL(p.price)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "inline-flex rounded-full px-2.5 py-1 text-xs font-bold",
+                      p.stock <= 0
+                        ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"
+                        : p.stock <= p.minStock
+                          ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+                    )}
+                  >
+                    {p.stock} un
+                  </span>
+                  <span
+                    className={cn(
+                      "inline-flex rounded-full px-2.5 py-1 text-xs font-bold",
+                      p.active
+                        ? "bg-brand-100 text-brand-700 dark:bg-brand-600/20 dark:text-brand-300"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {p.active ? "Ativo" : "Inativo"}
+                  </span>
+                  <div className="ml-auto">
+                    <ProductRowActions id={p.id} active={p.active} name={p.name} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-muted/50 text-left text-xs uppercase text-muted-foreground">
               <tr>
