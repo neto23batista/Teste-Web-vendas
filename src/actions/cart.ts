@@ -58,18 +58,47 @@ export async function addToCart(productId: string, qty = 1) {
   return { ok: true };
 }
 
+/**
+ * Id do carrinho do PRÓPRIO chamador (usuário logado ou convidado via cookie),
+ * sem criar nada. Usado para escopar mutações de item ao dono — sem isso,
+ * qualquer um poderia alterar/remover itens do carrinho de outra pessoa
+ * passando o id do item (IDOR).
+ */
+async function ownCartId(): Promise<string | null> {
+  const user = await getCurrentUser();
+  if (user) {
+    const c = await prisma.cart.findFirst({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+    return c?.id ?? null;
+  }
+  const store = await cookies();
+  const token = store.get(CART_COOKIE)?.value ?? null;
+  if (!token) return null;
+  const c = await prisma.cart.findUnique({
+    where: { sessionToken: token },
+    select: { id: true },
+  });
+  return c?.id ?? null;
+}
+
 export async function updateCartItem(itemId: string, qty: number) {
-  const item = await prisma.cartItem.findUnique({
-    where: { id: itemId },
+  const cartId = await ownCartId();
+  if (!cartId) return { ok: false };
+
+  // Só age sobre item do PRÓPRIO carrinho (escopo por cartId evita IDOR).
+  const item = await prisma.cartItem.findFirst({
+    where: { id: itemId, cartId },
     include: { product: true },
   });
   if (!item) return { ok: false };
 
   if (qty <= 0) {
-    await prisma.cartItem.delete({ where: { id: itemId } });
+    await prisma.cartItem.delete({ where: { id: item.id } });
   } else {
     await prisma.cartItem.update({
-      where: { id: itemId },
+      where: { id: item.id },
       data: { qty: Math.min(item.product.stock, qty) },
     });
   }
@@ -78,7 +107,11 @@ export async function updateCartItem(itemId: string, qty: number) {
 }
 
 export async function removeCartItem(itemId: string) {
-  await prisma.cartItem.delete({ where: { id: itemId } }).catch(() => {});
+  const cartId = await ownCartId();
+  if (!cartId) return { ok: false };
+
+  // deleteMany com cartId no filtro: só remove se o item for do próprio carrinho.
+  await prisma.cartItem.deleteMany({ where: { id: itemId, cartId } });
   revalidatePath("/sacola");
   return { ok: true };
 }
