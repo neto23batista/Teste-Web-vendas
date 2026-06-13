@@ -83,10 +83,15 @@ export async function GET() {
           order: { select: { number: true } },
         },
       }),
-      prisma.favorite.findMany({
-        where: { userId: user.id },
-        select: { createdAt: true, product: { select: { name: true } } },
-      }),
+      // Favoritos por conta dependem da migration `add_favorites`. Enquanto ela
+      // não roda em produção, a tabela pode não existir — degrade para lista
+      // vazia em vez de derrubar toda a exportação.
+      prisma.favorite
+        .findMany({
+          where: { userId: user.id },
+          select: { createdAt: true, product: { select: { name: true } } },
+        })
+        .catch(() => [] as { createdAt: Date; product: { name: string } }[]),
     ]);
 
   const payload = {

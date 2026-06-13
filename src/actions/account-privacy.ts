@@ -33,10 +33,15 @@ export async function deleteAccount(
     select: { productId: true },
   });
 
+  // Favoritos: best-effort FORA da transação. A tabela `Favorite` depende da
+  // migration `add_favorites`; até ela rodar em produção pode não existir, e
+  // não há favoritos a apagar de qualquer forma. Mantê-la dentro da transação
+  // atômica faria a exclusão inteira falhar.
+  await prisma.favorite.deleteMany({ where: { userId: user.id } }).catch(() => {});
+
   await prisma.$transaction([
     prisma.address.deleteMany({ where: { userId: user.id } }),
     prisma.cart.deleteMany({ where: { userId: user.id } }),
-    prisma.favorite.deleteMany({ where: { userId: user.id } }),
     prisma.prescription.deleteMany({ where: { userId: user.id } }),
     prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }),
     prisma.review.deleteMany({ where: { userId: user.id } }),

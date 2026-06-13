@@ -39,24 +39,30 @@ export async function mergeFavorites(localIds: string[]) {
   const ids = [...new Set(localIds)].filter(
     (x) => typeof x === "string" && x.length > 0 && x.length < 64
   );
-  if (ids.length > 0) {
-    // Só produtos que existem (ids antigos/dev podem não existir mais).
-    const valid = await prisma.product.findMany({
-      where: { id: { in: ids } },
-      select: { id: true },
-    });
-    if (valid.length > 0) {
-      await prisma.favorite.createMany({
-        data: valid.map((p) => ({ userId: user.id, productId: p.id })),
-        skipDuplicates: true,
+  try {
+    if (ids.length > 0) {
+      // Só produtos que existem (ids antigos/dev podem não existir mais).
+      const valid = await prisma.product.findMany({
+        where: { id: { in: ids } },
+        select: { id: true },
       });
+      if (valid.length > 0) {
+        await prisma.favorite.createMany({
+          data: valid.map((p) => ({ userId: user.id, productId: p.id })),
+          skipDuplicates: true,
+        });
+      }
     }
-  }
 
-  const all = await prisma.favorite.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: "desc" },
-    select: { productId: true },
-  });
-  return { ok: true as const, ids: all.map((f) => f.productId) };
+    const all = await prisma.favorite.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      select: { productId: true },
+    });
+    return { ok: true as const, ids: all.map((f) => f.productId) };
+  } catch {
+    // Tabela `Favorite` ainda não migrada em produção: a UI continua usando o
+    // localStorage. Não sincroniza por conta até a migration `add_favorites`.
+    return { ok: false as const, ids: [] as string[] };
+  }
 }
