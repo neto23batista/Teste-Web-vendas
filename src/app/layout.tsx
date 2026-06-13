@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { RegisterSW } from "@/components/register-sw";
 
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
   description:
     "Farmácia online com compra segura, receitas protegidas, entrega rápida e atendimento farmacêutico.",
   applicationName: APP_NAME,
-  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  icons: { icon: "/icon.svg", apple: "/icon-192.png" },
   openGraph: {
     type: "website",
     siteName: APP_NAME,
@@ -31,8 +32,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#059669" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a1410" },
+    { media: "(prefers-color-scheme: light)", color: "#ea1d2c" },
+    { media: "(prefers-color-scheme: dark)", color: "#150a0b" },
   ],
 };
 
@@ -43,6 +44,7 @@ export default function RootLayout({
     <html lang="pt-BR" className={jakarta.variable} suppressHydrationWarning>
       <body className="min-h-dvh antialiased">
         <Providers>{children}</Providers>
+        <RegisterSW />
       </body>
     </html>
   );
