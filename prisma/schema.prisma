@@ -1,12 +1,15 @@
-// FarmaVida Next — Prisma schema (MySQL)
+// FarmaVida Next — Prisma schema (PostgreSQL / Neon)
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Conexão da aplicação: usa o pooler do Neon (pgbouncer).
+  url       = env("DATABASE_URL")
+  // Conexão direta (sem pooler) — usada pelo Prisma só nas migrations.
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 // ─────────────────────────── Enums ───────────────────────────
@@ -160,7 +163,6 @@ model Product {
   @@index([categoryId])
   @@index([brandId])
   @@index([active, featured])
-  @@fulltext([name, shortDescription, description, activeIngredient])
 }
 
 model ProductImage {

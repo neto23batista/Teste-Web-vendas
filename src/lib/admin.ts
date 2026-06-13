@@ -142,9 +142,9 @@ export async function getAdminProducts(q?: string, page = 1) {
   const where: Prisma.ProductWhereInput = q
     ? {
         OR: [
-          { name: { contains: q } },
-          { sku: { contains: q } },
-          { ean: { contains: q } },
+          { name: { contains: q, mode: "insensitive" } },
+          { sku: { contains: q, mode: "insensitive" } },
+          { ean: { contains: q, mode: "insensitive" } },
         ],
       }
     : {};
@@ -185,9 +185,9 @@ export async function getAdminOrders(filters: AdminOrderFilters = {}, page = 1) 
   if (filters.status) where.status = filters.status;
   if (filters.q) {
     where.OR = [
-      { number: { contains: filters.q } },
-      { user: { name: { contains: filters.q } } },
-      { user: { email: { contains: filters.q } } },
+      { number: { contains: filters.q, mode: "insensitive" } },
+      { user: { name: { contains: filters.q, mode: "insensitive" } } },
+      { user: { email: { contains: filters.q, mode: "insensitive" } } },
     ];
   }
   const createdAt: Prisma.DateTimeFilter = {};
@@ -226,9 +226,9 @@ export async function getAdminCustomers(q?: string, page = 1) {
     ...(q
       ? {
           OR: [
-            { name: { contains: q } },
-            { email: { contains: q } },
-            { cpf: { contains: q } },
+            { name: { contains: q, mode: "insensitive" } },
+            { email: { contains: q, mode: "insensitive" } },
+            { cpf: { contains: q, mode: "insensitive" } },
           ],
         }
       : {}),

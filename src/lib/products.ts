@@ -98,22 +98,6 @@ export type CatalogParams = {
   perPage?: number;
 };
 
-// Monta a string de busca boolean do MySQL: cada termo vira "+termo*" (todos
-// obrigatórios, com prefixo). Termos abaixo do mínimo do índice (3) são
-// descartados; se nada sobrar, retorna null → cai no LIKE multi-termo.
-function booleanQuery(q: string): string | null {
-  const terms = q
-    .split(/\s+/)
-    .map((t) => t.replace(/[+\-><()~*"@]/g, "").trim())
-    .filter((t) => t.length >= 3)
-    .slice(0, 6);
-  if (terms.length === 0) return null;
-  return terms.map((t) => `+${t}*`).join(" ");
-}
-
-const ftMatch = (bool: string) =>
-  Prisma.sql`MATCH(p.name, p.shortDescription, p.description, p.activeIngredient) AGAINST (${bool} IN BOOLEAN MODE)`;
-
 type SearchResult = {
   items: ProductCard[];
   total: number;
@@ -122,75 +106,9 @@ type SearchResult = {
   pages: number;
 };
 
-/**
- * Busca por relevância via índice FULLTEXT (MySQL, BOOLEAN MODE). Retorna null
- * quando os termos são curtos demais ou não há nenhum match — aí o chamador
- * usa o LIKE multi-termo (substring), que cobre esses casos.
- */
-async function fulltextSearch(
-  params: CatalogParams,
-  perPage: number,
-  page: number
-): Promise<SearchResult | null> {
-  const bool = booleanQuery(params.q ?? "");
-  if (!bool) return null;
-
-  const conds: Prisma.Sql[] = [Prisma.sql`p.active = 1`, ftMatch(bool)];
-  if (params.cat) conds.push(Prisma.sql`c.slug = ${params.cat}`);
-  if (params.brand)
-    conds.push(
-      Prisma.sql`p.brandId IN (SELECT id FROM Brand WHERE slug = ${params.brand})`
-    );
-  if (params.generic) conds.push(Prisma.sql`p.isGeneric = 1`);
-  if (params.rx === false) conds.push(Prisma.sql`p.requiresPrescription = 0`);
-  if (params.promo) conds.push(Prisma.sql`p.promoPrice IS NOT NULL`);
-  // Faixa de preço considera o valor efetivo (promo quando houver).
-  if (params.priceMin != null)
-    conds.push(Prisma.sql`COALESCE(p.promoPrice, p.price) >= ${params.priceMin}`);
-  if (params.priceMax != null)
-    conds.push(Prisma.sql`COALESCE(p.promoPrice, p.price) <= ${params.priceMax}`);
-  const whereSql = Prisma.join(conds, " AND ");
-
-  const countRows = await prisma.$queryRaw<{ cnt: bigint }[]>(Prisma.sql`
-    SELECT COUNT(*) AS cnt FROM Product p
-    JOIN Category c ON c.id = p.categoryId
-    WHERE ${whereSql}
-  `);
-  const total = Number(countRows[0]?.cnt ?? 0);
-  if (total === 0) return null;
-
-  const offset = (page - 1) * perPage;
-  const idRows = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
-    SELECT p.id FROM Product p
-    JOIN Category c ON c.id = p.categoryId
-    WHERE ${whereSql}
-    ORDER BY ${ftMatch(bool)} DESC, p.ratingCount DESC
-    LIMIT ${perPage} OFFSET ${offset}
-  `);
-  const ids = idRows.map((r) => r.id);
-
-  const found = await prisma.product.findMany({
-    where: { id: { in: ids } },
-    select: productCardSelect,
-  });
-  const byId = new Map(found.map((p) => [p.id, p]));
-  const items = ids
-    .map((id) => byId.get(id))
-    .filter((p): p is ProductCard => Boolean(p));
-
-  return { items, total, page, perPage, pages: Math.max(1, Math.ceil(total / perPage)) };
-}
-
 export async function searchProducts(params: CatalogParams): Promise<SearchResult> {
   const perPage = params.perPage ?? 12;
   const page = Math.max(1, params.page ?? 1);
-
-  // Relevância via FULLTEXT só faz sentido na ordenação padrão. Nas demais
-  // (preço/nome) seguimos no LIKE com a ordenação escolhida.
-  if (params.q && (!params.sort || params.sort === "relevancia")) {
-    const ft = await fulltextSearch(params, perPage, page).catch(() => null);
-    if (ft) return ft;
-  }
 
   const where: Prisma.ProductWhereInput = { active: true };
   if (params.q) {
@@ -203,14 +121,15 @@ export async function searchProducts(params: CatalogParams): Promise<SearchResul
       .filter(Boolean)
       .slice(0, 6);
     if (terms.length > 0) {
-      where.AND = terms.map((t) => ({
+      // `mode: "insensitive"` porque no Postgres o LIKE é case-sensitive.
+      where.AND = terms.map((t): Prisma.ProductWhereInput => ({
         OR: [
-          { name: { contains: t } },
-          { description: { contains: t } },
-          { activeIngredient: { contains: t } },
-          { sku: { contains: t } },
-          { ean: { contains: t } },
-          { brand: { name: { contains: t } } },
+          { name: { contains: t, mode: "insensitive" } },
+          { description: { contains: t, mode: "insensitive" } },
+          { activeIngredient: { contains: t, mode: "insensitive" } },
+          { sku: { contains: t, mode: "insensitive" } },
+          { ean: { contains: t, mode: "insensitive" } },
+          { brand: { name: { contains: t, mode: "insensitive" } } },
         ],
       }));
     }
