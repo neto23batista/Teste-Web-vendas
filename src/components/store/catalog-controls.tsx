@@ -13,16 +13,12 @@ const sorts = [
   { value: "nome", label: "Nome (A-Z)" },
 ];
 
-const chipCls = (active: boolean, color: "brand" | "emerald" = "brand") =>
+const chipCls = (active: boolean) =>
   cn(
     "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition",
     active
-      ? color === "emerald"
-        ? "border-emerald-600 bg-emerald-600 text-white"
-        : "border-brand-600 bg-brand-600 text-white"
-      : color === "emerald"
-        ? "border-border bg-card hover:border-emerald-300"
-        : "border-border bg-card hover:border-brand-300"
+      ? "border-brand-600 bg-brand-600 text-white"
+      : "border-border bg-card hover:border-brand-300"
   );
 
 export function CatalogControls({
@@ -110,7 +106,7 @@ export function CatalogControls({
         </button>
         <button
           onClick={() => toggle("generic")}
-          className={chipCls(generic, "emerald")}
+          className={chipCls(generic)}
         >
           <Leaf className="size-4" /> Genéricos
         </button>
