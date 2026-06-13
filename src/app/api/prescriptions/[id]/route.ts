@@ -44,6 +44,9 @@ export async function GET(
       "Content-Type": contentType,
       "Content-Disposition": `inline; filename="receita${ext}"`,
       "Cache-Control": "private, no-store, max-age=0",
+      // O tipo é derivado do MIME no upload, mas o conteúdo vem do usuário:
+      // impede o navegador de "adivinhar" outro tipo (anti content-sniffing/XSS).
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }

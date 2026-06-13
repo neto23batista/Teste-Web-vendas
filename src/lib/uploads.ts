@@ -34,7 +34,18 @@ export async function saveUpload(
 
   const key = `${subdir}/${Date.now()}-${randomUUID()}.${ext}`;
   const bytes = Buffer.from(await file.arrayBuffer());
-  await putObject(key, bytes);
+  try {
+    await putObject(key, bytes);
+  } catch (err) {
+    // Storage indisponível/mal configurado (ex.: driver "local" na Vercel, que
+    // tem FS efêmero/somente-leitura). Falha com mensagem amigável em vez de
+    // derrubar o checkout. Configure STORAGE_DRIVER=s3 + S3_* (R2) em produção.
+    console.error("[uploads] falha ao salvar no storage:", err);
+    return {
+      ok: false,
+      error: "Não foi possível salvar o arquivo agora. Tente novamente em instantes.",
+    };
+  }
   return { ok: true, key };
 }
 
