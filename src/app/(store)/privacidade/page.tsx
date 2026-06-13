@@ -24,7 +24,7 @@ const sections = [
   },
   {
     h: "5. Seus direitos (LGPD)",
-    p: "Você pode acessar, corrigir ou solicitar a exclusão dos seus dados a qualquer momento, além de revogar consentimentos, pelos nossos canais de atendimento.",
+    p: "Você pode acessar, corrigir ou solicitar a exclusão dos seus dados a qualquer momento, além de revogar consentimentos. Faça você mesmo em Minha conta → Privacidade: baixe uma cópia completa dos seus dados ou exclua sua conta definitivamente — ou fale com nossos canais de atendimento.",
   },
 ];
 

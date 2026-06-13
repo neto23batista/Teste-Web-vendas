@@ -10,6 +10,7 @@ import {
   Gift,
   FileText,
   UserCog,
+  ShieldCheck,
   LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,7 @@ const items = [
   { href: "/conta/fidelidade", label: "Fidelidade", icon: Gift },
   { href: "/conta/receitas", label: "Receitas", icon: FileText },
   { href: "/conta/perfil", label: "Meus dados", icon: UserCog },
+  { href: "/conta/privacidade", label: "Privacidade", icon: ShieldCheck },
 ];
 
 export function AccountNav() {
