@@ -14,6 +14,7 @@ import {
   LogOut,
   Plus,
   Settings,
+  Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/actions/auth";
@@ -23,6 +24,7 @@ const items = [
   { href: "/admin/pedidos", label: "Pedidos", icon: ShoppingCart },
   { href: "/admin/clientes", label: "Clientes", icon: Users },
   { href: "/admin/receitas", label: "Receitas", icon: FileText },
+  { href: "/admin/avaliacoes", label: "Avaliações", icon: Star },
   { href: "/admin/produtos", label: "Produtos", icon: Boxes },
   { href: "/admin/estoque", label: "Estoque", icon: PackageSearch },
   { href: "/admin/cupons", label: "Cupons", icon: TicketPercent },

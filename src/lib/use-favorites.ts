@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { toggleFavorite } from "@/actions/favorites";
 
 const KEY = "farmavida:favorites";
 const EVENT = "favorites:changed";
@@ -46,6 +47,22 @@ function persist(ids: string[]) {
   window.dispatchEvent(new CustomEvent(EVENT));
 }
 
+/** Mescla ids (ex.: vindos da conta no servidor) com os locais — usado pela
+ *  sincronização de "Meus favoritos" quando o usuário está logado. */
+export function mergeLocalFavorites(ids: string[]) {
+  const current = readSnapshot();
+  const merged = [...new Set([...ids, ...current])];
+  if (merged.length !== current.length || merged.some((x, i) => current[i] !== x)) {
+    persist(merged);
+  }
+  return merged;
+}
+
+/** Snapshot direto (fora de componentes React). */
+export function getLocalFavorites(): string[] {
+  return readSnapshot();
+}
+
 // Store "montado": false no SSR/primeiro render, true após a hidratação — sem
 // chamar setState dentro de um efeito.
 const noopSubscribe = () => () => {};
@@ -67,11 +84,14 @@ export function useFavorites() {
     const exists = current.includes(id);
     const next = exists ? current.filter((x) => x !== id) : [id, ...current];
     persist(next);
+    // Espelha na conta (best-effort; no-op para visitantes — não bloqueia a UI).
+    void toggleFavorite(id, !exists).catch(() => {});
     return !exists; // true = passou a ser favorito
   }, []);
 
   const remove = React.useCallback((id: string) => {
     persist(readSnapshot().filter((x) => x !== id));
+    void toggleFavorite(id, false).catch(() => {});
   }, []);
 
   return {

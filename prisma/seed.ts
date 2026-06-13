@@ -233,6 +233,7 @@ async function main() {
         userId: customer.id,
         rating: 5,
         comment: "Entrega rápida e produto excelente. Recomendo!",
+        approved: true, // demo já moderada (novas avaliações nascem pendentes)
       },
     });
   }

@@ -25,6 +25,7 @@ export default async function AdminLayout({
   const badges = {
     "/admin/pedidos": b.ordersToProcess,
     "/admin/receitas": b.pendingPrescriptions,
+    "/admin/avaliacoes": b.pendingReviews,
     "/admin/estoque": b.lowStock,
   };
 

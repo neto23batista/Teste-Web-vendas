@@ -27,10 +27,12 @@ export async function submitReview(
   const comment =
     String(formData.get("comment") ?? "").trim().slice(0, 1000) || null;
 
+  // Moderação: toda avaliação (nova ou editada) entra como NÃO aprovada e só
+  // aparece na loja depois do OK do dono em /admin/avaliacoes.
   await prisma.review.upsert({
     where: { productId_userId: { productId, userId: user.id } },
-    create: { productId, userId: user.id, rating, comment },
-    update: { rating, comment },
+    create: { productId, userId: user.id, rating, comment, approved: false },
+    update: { rating, comment, approved: false },
   });
 
   const agg = await prisma.review.aggregate({

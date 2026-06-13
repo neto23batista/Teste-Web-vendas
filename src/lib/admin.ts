@@ -303,12 +303,28 @@ export function getAdminOrder(id: string) {
 
 /** Contadores que viram badges de atenção na sidebar do admin. */
 export async function getAdminBadges() {
-  const [pendingPrescriptions, ordersToProcess, lowStock] = await Promise.all([
-    prisma.prescription.count({ where: { status: "PENDING" } }),
-    prisma.order.count({ where: { status: { in: ["PAID", "PREPARING"] } } }),
-    prisma.product.count({ where: { active: true, stock: { lte: 5 } } }),
-  ]);
-  return { pendingPrescriptions, ordersToProcess, lowStock };
+  const [pendingPrescriptions, ordersToProcess, lowStock, pendingReviews] =
+    await Promise.all([
+      prisma.prescription.count({ where: { status: "PENDING" } }),
+      prisma.order.count({ where: { status: { in: ["PAID", "PREPARING"] } } }),
+      prisma.product.count({ where: { active: true, stock: { lte: 5 } } }),
+      prisma.review.count({ where: { approved: false } }),
+    ]);
+  return { pendingPrescriptions, ordersToProcess, lowStock, pendingReviews };
+}
+
+/** Avaliações para moderação: pendentes em fila (mais antiga primeiro);
+ *  aprovadas em ordem inversa, limitadas às 100 mais recentes. */
+export function getReviewsByApproval(approved: boolean) {
+  return prisma.review.findMany({
+    where: { approved },
+    include: {
+      user: { select: { name: true, email: true } },
+      product: { select: { name: true, slug: true } },
+    },
+    orderBy: { createdAt: approved ? "desc" : "asc" },
+    ...(approved ? { take: 100 } : {}),
+  });
 }
 
 /** Receitas por status: pendentes em fila (mais antiga primeiro); histórico

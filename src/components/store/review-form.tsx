@@ -41,7 +41,8 @@ export function ReviewForm({
       )}
       {state?.ok && (
         <div className="flex items-center gap-2 rounded-xl bg-success-500/10 px-4 py-2.5 text-sm font-medium text-success-600">
-          <CheckCircle2 className="size-4 shrink-0" /> Avaliação enviada. Obrigado!
+          <CheckCircle2 className="size-4 shrink-0" /> Avaliação enviada!
+          Ela aparece na loja após a aprovação da farmácia.
         </div>
       )}
 
