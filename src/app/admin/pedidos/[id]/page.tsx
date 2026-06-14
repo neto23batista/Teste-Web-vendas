@@ -3,9 +3,11 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, User, MapPin, CreditCard, FileText } from "lucide-react";
 import { getAdminOrder } from "@/lib/admin";
 import { getStoreSettings } from "@/lib/settings";
+import { listPharmaciesSafe } from "@/lib/pharmacy";
 import { formatBRL } from "@/lib/utils";
 import { StatusBadge } from "@/components/store/order-status";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
+import { OrderTransfer } from "@/components/admin/order-transfer";
 import { PrescriptionReview } from "@/components/admin/prescription-review";
 import { ProductImage } from "@/components/store/product-image";
 import { PrintButton } from "@/components/admin/print-button";
@@ -19,8 +21,21 @@ export default async function AdminOrderDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [order, store] = await Promise.all([getAdminOrder(id), getStoreSettings()]);
+  const [order, store, pharmacies] = await Promise.all([
+    getAdminOrder(id),
+    getStoreSettings(),
+    listPharmaciesSafe(),
+  ]);
   if (!order) notFound();
+
+  // Transferência: só faz sentido enquanto a unidade ainda trata o pedido.
+  const canTransfer =
+    order.status === "PENDING" ||
+    order.status === "PAID" ||
+    order.status === "PREPARING";
+  const transferTargets = pharmacies
+    .filter((p) => p.id !== order.pharmacyId)
+    .map((p) => ({ id: p.id, name: p.name }));
 
   return (
     <div className="space-y-6">
@@ -105,6 +120,20 @@ export default async function AdminOrderDetail({
             <h2 className="font-bold">Atualizar status</h2>
             <OrderStatusControl id={order.id} current={order.status} />
           </div>
+
+          {pharmacies.length > 1 &&
+            (canTransfer && transferTargets.length > 0 ? (
+              <OrderTransfer
+                orderId={order.id}
+                currentUnitName={order.pharmacy?.name ?? "—"}
+                targetUnits={transferTargets}
+              />
+            ) : (
+              <div className="space-y-1 rounded-2xl border border-border bg-card p-5 text-sm print:hidden">
+                <p className="font-bold">Unidade</p>
+                <p className="text-muted-foreground">{order.pharmacy?.name ?? "—"}</p>
+              </div>
+            ))}
 
           <OrderNotes orderId={order.id} initialNotes={order.notes} />
 

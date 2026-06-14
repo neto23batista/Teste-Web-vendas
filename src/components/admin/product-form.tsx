@@ -104,6 +104,10 @@ export function ProductForm({
 
           <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
             <h2 className="font-bold">Preço e estoque</h2>
+            <p className="text-xs text-muted-foreground">
+              Preço é compartilhado entre as unidades. O estoque abaixo é o da{" "}
+              <strong>matriz</strong>; o das filiais é ajustado em Controle de estoque.
+            </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Preço (R$)" htmlFor="price">
                 <Input id="price" name="price" inputMode="decimal" defaultValue={p?.price} required />
@@ -111,7 +115,7 @@ export function ProductForm({
               <Field label="Preço promocional (R$)" htmlFor="promoPrice">
                 <Input id="promoPrice" name="promoPrice" inputMode="decimal" defaultValue={p?.promoPrice ?? ""} />
               </Field>
-              <Field label="Estoque" htmlFor="stock">
+              <Field label="Estoque (matriz)" htmlFor="stock">
                 <Input id="stock" name="stock" inputMode="numeric" defaultValue={p?.stock ?? 0} />
               </Field>
               <Field label="Estoque mínimo" htmlFor="minStock">

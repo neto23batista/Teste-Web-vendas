@@ -151,10 +151,6 @@ model Product {
   requiresPrescription Boolean  @default(false)
   isGeneric            Boolean  @default(false)
   activeIngredient     String?
-  // LEGADO: estoque agora é por unidade (model Inventory). Estas colunas ficam
-  // por compatibilidade até a migração de limpeza; o código usa Inventory.
-  stock                Int      @default(0)
-  minStock             Int      @default(5)
   rating               Float    @default(0)
   ratingCount          Int      @default(0)
   active               Boolean  @default(true)

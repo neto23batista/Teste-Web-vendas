@@ -115,8 +115,6 @@ export async function createProduct(
       sku: d.sku,
       price: d.price,
       promoPrice: d.promoPrice,
-      stock: d.stock,
-      minStock: d.minStock,
       categoryId: d.categoryId,
       brandId: d.brandId,
       requiresPrescription: d.requiresPrescription,
@@ -161,8 +159,6 @@ export async function updateProduct(
       sku: d.sku,
       price: d.price,
       promoPrice: d.promoPrice,
-      stock: d.stock,
-      minStock: d.minStock,
       categoryId: d.categoryId,
       brandId: d.brandId,
       requiresPrescription: d.requiresPrescription,
@@ -319,6 +315,8 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
       brandId = found;
     }
 
+    // Estoque do CSV vai para o Inventory da matriz (não mais para o Product).
+    const csvStock = Math.max(0, Math.round(csvNum(r.estoque ?? "") ?? 0));
     const data = {
       name,
       description: (r.descricao ?? "").trim() || name,
@@ -326,7 +324,6 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
       ean: (r.ean ?? "").trim() || null,
       price,
       promoPrice: csvNum(r.promo ?? ""),
-      stock: Math.max(0, Math.round(csvNum(r.estoque ?? "") ?? 0)),
       categoryId,
       brandId,
       requiresPrescription: csvBool(r.exige_receita ?? ""),
@@ -349,9 +346,9 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
         productId = product.id;
         created++;
       }
-      // Estoque do CSV vai para a matriz; garante linhas nas demais unidades.
+      // Garante linhas nas demais unidades e aplica o estoque do CSV à matriz.
       await ensureInventoryForAllUnits(productId, 5);
-      await setMatrizStock(productId, data.stock, 5);
+      await setMatrizStock(productId, csvStock, 5);
     } catch (err) {
       errors.push(`Linha ${line} (${name}): falha ao salvar (${String(err)}).`);
     }

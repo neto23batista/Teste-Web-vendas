@@ -78,11 +78,3 @@ export async function getSelectedPharmacyId(): Promise<string | null> {
   if (cookieId && all.some((p) => p.id === cookieId)) return cookieId;
   return all.find((p) => p.type === "MATRIZ")?.id ?? all[0].id;
 }
-
-/** Unidade selecionada completa (para exibir nome no header etc.). */
-export async function getSelectedPharmacy(): Promise<PharmacyOption | null> {
-  const id = await getSelectedPharmacyId();
-  if (!id) return null;
-  const all = await listPharmaciesSafe();
-  return all.find((p) => p.id === id) ?? null;
-}

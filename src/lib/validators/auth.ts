@@ -46,6 +46,3 @@ export const resetPasswordSchema = z
     message: "As senhas não conferem",
     path: ["confirm"],
   });
-
-export type LoginInput = z.infer<typeof loginSchema>;
-export type RegisterInput = z.infer<typeof registerSchema>;

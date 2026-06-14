@@ -103,26 +103,16 @@ export async function fulfillOrder(orderId: string) {
 
   await prisma.$transaction(async (tx) => {
     for (const item of order.items) {
-      if (item.productId) {
-        // Decremento condicional: só baixa se houver estoque suficiente na
-        // unidade. Se count === 0, aborta a transação (evita estoque negativo
-        // numa corrida).
-        const res = pharmacyId
-          ? await tx.inventory.updateMany({
-              where: {
-                productId: item.productId,
-                pharmacyId,
-                stock: { gte: item.qty },
-              },
-              data: { stock: { decrement: item.qty } },
-            })
-          : await tx.product.updateMany({
-              where: { id: item.productId, stock: { gte: item.qty } },
-              data: { stock: { decrement: item.qty } },
-            });
-        if (res.count === 0) {
-          throw new Error(`Estoque insuficiente para "${item.name}"`);
-        }
+      if (!item.productId || !pharmacyId) continue;
+      // Decremento condicional: só baixa se houver estoque suficiente na
+      // unidade. Se count === 0, aborta a transação (evita estoque negativo
+      // numa corrida).
+      const res = await tx.inventory.updateMany({
+        where: { productId: item.productId, pharmacyId, stock: { gte: item.qty } },
+        data: { stock: { decrement: item.qty } },
+      });
+      if (res.count === 0) {
+        throw new Error(`Estoque insuficiente para "${item.name}"`);
       }
     }
 
@@ -202,19 +192,11 @@ export async function cancelOrder(orderId: string) {
 
     if (wasFulfilled) {
       for (const item of order.items) {
-        if (item.productId) {
-          if (pharmacyId) {
-            await tx.inventory.updateMany({
-              where: { productId: item.productId, pharmacyId },
-              data: { stock: { increment: item.qty } },
-            });
-          } else {
-            await tx.product.updateMany({
-              where: { id: item.productId },
-              data: { stock: { increment: item.qty } },
-            });
-          }
-        }
+        if (!item.productId || !pharmacyId) continue;
+        await tx.inventory.updateMany({
+          where: { productId: item.productId, pharmacyId },
+          data: { stock: { increment: item.qty } },
+        });
       }
     }
 
@@ -272,5 +254,70 @@ export async function cancelOrder(orderId: string) {
   // Estoque/pontos mudaram — invalida o cache das listas de produto.
   revalidateProductsSafe();
 
+  return prisma.order.findUnique({ where: { id: order.id } });
+}
+
+/**
+ * Transfere um pedido para outra unidade, movendo o estoque corretamente:
+ *  - PENDING: o estoque nunca foi baixado → só troca a unidade.
+ *  - Já "fulfilled" (PAID/PREPARING/...): baixa do destino (decremento
+ *    condicional anti-corrida) e devolve à origem. Se faltar estoque no destino,
+ *    a transação inteira é abortada (lança Error) e a unidade NÃO muda.
+ * Registra uma nota de auditoria. Retorna o pedido atualizado.
+ */
+export async function transferOrder(orderId: string, targetPharmacyId: string) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { items: true, pharmacy: { select: { name: true } } },
+  });
+  if (!order) throw new Error("Pedido não encontrado.");
+
+  const sourcePharmacyId = order.pharmacyId;
+  if (sourcePharmacyId === targetPharmacyId) {
+    throw new Error("O pedido já está nesta unidade.");
+  }
+
+  const target = await prisma.pharmacy.findFirst({
+    where: { id: targetPharmacyId, active: true },
+    select: { id: true, name: true },
+  });
+  if (!target) throw new Error("Unidade de destino inválida.");
+
+  // Só pedidos que saíram de PENDING tiveram baixa de estoque (via fulfillOrder).
+  const wasFulfilled = order.status !== "PENDING" && order.status !== "CANCELED";
+
+  const stamp = new Date().toLocaleString("pt-BR");
+  const auditNote = `Transferido de ${order.pharmacy?.name ?? "—"} para ${target.name} em ${stamp}.`;
+  const mergedNotes = (order.notes ? `${order.notes}\n${auditNote}` : auditNote).slice(0, 2000);
+
+  await prisma.$transaction(async (tx) => {
+    if (wasFulfilled) {
+      for (const item of order.items) {
+        if (!item.productId) continue;
+        // Baixa condicional no destino primeiro: se faltar, aborta a transação.
+        const taken = await tx.inventory.updateMany({
+          where: { productId: item.productId, pharmacyId: target.id, stock: { gte: item.qty } },
+          data: { stock: { decrement: item.qty } },
+        });
+        if (taken.count === 0) {
+          throw new Error(`Estoque insuficiente em ${target.name} para "${item.name}".`);
+        }
+        // Devolve o estoque à unidade de origem.
+        if (sourcePharmacyId) {
+          await tx.inventory.updateMany({
+            where: { productId: item.productId, pharmacyId: sourcePharmacyId },
+            data: { stock: { increment: item.qty } },
+          });
+        }
+      }
+    }
+    await tx.order.update({
+      where: { id: order.id },
+      data: { pharmacyId: target.id, notes: mergedNotes },
+    });
+  });
+
+  // Estoque mudou — invalida o cache das listas de produto.
+  revalidateProductsSafe();
   return prisma.order.findUnique({ where: { id: order.id } });
 }

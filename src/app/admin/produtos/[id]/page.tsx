@@ -20,6 +20,13 @@ export default async function EditProductPage({
   });
   if (!product) notFound();
 
+  // O campo de estoque do formulário reflete a MATRIZ (filiais em Controle de
+  // estoque). Busca o Inventory da matriz para preencher o valor atual.
+  const matrizInv = await prisma.inventory.findFirst({
+    where: { productId: id, pharmacy: { type: "MATRIZ" } },
+    select: { stock: true, minStock: true },
+  });
+
   const [categories, brands] = await getCategoriesAndBrands();
   const action = updateProduct.bind(null, id);
 
@@ -39,7 +46,11 @@ export default async function EditProductPage({
         action={action}
         categories={categories}
         brands={brands}
-        product={product}
+        product={{
+          ...product,
+          stock: matrizInv?.stock ?? 0,
+          minStock: matrizInv?.minStock ?? 5,
+        }}
         submitLabel="Salvar alterações"
       />
     </div>

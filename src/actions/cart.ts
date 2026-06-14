@@ -155,9 +155,3 @@ export async function removeCartItem(itemId: string) {
   return { ok: true };
 }
 
-export async function clearCart() {
-  const cart = await ownCart();
-  if (cart) await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
-  revalidatePath("/sacola");
-  return { ok: true };
-}

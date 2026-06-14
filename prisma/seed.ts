@@ -264,7 +264,6 @@ async function main() {
         promoPrice: p.promo ?? null,
         requiresPrescription: p.rx ?? false,
         isGeneric: p.generic ?? false,
-        stock: p.stock,
         rating: p.rating,
         ratingCount: p.ratingCount,
         featured: p.featured ?? false,
