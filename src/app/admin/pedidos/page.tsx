@@ -21,9 +21,11 @@ export default async function AdminOrdersPage({
   const from = one(sp.from) || undefined;
   const to = one(sp.to) || undefined;
   const page = Number(one(sp.page)) || 1;
+  const unit = one(sp.unit) || undefined;
   const { items: orders, total, pages, page: current } = await getAdminOrders(
     { status, q, from, to },
-    page
+    page,
+    unit
   );
 
   // Links das abas de status preservam busca e período.
@@ -33,6 +35,7 @@ export default async function AdminOrdersPage({
     if (q) p.set("q", q);
     if (from) p.set("from", from);
     if (to) p.set("to", to);
+    if (unit) p.set("unit", unit);
     const s = p.toString();
     return `/admin/pedidos${s ? `?${s}` : ""}`;
   };
@@ -58,6 +61,7 @@ export default async function AdminOrdersPage({
         className="space-y-2 lg:flex lg:flex-wrap lg:items-center lg:gap-2 lg:space-y-0"
       >
         {status && <input type="hidden" name="status" value={status} />}
+        {unit && <input type="hidden" name="unit" value={unit} />}
         <div className="relative lg:min-w-56 lg:max-w-md lg:flex-1">
           <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -204,7 +208,7 @@ export default async function AdminOrdersPage({
       <Pagination
         page={current}
         pages={pages}
-        baseParams={{ status: status ?? undefined, q, from, to }}
+        baseParams={{ status: status ?? undefined, q, from, to, unit }}
       />
     </div>
   );

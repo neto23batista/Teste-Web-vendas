@@ -23,13 +23,21 @@ import { StatusBadge } from "@/components/store/order-status";
 import { SalesAreaChart, TopProductsBar, StatusDonut } from "@/components/admin/charts";
 import { PrintButton } from "@/components/admin/print-button";
 
-export default async function AdminDashboard() {
+type SP = Record<string, string | string[] | undefined>;
+
+export default async function AdminDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<SP>;
+}) {
+  const sp = await searchParams;
+  const unit = (Array.isArray(sp.unit) ? sp.unit[0] : sp.unit) || undefined;
   const [stats, sales, byStatus, topProducts, recent] = await Promise.all([
-    getAdminStats(),
-    getSalesByDay(14),
-    getOrdersByStatus(),
-    getTopProducts(5),
-    getRecentOrders(6),
+    getAdminStats(unit),
+    getSalesByDay(14, unit),
+    getOrdersByStatus(unit),
+    getTopProducts(5, unit),
+    getRecentOrders(6, unit),
   ]);
 
   const cards = [

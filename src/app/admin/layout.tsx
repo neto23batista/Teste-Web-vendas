@@ -1,8 +1,11 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/session";
 import { getAdminBadges } from "@/lib/admin";
+import { listPharmaciesSafe } from "@/lib/pharmacy";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
+import { AdminUnitSwitcher } from "@/components/admin/admin-unit-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = {
@@ -29,6 +32,12 @@ export default async function AdminLayout({
     "/admin/estoque": b.lowStock,
   };
 
+  // Matriz (escopo global) escolhe a unidade pelo seletor; filial fica fixa na
+  // própria e só vê o nome.
+  const isGlobal = user.pharmacyType === "MATRIZ";
+  const pharmacies = await listPharmaciesSafe();
+  const ownUnit = pharmacies.find((p) => p.id === user.pharmacyId) ?? null;
+
   return (
     <div className="min-h-dvh bg-background lg:pl-64 print:pl-0">
       <AdminSidebar badges={badges} />
@@ -36,6 +45,15 @@ export default async function AdminLayout({
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-xl md:px-6 print:hidden">
           <span className="font-extrabold lg:hidden">FarmaVida Admin</span>
           <div className="ml-auto flex items-center gap-3">
+            {isGlobal && pharmacies.length > 1 ? (
+              <Suspense fallback={null}>
+                <AdminUnitSwitcher pharmacies={pharmacies} />
+              </Suspense>
+            ) : ownUnit ? (
+              <span className="hidden rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground sm:inline">
+                Unidade: {ownUnit.name}
+              </span>
+            ) : null}
             <ThemeToggle />
             <div className="flex items-center gap-2.5">
               <span className="grid size-9 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white">

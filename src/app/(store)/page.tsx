@@ -19,6 +19,7 @@ import {
   getProductsByCategory,
 } from "@/lib/products";
 import { getShippingConfig } from "@/lib/settings";
+import { getSelectedPharmacyId } from "@/lib/pharmacy";
 
 const benefits = [
   { icon: Truck, title: "Entrega expressa", text: "Receba em casa com rastreio em tempo real." },
@@ -28,11 +29,12 @@ const benefits = [
 ];
 
 export default async function HomePage() {
+  const pharmacyId = await getSelectedPharmacyId();
   const [categories, promos, featured, vitaminas, shipping] = await Promise.all([
     getCategories(),
-    getPromoProducts(10),
-    getFeaturedProducts(10),
-    getProductsByCategory("vitaminas", 10),
+    getPromoProducts(10, pharmacyId),
+    getFeaturedProducts(10, pharmacyId),
+    getProductsByCategory("vitaminas", 10, pharmacyId),
     getShippingConfig(),
   ]);
 

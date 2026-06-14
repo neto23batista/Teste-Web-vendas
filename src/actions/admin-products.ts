@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import { getAdminScope, requireAdminAtPharmacy } from "@/lib/session";
 import { slugify } from "@/lib/utils";
 import { parseCsvRecords } from "@/lib/csv";
 
@@ -12,6 +12,42 @@ function revalidateProducts() {
   revalidateTag("products", "max");
   revalidatePath("/admin/produtos");
   revalidatePath("/");
+}
+
+// Catálogo e preços são compartilhados (globais) → só a matriz gerencia.
+async function isCatalogAdmin(): Promise<boolean> {
+  return (await getAdminScope()).isGlobal;
+}
+
+/** Garante uma linha de Inventory em todas as unidades ativas (não zera estoque
+ *  já existente). Usado ao criar produtos / ao surgir uma unidade nova. */
+async function ensureInventoryForAllUnits(productId: string, minStock: number) {
+  const pharmacies = await prisma.pharmacy.findMany({
+    where: { active: true },
+    select: { id: true },
+  });
+  for (const ph of pharmacies) {
+    await prisma.inventory.upsert({
+      where: { productId_pharmacyId: { productId, pharmacyId: ph.id } },
+      create: { productId, pharmacyId: ph.id, stock: 0, minStock },
+      update: {},
+    });
+  }
+}
+
+/** Estoque informado no formulário do produto = estoque da MATRIZ (filiais
+ *  começam em 0 e gerenciam o próprio em Controle de estoque). */
+async function setMatrizStock(productId: string, stock: number, minStock: number) {
+  const matriz = await prisma.pharmacy.findFirst({
+    where: { type: "MATRIZ" },
+    select: { id: true },
+  });
+  if (!matriz) return;
+  await prisma.inventory.upsert({
+    where: { productId_pharmacyId: { productId, pharmacyId: matriz.id } },
+    create: { productId, pharmacyId: matriz.id, stock, minStock },
+    update: { stock, minStock },
+  });
 }
 
 export type ProductFormState = { error?: string } | undefined;
@@ -60,13 +96,15 @@ export async function createProduct(
   _prev: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
-  await requireAdmin();
+  if (!(await isCatalogAdmin())) {
+    return { error: "Apenas a matriz gerencia o catálogo de produtos." };
+  }
   const d = parse(formData);
   if (!d.name || d.price === null || !d.categoryId) {
     return { error: "Nome, preço e categoria são obrigatórios." };
   }
 
-  await prisma.product.create({
+  const product = await prisma.product.create({
     data: {
       name: d.name,
       slug: await uniqueSlug(d.name),
@@ -90,6 +128,9 @@ export async function createProduct(
       },
     },
   });
+  // Cria estoque por unidade: matriz com o informado, filiais zeradas.
+  await ensureInventoryForAllUnits(product.id, d.minStock);
+  await setMatrizStock(product.id, d.stock, d.minStock);
 
   revalidateProducts();
   redirect("/admin/produtos");
@@ -100,7 +141,9 @@ export async function updateProduct(
   _prev: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
-  await requireAdmin();
+  if (!(await isCatalogAdmin())) {
+    return { error: "Apenas a matriz gerencia o catálogo de produtos." };
+  }
   const d = parse(formData);
   if (!d.name || d.price === null || !d.categoryId) {
     return { error: "Nome, preço e categoria são obrigatórios." };
@@ -133,13 +176,17 @@ export async function updateProduct(
       },
     },
   });
+  // O campo de estoque do formulário reflete a MATRIZ; filiais usam Controle de
+  // estoque. Garante linhas em todas as unidades (cobre unidades novas).
+  await ensureInventoryForAllUnits(id, d.minStock);
+  await setMatrizStock(id, d.stock, d.minStock);
 
   revalidateProducts();
   redirect("/admin/produtos");
 }
 
 export async function toggleProductActive(id: string) {
-  await requireAdmin();
+  if (!(await isCatalogAdmin())) return { ok: false };
   const product = await prisma.product.findUnique({ where: { id } });
   if (product) {
     await prisma.product.update({ where: { id }, data: { active: !product.active } });
@@ -149,7 +196,7 @@ export async function toggleProductActive(id: string) {
 }
 
 export async function deleteProduct(id: string) {
-  await requireAdmin();
+  if (!(await isCatalogAdmin())) return { ok: false };
   await prisma.product.delete({ where: { id } }).catch(() => {});
   revalidateProducts();
   return { ok: true };
@@ -186,7 +233,14 @@ const csvBool = (v: string): boolean =>
   ["sim", "s", "true", "1", "x", "yes"].includes((v ?? "").trim().toLowerCase());
 
 export async function importProducts(formData: FormData): Promise<ImportResult> {
-  await requireAdmin();
+  if (!(await isCatalogAdmin())) {
+    return {
+      ok: false,
+      created: 0,
+      updated: 0,
+      errors: ["Apenas a matriz importa o catálogo."],
+    };
+  }
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -283,15 +337,21 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
       const existing = sku
         ? await prisma.product.findUnique({ where: { sku } })
         : null;
+      let productId: string;
       if (existing) {
         await prisma.product.update({ where: { id: existing.id }, data });
+        productId = existing.id;
         updated++;
       } else {
-        await prisma.product.create({
+        const product = await prisma.product.create({
           data: { ...data, sku, slug: await uniqueSlug(name) },
         });
+        productId = product.id;
         created++;
       }
+      // Estoque do CSV vai para a matriz; garante linhas nas demais unidades.
+      await ensureInventoryForAllUnits(productId, 5);
+      await setMatrizStock(productId, data.stock, 5);
     } catch (err) {
       errors.push(`Linha ${line} (${name}): falha ao salvar (${String(err)}).`);
     }
@@ -302,16 +362,27 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
   return { ok: true, created, updated, errors };
 }
 
-export async function adjustStock(id: string, delta: number) {
-  await requireAdmin();
-  const product = await prisma.product.findUnique({ where: { id } });
-  if (product) {
-    await prisma.product.update({
-      where: { id },
-      data: { stock: Math.max(0, product.stock + delta) },
+export async function adjustStock(
+  productId: string,
+  pharmacyId: string,
+  delta: number
+) {
+  // Filial só ajusta a própria unidade; matriz, qualquer uma.
+  await requireAdminAtPharmacy(pharmacyId);
+  const inv = await prisma.inventory.findUnique({
+    where: { productId_pharmacyId: { productId, pharmacyId } },
+  });
+  if (inv) {
+    await prisma.inventory.update({
+      where: { id: inv.id },
+      data: { stock: Math.max(0, inv.stock + delta) },
     });
-    revalidateProducts();
-    revalidatePath("/admin/estoque");
+  } else {
+    await prisma.inventory.create({
+      data: { productId, pharmacyId, stock: Math.max(0, delta), minStock: 5 },
+    });
   }
+  revalidateProducts();
+  revalidatePath("/admin/estoque");
   return { ok: true };
 }

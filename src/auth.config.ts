@@ -1,5 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
-import type { Role } from "@prisma/client";
+import type { PharmacyType, Role } from "@prisma/client";
 
 // Config edge-safe (sem bcrypt/Prisma) — usada pelo middleware.
 export const authConfig = {
@@ -11,6 +11,8 @@ export const authConfig = {
       if (user) {
         token.id = user.id as string;
         token.role = user.role;
+        token.pharmacyId = user.pharmacyId ?? null;
+        token.pharmacyType = user.pharmacyType ?? null;
       }
       return token;
     },
@@ -18,6 +20,9 @@ export const authConfig = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as Role;
+        session.user.pharmacyId = (token.pharmacyId as string | null) ?? null;
+        session.user.pharmacyType =
+          (token.pharmacyType as PharmacyType | null) ?? null;
       }
       return session;
     },

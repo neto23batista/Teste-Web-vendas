@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import { requireAdmin, requireAdminAtPharmacy } from "@/lib/session";
 import { sendMail, baseUrl } from "@/lib/mail";
 import { orderStatusEmail } from "@/lib/email-templates";
 import { cancelOrder } from "@/lib/orders";
@@ -22,7 +22,14 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 };
 
 export async function updateOrderStatus(id: string, status: OrderStatus) {
-  await requireAdmin();
+  // Filial só altera pedidos da própria unidade; matriz, de qualquer uma.
+  const target = await prisma.order.findUnique({
+    where: { id },
+    select: { pharmacyId: true },
+  });
+  if (!target) return { ok: false as const, error: "Pedido não encontrado." };
+  if (target.pharmacyId) await requireAdminAtPharmacy(target.pharmacyId);
+  else await requireAdmin();
 
   if (RX_BLOCKED.includes(status)) {
     const order = await prisma.order.findUnique({
@@ -73,9 +80,13 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
 /** Observações do pedido: recado do cliente no checkout + anotações internas
  *  da equipe (mesmo campo, editável pelo admin). */
 export async function saveOrderNotes(id: string, notes: string) {
-  await requireAdmin();
-  const exists = await prisma.order.findUnique({ where: { id }, select: { id: true } });
+  const exists = await prisma.order.findUnique({
+    where: { id },
+    select: { id: true, pharmacyId: true },
+  });
   if (!exists) return { ok: false as const, error: "Pedido não encontrado." };
+  if (exists.pharmacyId) await requireAdminAtPharmacy(exists.pharmacyId);
+  else await requireAdmin();
   await prisma.order.update({
     where: { id },
     data: { notes: notes.trim().slice(0, 1000) || null },

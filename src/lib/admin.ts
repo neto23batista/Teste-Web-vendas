@@ -1,7 +1,21 @@
 import { prisma } from "@/lib/prisma";
+import { getAdminScope } from "@/lib/session";
 import type { Prisma, OrderStatus, PrescriptionStatus } from "@prisma/client";
 
 const PAID_STATUSES = ["PAID", "PREPARING", "SHIPPED", "DELIVERED"] as const;
+
+/**
+ * Filtro efetivo de unidade para as queries do admin:
+ *  - Filial: sempre a própria unidade (ignora a seleção da URL).
+ *  - Matriz (global): a unidade selecionada, ou null = todas as unidades.
+ */
+export async function resolveUnitFilter(
+  selectedUnitId?: string | null
+): Promise<string | null> {
+  const scope = await getAdminScope();
+  if (!scope.isGlobal) return scope.pharmacyId;
+  return selectedUnitId ?? null;
+}
 
 /** Variação percentual (arredondada) entre dois períodos. null quando não há
  *  base de comparação (período anterior zerado) — aí o card não mostra delta. */
@@ -10,7 +24,10 @@ function pctChange(curr: number, prev: number): number | null {
   return Math.round(((curr - prev) / prev) * 100);
 }
 
-export async function getAdminStats() {
+export async function getAdminStats(selectedUnitId?: string | null) {
+  const unit = await resolveUnitFilter(selectedUnitId);
+  const orderUnit: Prisma.OrderWhereInput = unit ? { pharmacyId: unit } : {};
+
   const now = new Date();
   const d30 = new Date(now);
   d30.setDate(now.getDate() - 30);
@@ -30,15 +47,23 @@ export async function getAdminStats() {
   ] = await Promise.all([
     prisma.order.aggregate({
       _sum: { total: true },
-      where: { status: { in: [...PAID_STATUSES] } },
+      where: { status: { in: [...PAID_STATUSES] }, ...orderUnit },
     }),
-    prisma.order.count({ where: { status: { in: [...PAID_STATUSES] } } }),
-    prisma.order.count(),
+    prisma.order.count({
+      where: { status: { in: [...PAID_STATUSES] }, ...orderUnit },
+    }),
+    prisma.order.count({ where: orderUnit }),
     prisma.user.count({ where: { role: "CUSTOMER" } }),
     prisma.product.count({ where: { active: true } }),
-    prisma.product.count({ where: { active: true, stock: { lte: 5 } } }),
+    prisma.inventory.count({
+      where: { stock: { lte: 5 }, product: { active: true }, ...(unit ? { pharmacyId: unit } : {}) },
+    }),
     prisma.order.findMany({
-      where: { status: { in: [...PAID_STATUSES] }, createdAt: { gte: d60 } },
+      where: {
+        status: { in: [...PAID_STATUSES] },
+        createdAt: { gte: d60 },
+        ...orderUnit,
+      },
       select: { total: true, createdAt: true },
     }),
     prisma.user.count({ where: { role: "CUSTOMER", createdAt: { gte: d30 } } }),
@@ -84,13 +109,18 @@ export async function getAdminStats() {
   };
 }
 
-export async function getSalesByDay(days = 14) {
+export async function getSalesByDay(days = 14, selectedUnitId?: string | null) {
+  const unit = await resolveUnitFilter(selectedUnitId);
   const since = new Date();
   since.setDate(since.getDate() - (days - 1));
   since.setHours(0, 0, 0, 0);
 
   const orders = await prisma.order.findMany({
-    where: { createdAt: { gte: since }, status: { in: [...PAID_STATUSES] } },
+    where: {
+      createdAt: { gte: since },
+      status: { in: [...PAID_STATUSES] },
+      ...(unit ? { pharmacyId: unit } : {}),
+    },
     select: { total: true, createdAt: true },
   });
 
@@ -110,17 +140,21 @@ export async function getSalesByDay(days = 14) {
   }));
 }
 
-export async function getOrdersByStatus() {
+export async function getOrdersByStatus(selectedUnitId?: string | null) {
+  const unit = await resolveUnitFilter(selectedUnitId);
   const grouped = await prisma.order.groupBy({
     by: ["status"],
+    where: unit ? { pharmacyId: unit } : undefined,
     _count: { _all: true },
   });
   return grouped.map((g) => ({ status: g.status, count: g._count._all }));
 }
 
-export async function getTopProducts(take = 5) {
+export async function getTopProducts(take = 5, selectedUnitId?: string | null) {
+  const unit = await resolveUnitFilter(selectedUnitId);
   const grouped = await prisma.orderItem.groupBy({
     by: ["name"],
+    where: unit ? { order: { pharmacyId: unit } } : undefined,
     _sum: { qty: true },
     orderBy: { _sum: { qty: "desc" } },
     take,
@@ -128,8 +162,10 @@ export async function getTopProducts(take = 5) {
   return grouped.map((g) => ({ name: g.name, qty: g._sum.qty ?? 0 }));
 }
 
-export function getRecentOrders(take = 6) {
+export async function getRecentOrders(take = 6, selectedUnitId?: string | null) {
+  const unit = await resolveUnitFilter(selectedUnitId);
   return prisma.order.findMany({
+    where: unit ? { pharmacyId: unit } : undefined,
     include: { user: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take,
@@ -138,7 +174,12 @@ export function getRecentOrders(take = 6) {
 
 export const ADMIN_PER_PAGE = 20;
 
-export async function getAdminProducts(q?: string, page = 1) {
+export async function getAdminProducts(
+  q?: string,
+  page = 1,
+  selectedUnitId?: string | null
+) {
+  const unit = await resolveUnitFilter(selectedUnitId);
   const where: Prisma.ProductWhereInput = q
     ? {
         OR: [
@@ -149,12 +190,16 @@ export async function getAdminProducts(q?: string, page = 1) {
       }
     : {};
   const current = Math.max(1, page);
-  const [items, total] = await Promise.all([
+  const [rows, total] = await Promise.all([
     prisma.product.findMany({
       where,
       include: {
         category: { select: { name: true } },
         brand: { select: { name: true } },
+        inventory: {
+          where: unit ? { pharmacyId: unit } : undefined,
+          select: { stock: true, minStock: true },
+        },
       },
       orderBy: { createdAt: "desc" },
       skip: (current - 1) * ADMIN_PER_PAGE,
@@ -162,6 +207,12 @@ export async function getAdminProducts(q?: string, page = 1) {
     }),
     prisma.product.count({ where }),
   ]);
+  // Achata o estoque da unidade (ou soma de todas) para a tabela.
+  const items = rows.map(({ inventory, ...p }) => ({
+    ...p,
+    stock: inventory.reduce((s, i) => s + i.stock, 0),
+    minStock: inventory[0]?.minStock ?? 5,
+  }));
   return {
     items,
     total,
@@ -170,6 +221,51 @@ export async function getAdminProducts(q?: string, page = 1) {
     pages: Math.max(1, Math.ceil(total / ADMIN_PER_PAGE)),
   };
 }
+
+/** Linhas de estoque por unidade para a página de Controle de estoque. */
+export async function getStockRows(selectedUnitId?: string | null) {
+  const unit = await resolveUnitFilter(selectedUnitId);
+  // Sem unidade definida (matriz "todas"), usa a matriz como referência para
+  // ajuste — o ajuste sempre age sobre UMA unidade concreta.
+  const targetUnit =
+    unit ??
+    (await prisma.pharmacy.findFirst({ where: { type: "MATRIZ" }, select: { id: true } }))?.id ??
+    null;
+  if (!targetUnit) return { unitId: null, rows: [] as StockRow[] };
+
+  const rows = await prisma.inventory.findMany({
+    where: { pharmacyId: targetUnit, product: { active: true } },
+    select: {
+      stock: true,
+      minStock: true,
+      product: {
+        select: { id: true, name: true, emoji: true, category: { select: { name: true } } },
+      },
+    },
+    orderBy: { stock: "asc" },
+    take: 200,
+  });
+  return {
+    unitId: targetUnit,
+    rows: rows.map((r) => ({
+      productId: r.product.id,
+      name: r.product.name,
+      emoji: r.product.emoji,
+      category: r.product.category.name,
+      stock: r.stock,
+      minStock: r.minStock,
+    })),
+  };
+}
+
+export type StockRow = {
+  productId: string;
+  name: string;
+  emoji: string | null;
+  category: string;
+  stock: number;
+  minStock: number;
+};
 
 export type AdminOrderFilters = {
   status?: OrderStatus;
@@ -180,8 +276,14 @@ export type AdminOrderFilters = {
   to?: string;
 };
 
-export async function getAdminOrders(filters: AdminOrderFilters = {}, page = 1) {
+export async function getAdminOrders(
+  filters: AdminOrderFilters = {},
+  page = 1,
+  selectedUnitId?: string | null
+) {
+  const unit = await resolveUnitFilter(selectedUnitId);
   const where: Prisma.OrderWhereInput = {};
+  if (unit) where.pharmacyId = unit;
   if (filters.status) where.status = filters.status;
   if (filters.q) {
     where.OR = [
@@ -204,7 +306,10 @@ export async function getAdminOrders(filters: AdminOrderFilters = {}, page = 1) 
   const [items, total] = await Promise.all([
     prisma.order.findMany({
       where,
-      include: { user: { select: { name: true, email: true } } },
+      include: {
+        user: { select: { name: true, email: true } },
+        pharmacy: { select: { name: true } },
+      },
       orderBy: { createdAt: "desc" },
       skip: (current - 1) * ADMIN_PER_PAGE,
       take: ADMIN_PER_PAGE,
@@ -288,26 +393,39 @@ export function getAdminCustomer(id: string) {
   });
 }
 
-export function getAdminOrder(id: string) {
-  return prisma.order.findUnique({
+/** Pedido para a tela de detalhe. Filial só acessa pedidos da própria unidade. */
+export async function getAdminOrder(id: string) {
+  const scope = await getAdminScope();
+  const order = await prisma.order.findUnique({
     where: { id },
     include: {
       user: { select: { name: true, email: true, phone: true } },
       address: true,
+      pharmacy: { select: { id: true, name: true, type: true } },
       items: { include: { product: { select: { emoji: true } } } },
       payment: true,
       prescriptions: true,
     },
   });
+  if (!order) return null;
+  // Filial não enxerga pedido de outra unidade.
+  if (!scope.isGlobal && order.pharmacyId && order.pharmacyId !== scope.pharmacyId) {
+    return null;
+  }
+  return order;
 }
 
 /** Contadores que viram badges de atenção na sidebar do admin. */
-export async function getAdminBadges() {
+export async function getAdminBadges(selectedUnitId?: string | null) {
+  const unit = await resolveUnitFilter(selectedUnitId);
+  const orderUnit: Prisma.OrderWhereInput = unit ? { pharmacyId: unit } : {};
   const [pendingPrescriptions, ordersToProcess, lowStock, pendingReviews] =
     await Promise.all([
       prisma.prescription.count({ where: { status: "PENDING" } }),
-      prisma.order.count({ where: { status: { in: ["PAID", "PREPARING"] } } }),
-      prisma.product.count({ where: { active: true, stock: { lte: 5 } } }),
+      prisma.order.count({ where: { status: { in: ["PAID", "PREPARING"] }, ...orderUnit } }),
+      prisma.inventory.count({
+        where: { stock: { lte: 5 }, product: { active: true }, ...(unit ? { pharmacyId: unit } : {}) },
+      }),
       prisma.review.count({ where: { approved: false } }),
     ]);
   return { pendingPrescriptions, ordersToProcess, lowStock, pendingReviews };

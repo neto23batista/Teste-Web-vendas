@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { productCardSelect } from "@/lib/products";
+import { productCardSelect, toProductCard } from "@/lib/products";
+import { getSelectedPharmacyId } from "@/lib/pharmacy";
 
 // Busca produtos por uma lista de IDs (usado pela página de Favoritos, que
 // guarda os IDs no localStorage do cliente). Somente leitura.
@@ -16,13 +17,15 @@ export async function GET(request: Request) {
 
   if (ids.length === 0) return NextResponse.json({ items: [] });
 
+  // Estoque exibido = o da unidade selecionada pelo cliente (cookie).
+  const pharmacyId = await getSelectedPharmacyId();
   const found = await prisma.product.findMany({
     where: { id: { in: ids }, active: true },
-    select: productCardSelect,
+    select: productCardSelect(pharmacyId),
   });
 
   // Preserva a ordem dos IDs recebidos (mais recente primeiro).
-  const byId = new Map(found.map((p) => [p.id, p]));
+  const byId = new Map(found.map((p) => [p.id, toProductCard(p)]));
   const items = ids.map((id) => byId.get(id)).filter(Boolean);
 
   return NextResponse.json({ items });

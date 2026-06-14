@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { SearchX, ChevronLeft, ChevronRight } from "lucide-react";
 import { getCategories, getBrands, searchProducts, type CatalogParams } from "@/lib/products";
+import { getSelectedPharmacyId } from "@/lib/pharmacy";
 import { ProductGrid } from "@/components/store/product-grid";
 import { CatalogControls } from "@/components/store/catalog-controls";
 import { categoryIcon } from "@/components/store/category-visual";
@@ -35,10 +36,11 @@ export default async function CatalogPage({
   const priceMax = num(one(sp.pmax));
   const page = Math.max(1, Number(one(sp.page)) || 1);
 
+  const pharmacyId = await getSelectedPharmacyId();
   const [categories, brands, result] = await Promise.all([
     getCategories(),
     getBrands(),
-    searchProducts({ q, cat, brand, sort, promo, generic, rx, priceMin, priceMax, page }),
+    searchProducts({ q, cat, brand, sort, promo, generic, rx, priceMin, priceMax, page, pharmacyId }),
   ]);
 
   const activeCat = categories.find((c) => c.slug === cat);

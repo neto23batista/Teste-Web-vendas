@@ -131,6 +131,7 @@ async function main() {
   await prisma.loyaltyTransaction.deleteMany();
   await prisma.order.deleteMany();
   await prisma.cart.deleteMany();
+  await prisma.inventory.deleteMany();
   await prisma.productImage.deleteMany();
   await prisma.product.deleteMany();
   await prisma.brand.deleteMany();
@@ -140,6 +141,50 @@ async function main() {
   await prisma.address.deleteMany();
   await prisma.user.deleteMany();
   await prisma.setting.deleteMany();
+  await prisma.pharmacyCepRange.deleteMany();
+  await prisma.pharmacy.deleteMany();
+
+  console.log("🏥 Unidades (matriz + filial)...");
+  // Matriz (chefe): atende a Grande SP por padrão (faixas amplas) e é o
+  // fallback de roteamento. Filial: atende uma região específica (ex.: ABC).
+  const matriz = await prisma.pharmacy.create({
+    data: {
+      name: "FarmaVida Matriz",
+      slug: "matriz",
+      type: "MATRIZ",
+      zip: "01310-100",
+      street: "Av. Paulista",
+      number: "1000",
+      district: "Bela Vista",
+      city: "São Paulo",
+      state: "SP",
+      phone: "(11) 3000-0000",
+      whatsapp: "(11) 90000-0000",
+      hours: "Seg a Sáb, 8h às 22h",
+      cepRanges: {
+        create: [{ start: 1000000, end: 5999999 }], // 01000-000 a 05999-999
+      },
+    },
+  });
+  const filial = await prisma.pharmacy.create({
+    data: {
+      name: "FarmaVida Filial ABC",
+      slug: "filial-abc",
+      type: "FILIAL",
+      zip: "09010-000",
+      street: "Av. Industrial",
+      number: "500",
+      district: "Centro",
+      city: "Santo André",
+      state: "SP",
+      phone: "(11) 4000-0000",
+      whatsapp: "(11) 91111-1111",
+      hours: "Seg a Sáb, 8h às 20h",
+      cepRanges: {
+        create: [{ start: 9000000, end: 9999999 }], // 09000-000 a 09999-999 (ABC)
+      },
+    },
+  });
 
   console.log("👤 Usuários...");
   const admin = await prisma.user.create({
@@ -148,6 +193,18 @@ async function main() {
       email: "owner@farmavida.local",
       passwordHash: await bcrypt.hash("Dono@Farma2026", 10),
       role: "ADMIN",
+      // Admin da matriz = escopo global (vê todas as unidades).
+      pharmacyId: matriz.id,
+    },
+  });
+  // Admin da filial: enxerga e gere apenas a própria unidade.
+  await prisma.user.create({
+    data: {
+      name: "Gerente Filial ABC",
+      email: "filial@farmavida.local",
+      passwordHash: await bcrypt.hash("Filial@2026", 10),
+      role: "ADMIN",
+      pharmacyId: filial.id,
     },
   });
   const customer = await prisma.user.create({
@@ -213,6 +270,14 @@ async function main() {
         featured: p.featured ?? false,
         categoryId: catMap.get(p.cat)!,
         brandId: brandMap.get(p.brand) ?? null,
+        // Estoque por unidade: matriz com o estoque cheio; filial com metade
+        // (gera variação de disponibilidade entre as unidades para QA).
+        inventory: {
+          create: [
+            { pharmacyId: matriz.id, stock: p.stock, minStock: 5 },
+            { pharmacyId: filial.id, stock: Math.floor(p.stock / 2), minStock: 5 },
+          ],
+        },
         ...(imageUrl
           ? { images: { create: [{ url: imageUrl, alt: p.name, sort: 0 }] } }
           : {}),

@@ -2,8 +2,8 @@ import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
-/** Campos mínimos que o card de produto precisa. */
-export const productCardSelect = {
+/** Campos do card, exceto o estoque (que agora é por unidade — ver Inventory). */
+const productCardBase = {
   id: true,
   name: true,
   slug: true,
@@ -12,7 +12,6 @@ export const productCardSelect = {
   promoPrice: true,
   requiresPrescription: true,
   isGeneric: true,
-  stock: true,
   rating: true,
   ratingCount: true,
   category: { select: { name: true, slug: true } },
@@ -20,9 +19,32 @@ export const productCardSelect = {
   images: { select: { url: true }, orderBy: { sort: "asc" }, take: 1 },
 } satisfies Prisma.ProductSelect;
 
-export type ProductCard = Prisma.ProductGetPayload<{
-  select: typeof productCardSelect;
+/**
+ * Select do card de produto com o estoque da unidade informada. Sem unidade
+ * (null), traz o estoque de todas e o mapper soma (visão agregada).
+ */
+export function productCardSelect(pharmacyId?: string | null) {
+  return {
+    ...productCardBase,
+    inventory: {
+      where: pharmacyId ? { pharmacyId } : undefined,
+      select: { stock: true },
+    },
+  } satisfies Prisma.ProductSelect;
+}
+
+type ProductCardRow = Prisma.ProductGetPayload<{
+  select: ReturnType<typeof productCardSelect>;
 }>;
+
+/** Card com o estoque já achatado em `stock` (da unidade selecionada). */
+export type ProductCard = Omit<ProductCardRow, "inventory"> & { stock: number };
+
+export function toProductCard(row: ProductCardRow): ProductCard {
+  const { inventory, ...rest } = row;
+  const stock = inventory.reduce((sum, i) => sum + i.stock, 0);
+  return { ...rest, stock };
+}
 
 // Categorias quase nunca mudam — cacheadas (tag "categories", revalida 1h).
 // Evita uma query em praticamente toda navegação (home, catálogo, footer).
@@ -40,46 +62,57 @@ export const getBrands = unstable_cache(
   { tags: ["brands"], revalidate: 300 }
 );
 
-// Listas da home: cacheadas sob a tag "products". As mutações de produto
-// (admin) e a baixa de estoque (fulfillOrder) chamam revalidateTag("products").
-export function getFeaturedProducts(take = 8) {
+// Listas da home: cacheadas sob a tag "products" (uma entrada por unidade).
+// As mutações de produto (admin) e a baixa de estoque (fulfillOrder) chamam
+// revalidateTag("products").
+export function getFeaturedProducts(take = 8, pharmacyId?: string | null) {
   return unstable_cache(
-    () =>
-      prisma.product.findMany({
-        where: { active: true, featured: true },
-        select: productCardSelect,
-        orderBy: { ratingCount: "desc" },
-        take,
-      }),
-    ["featured-products", String(take)],
+    async () =>
+      (
+        await prisma.product.findMany({
+          where: { active: true, featured: true },
+          select: productCardSelect(pharmacyId),
+          orderBy: { ratingCount: "desc" },
+          take,
+        })
+      ).map(toProductCard),
+    ["featured-products", String(take), pharmacyId ?? "all"],
     { tags: ["products"], revalidate: 300 }
   )();
 }
 
-export function getPromoProducts(take = 8) {
+export function getPromoProducts(take = 8, pharmacyId?: string | null) {
   return unstable_cache(
-    () =>
-      prisma.product.findMany({
-        where: { active: true, promoPrice: { not: null } },
-        select: productCardSelect,
-        orderBy: { ratingCount: "desc" },
-        take,
-      }),
-    ["promo-products", String(take)],
+    async () =>
+      (
+        await prisma.product.findMany({
+          where: { active: true, promoPrice: { not: null } },
+          select: productCardSelect(pharmacyId),
+          orderBy: { ratingCount: "desc" },
+          take,
+        })
+      ).map(toProductCard),
+    ["promo-products", String(take), pharmacyId ?? "all"],
     { tags: ["products"], revalidate: 300 }
   )();
 }
 
-export function getProductsByCategory(slug: string, take = 8) {
+export function getProductsByCategory(
+  slug: string,
+  take = 8,
+  pharmacyId?: string | null
+) {
   return unstable_cache(
-    () =>
-      prisma.product.findMany({
-        where: { active: true, category: { slug } },
-        select: productCardSelect,
-        orderBy: { ratingCount: "desc" },
-        take,
-      }),
-    ["products-by-category", slug, String(take)],
+    async () =>
+      (
+        await prisma.product.findMany({
+          where: { active: true, category: { slug } },
+          select: productCardSelect(pharmacyId),
+          orderBy: { ratingCount: "desc" },
+          take,
+        })
+      ).map(toProductCard),
+    ["products-by-category", slug, String(take), pharmacyId ?? "all"],
     { tags: ["products"], revalidate: 300 }
   )();
 }
@@ -96,6 +129,8 @@ export type CatalogParams = {
   sort?: "relevancia" | "menor" | "maior" | "nome";
   page?: number;
   perPage?: number;
+  /** Unidade selecionada — define o estoque exibido. */
+  pharmacyId?: string | null;
 };
 
 type SearchResult = {
@@ -170,10 +205,10 @@ export async function searchProducts(params: CatalogParams): Promise<SearchResul
           ? { name: "asc" }
           : { ratingCount: "desc" };
 
-  const [items, total] = await Promise.all([
+  const [rows, total] = await Promise.all([
     prisma.product.findMany({
       where,
-      select: productCardSelect,
+      select: productCardSelect(params.pharmacyId),
       orderBy,
       skip: (page - 1) * perPage,
       take: perPage,
@@ -181,16 +216,26 @@ export async function searchProducts(params: CatalogParams): Promise<SearchResul
     prisma.product.count({ where }),
   ]);
 
-  return { items, total, page, perPage, pages: Math.ceil(total / perPage) };
+  return {
+    items: rows.map(toProductCard),
+    total,
+    page,
+    perPage,
+    pages: Math.ceil(total / perPage),
+  };
 }
 
-export function getProductBySlug(slug: string) {
-  return prisma.product.findUnique({
+export async function getProductBySlug(slug: string, pharmacyId?: string | null) {
+  const product = await prisma.product.findUnique({
     where: { slug },
     include: {
       category: true,
       brand: true,
       images: { orderBy: { sort: "asc" } },
+      inventory: {
+        where: pharmacyId ? { pharmacyId } : undefined,
+        select: { stock: true },
+      },
       reviews: {
         where: { approved: true },
         orderBy: { createdAt: "desc" },
@@ -199,13 +244,23 @@ export function getProductBySlug(slug: string) {
       },
     },
   });
+  if (!product) return null;
+  const { inventory, ...rest } = product;
+  const stock = inventory.reduce((sum, i) => sum + i.stock, 0);
+  return { ...rest, stock };
 }
 
-export function getRelatedProducts(categoryId: string, excludeId: string, take = 4) {
-  return prisma.product.findMany({
+export async function getRelatedProducts(
+  categoryId: string,
+  excludeId: string,
+  take = 4,
+  pharmacyId?: string | null
+) {
+  const rows = await prisma.product.findMany({
     where: { active: true, categoryId, id: { not: excludeId } },
-    select: productCardSelect,
+    select: productCardSelect(pharmacyId),
     orderBy: { ratingCount: "desc" },
     take,
   });
+  return rows.map(toProductCard);
 }

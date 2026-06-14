@@ -1,26 +1,29 @@
 import { AlertTriangle, PackageCheck } from "lucide-react";
-import { prisma } from "@/lib/prisma";
+import { getStockRows } from "@/lib/admin";
 import { cn } from "@/lib/utils";
 import { ProductImage } from "@/components/store/product-image";
 import { StockAdjust } from "@/components/admin/stock-adjust";
 
 export const metadata = { title: "Estoque" };
 
-export default async function AdminStockPage() {
-  const products = await prisma.product.findMany({
-    where: { active: true },
-    include: { category: { select: { name: true } } },
-    orderBy: { stock: "asc" },
-    take: 100,
-  });
-  const lowCount = products.filter((p) => p.stock <= p.minStock).length;
+type SP = Record<string, string | string[] | undefined>;
+
+export default async function AdminStockPage({
+  searchParams,
+}: {
+  searchParams: Promise<SP>;
+}) {
+  const sp = await searchParams;
+  const unit = (Array.isArray(sp.unit) ? sp.unit[0] : sp.unit) || undefined;
+  const { unitId, rows } = await getStockRows(unit);
+  const lowCount = rows.filter((p) => p.stock <= p.minStock).length;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-extrabold">Controle de estoque</h1>
         <p className="text-sm text-muted-foreground">
-          Ajuste rápido das quantidades em estoque
+          Ajuste rápido das quantidades em estoque da unidade
         </p>
       </div>
 
@@ -47,11 +50,11 @@ export default async function AdminStockPage() {
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
         {/* Mobile: lista em cards (a tabela não cabe na tela). */}
         <div className="divide-y divide-border md:hidden">
-          {products.map((p) => {
+          {rows.map((p) => {
             const out = p.stock <= 0;
             const low = !out && p.stock <= p.minStock;
             return (
-              <div key={p.id} className="space-y-3 p-4">
+              <div key={p.productId} className="space-y-3 p-4">
                 <div className="flex items-center gap-3">
                   <ProductImage
                     emoji={p.emoji}
@@ -62,7 +65,7 @@ export default async function AdminStockPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{p.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {p.category.name} · mín. {p.minStock} un
+                      {p.category} · mín. {p.minStock} un
                     </p>
                   </div>
                   <span
@@ -78,7 +81,9 @@ export default async function AdminStockPage() {
                     {out ? "Esgotado" : low ? "Baixo" : "Ok"}
                   </span>
                 </div>
-                <StockAdjust id={p.id} stock={p.stock} />
+                {unitId && (
+                  <StockAdjust id={p.productId} pharmacyId={unitId} stock={p.stock} />
+                )}
               </div>
             );
           })}
@@ -95,17 +100,17 @@ export default async function AdminStockPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {products.map((p) => {
+              {rows.map((p) => {
                 const out = p.stock <= 0;
                 const low = !out && p.stock <= p.minStock;
                 return (
-                  <tr key={p.id} className="transition hover:bg-muted/30">
+                  <tr key={p.productId} className="transition hover:bg-muted/30">
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <ProductImage emoji={p.emoji} name={p.name} className="size-10 rounded-xl" emojiClassName="text-lg" />
                         <div className="min-w-0">
                           <p className="truncate font-semibold">{p.name}</p>
-                          <p className="text-xs text-muted-foreground">{p.category.name}</p>
+                          <p className="text-xs text-muted-foreground">{p.category}</p>
                         </div>
                       </div>
                     </td>
@@ -126,7 +131,9 @@ export default async function AdminStockPage() {
                     </td>
                     <td className="p-4">
                       <div className="flex justify-end">
-                        <StockAdjust id={p.id} stock={p.stock} />
+                        {unitId && (
+                          <StockAdjust id={p.productId} pharmacyId={unitId} stock={p.stock} />
+                        )}
                       </div>
                     </td>
                   </tr>

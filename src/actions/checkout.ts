@@ -35,6 +35,9 @@ export async function placeOrder(
 
   const cart = await getCart();
   if (!cart || cart.items.length === 0) return { error: "Sua sacola está vazia." };
+  if (!cart.pharmacyId) {
+    return { error: "Nenhuma unidade disponível para atender o pedido." };
+  }
 
   // Valida a receita ANTES de criar o pedido (evita pedido órfão se o
   // arquivo for inválido/grande).
@@ -53,16 +56,20 @@ export async function placeOrder(
     };
   }
 
-  // Re-valida estoque no momento do checkout (pode ter mudado desde a sacola).
-  const stocks = await prisma.product.findMany({
-    where: { id: { in: cart.items.map((i) => i.product.id) } },
-    select: { id: true, name: true, stock: true, active: true },
+  // Re-valida estoque DA UNIDADE no momento do checkout (pode ter mudado desde
+  // a sacola). Produto inativo não retorna na query → tratado como insuficiente.
+  const stocks = await prisma.inventory.findMany({
+    where: {
+      pharmacyId: cart.pharmacyId,
+      productId: { in: cart.items.map((i) => i.product.id) },
+      product: { active: true },
+    },
+    select: { productId: true, stock: true },
   });
-  const stockById = new Map(stocks.map((p) => [p.id, p]));
-  const insufficient = cart.items.filter((i) => {
-    const p = stockById.get(i.product.id);
-    return !p || !p.active || p.stock < i.qty;
-  });
+  const stockById = new Map(stocks.map((s) => [s.productId, s.stock]));
+  const insufficient = cart.items.filter(
+    (i) => (stockById.get(i.product.id) ?? 0) < i.qty
+  );
   if (insufficient.length > 0) {
     const names = insufficient.map((i) => i.product.name).join(", ");
     return {
@@ -199,6 +206,7 @@ export async function placeOrder(
   const order = await createOrder({
     userId: user.id,
     addressId,
+    pharmacyId: cart.pharmacyId,
     paymentMethod,
     subtotal,
     shipping,

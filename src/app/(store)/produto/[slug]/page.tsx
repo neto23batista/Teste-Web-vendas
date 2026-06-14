@@ -17,6 +17,7 @@ import {
 } from "@/lib/products";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
+import { getSelectedPharmacyId } from "@/lib/pharmacy";
 import { formatBRL, discountPercent } from "@/lib/utils";
 import { ProductGallery } from "@/components/store/product-gallery";
 import { StarRating } from "@/components/store/star-rating";
@@ -47,13 +48,14 @@ export default async function ProductPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const product = await getProductBySlug(slug);
+  const pharmacyId = await getSelectedPharmacyId();
+  const product = await getProductBySlug(slug, pharmacyId);
   if (!product) notFound();
 
   const price = product.promoPrice ?? product.price;
   const off = discountPercent(product.price, product.promoPrice);
   const out = product.stock <= 0;
-  const related = await getRelatedProducts(product.categoryId, product.id, 10);
+  const related = await getRelatedProducts(product.categoryId, product.id, 10, pharmacyId);
 
   const user = await getCurrentUser();
   const myReview = user

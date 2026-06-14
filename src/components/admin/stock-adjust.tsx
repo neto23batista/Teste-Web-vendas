@@ -5,13 +5,21 @@ import { useRouter } from "next/navigation";
 import { Minus, Plus, Loader2 } from "lucide-react";
 import { adjustStock } from "@/actions/admin-products";
 
-export function StockAdjust({ id, stock }: { id: string; stock: number }) {
+export function StockAdjust({
+  id,
+  pharmacyId,
+  stock,
+}: {
+  id: string;
+  pharmacyId: string;
+  stock: number;
+}) {
   const router = useRouter();
   const [pending, start] = React.useTransition();
 
   const change = (delta: number) =>
     start(async () => {
-      await adjustStock(id, delta);
+      await adjustStock(id, pharmacyId, delta);
       router.refresh();
     });
 

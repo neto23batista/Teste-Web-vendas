@@ -17,7 +17,12 @@ export default async function AdminProductsPage({
   const sp = await searchParams;
   const q = (Array.isArray(sp.q) ? sp.q[0] : sp.q)?.trim() || undefined;
   const page = Number(Array.isArray(sp.page) ? sp.page[0] : sp.page) || 1;
-  const { items: products, total, pages, page: current } = await getAdminProducts(q, page);
+  const unit = (Array.isArray(sp.unit) ? sp.unit[0] : sp.unit) || undefined;
+  const { items: products, total, pages, page: current } = await getAdminProducts(
+    q,
+    page,
+    unit
+  );
 
   return (
     <div className="space-y-6">
@@ -41,6 +46,7 @@ export default async function AdminProductsPage({
       </div>
 
       <form action="/admin/produtos" method="get" className="relative max-w-md">
+        {unit && <input type="hidden" name="unit" value={unit} />}
         <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
         <input
           name="q"
@@ -188,7 +194,7 @@ export default async function AdminProductsPage({
         </div>
       </div>
 
-      <Pagination page={current} pages={pages} baseParams={{ q }} />
+      <Pagination page={current} pages={pages} baseParams={{ q, unit }} />
     </div>
   );
 }

@@ -51,6 +51,11 @@ enum CouponType {
   FIXED
 }
 
+enum PharmacyType {
+  MATRIZ
+  FILIAL
+}
+
 // ─────────────────────────── Usuário ───────────────────────────
 model User {
   id           String   @id @default(cuid())
@@ -60,6 +65,9 @@ model User {
   role         Role     @default(CUSTOMER)
   cpf          String?
   phone        String?
+  // Unidade à qual um admin pertence. Null em clientes. Admin cuja unidade é
+  // MATRIZ tem escopo "global" (vê/gere todas as unidades).
+  pharmacyId   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -71,8 +79,10 @@ model User {
   carts         Cart[]
   resetTokens   PasswordResetToken[]
   favorites     Favorite[]
+  pharmacy      Pharmacy? @relation(fields: [pharmacyId], references: [id])
 
   @@index([role])
+  @@index([pharmacyId])
 }
 
 model PasswordResetToken {
@@ -141,6 +151,8 @@ model Product {
   requiresPrescription Boolean  @default(false)
   isGeneric            Boolean  @default(false)
   activeIngredient     String?
+  // LEGADO: estoque agora é por unidade (model Inventory). Estas colunas ficam
+  // por compatibilidade até a migração de limpeza; o código usa Inventory.
   stock                Int      @default(0)
   minStock             Int      @default(5)
   rating               Float    @default(0)
@@ -159,6 +171,7 @@ model Product {
   orderItems OrderItem[]
   reviews   Review[]
   favoritedBy Favorite[]
+  inventory Inventory[]
 
   @@index([categoryId])
   @@index([brandId])
@@ -182,13 +195,18 @@ model Cart {
   id           String   @id @default(cuid())
   userId       String?
   sessionToken String?  @unique
+  // Unidade que o cliente está comprando (estoque é por unidade). Null = ainda
+  // não escolheu; a leitura usa a unidade padrão (matriz) como fallback.
+  pharmacyId   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  user  User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
-  items CartItem[]
+  user     User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  pharmacy Pharmacy?  @relation(fields: [pharmacyId], references: [id], onDelete: SetNull)
+  items    CartItem[]
 
   @@index([userId])
+  @@index([pharmacyId])
 }
 
 model CartItem {
@@ -218,12 +236,16 @@ model Order {
   paymentMethod String?
   couponCode    String?
   addressId     String?
+  // Unidade que atende o pedido (roteada por CEP, matriz como fallback).
+  // Nullable só por compatibilidade com a migração; sempre populada na criação.
+  pharmacyId    String?
   notes         String?     @db.Text
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
   user          User                 @relation(fields: [userId], references: [id])
   address       Address?             @relation(fields: [addressId], references: [id])
+  pharmacy      Pharmacy?            @relation(fields: [pharmacyId], references: [id])
   items         OrderItem[]
   payment       Payment?
   prescriptions Prescription[]
@@ -231,6 +253,7 @@ model Order {
 
   @@index([userId])
   @@index([status])
+  @@index([pharmacyId])
 }
 
 model OrderItem {
@@ -347,4 +370,64 @@ model Setting {
   id    String @id @default(cuid())
   key   String @unique
   value String @db.Text
+}
+
+// ─────────────────────────── Unidades (Matriz + Filiais) ───────────────────────────
+// Catálogo e preços são compartilhados (globais no Product). O que é por unidade:
+// estoque (Inventory), pedidos (Order.pharmacyId) e escopo do admin (User.pharmacyId).
+model Pharmacy {
+  id        String       @id @default(cuid())
+  name      String
+  slug      String       @unique
+  type      PharmacyType @default(FILIAL)
+  active    Boolean      @default(true)
+  zip       String?
+  street    String?
+  number    String?
+  district  String?
+  city      String?
+  state     String?
+  phone     String?
+  whatsapp  String?
+  hours     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  inventory Inventory[]
+  cepRanges PharmacyCepRange[]
+  orders    Order[]
+  users     User[]
+  carts     Cart[]
+
+  @@index([type])
+}
+
+// Faixas de CEP atendidas por uma unidade (numéricas, 8 dígitos). O roteamento
+// escolhe a primeira unidade cuja faixa contém o CEP; sem casar, cai na matriz.
+model PharmacyCepRange {
+  id         String @id @default(cuid())
+  pharmacyId String
+  start      Int
+  end        Int
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@index([pharmacyId])
+}
+
+// Estoque de um produto numa unidade. Fonte da verdade do estoque (substitui
+// Product.stock/minStock, mantidos como legado até a migração de limpeza).
+model Inventory {
+  id         String @id @default(cuid())
+  productId  String
+  pharmacyId String
+  stock      Int    @default(0)
+  minStock   Int    @default(5)
+
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, pharmacyId])
+  @@index([pharmacyId])
+  @@index([productId])
 }

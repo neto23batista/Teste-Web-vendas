@@ -37,6 +37,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const user = await prisma.user.findUnique({
           where: { email: parsed.data.email.toLowerCase() },
+          include: { pharmacy: { select: { type: true } } },
         });
         if (!user) return null;
 
@@ -51,6 +52,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: user.name,
           email: user.email,
           role: user.role,
+          pharmacyId: user.pharmacyId,
+          pharmacyType: user.pharmacy?.type ?? null,
         };
       },
     }),

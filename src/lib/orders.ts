@@ -13,6 +13,15 @@ function revalidateProductsSafe() {
   }
 }
 
+/** Matriz como unidade de fallback (pedidos legados sem pharmacyId). */
+async function fallbackPharmacyId(): Promise<string | null> {
+  const m = await prisma.pharmacy.findFirst({
+    where: { type: "MATRIZ" },
+    select: { id: true },
+  });
+  return m?.id ?? null;
+}
+
 export function generateOrderNumber(): string {
   const stamp = Date.now().toString(36).toUpperCase();
   const rand = Math.floor(Math.random() * 36 ** 3)
@@ -25,6 +34,7 @@ export function generateOrderNumber(): string {
 type CreateInput = {
   userId: string;
   addressId: string | null;
+  pharmacyId: string | null;
   paymentMethod: string;
   subtotal: number;
   shipping: number;
@@ -42,6 +52,7 @@ export async function createOrder(input: CreateInput) {
       number: generateOrderNumber(),
       userId: input.userId,
       addressId: input.addressId,
+      pharmacyId: input.pharmacyId,
       status: "PENDING",
       requiresPrescription: input.requiresPrescription,
       paymentMethod: input.paymentMethod,
@@ -87,16 +98,28 @@ export async function fulfillOrder(orderId: string) {
   // validação farmacêutica — não avançam para PREPARING automaticamente.
   const isRx = order.requiresPrescription;
   const points = Math.floor(order.total);
+  // Unidade que atende o pedido (matriz como fallback de pedidos legados).
+  const pharmacyId = order.pharmacyId ?? (await fallbackPharmacyId());
 
   await prisma.$transaction(async (tx) => {
     for (const item of order.items) {
       if (item.productId) {
-        // Decremento condicional: só baixa se houver estoque suficiente.
-        // Se count === 0, aborta a transação (evita estoque negativo numa corrida).
-        const res = await tx.product.updateMany({
-          where: { id: item.productId, stock: { gte: item.qty } },
-          data: { stock: { decrement: item.qty } },
-        });
+        // Decremento condicional: só baixa se houver estoque suficiente na
+        // unidade. Se count === 0, aborta a transação (evita estoque negativo
+        // numa corrida).
+        const res = pharmacyId
+          ? await tx.inventory.updateMany({
+              where: {
+                productId: item.productId,
+                pharmacyId,
+                stock: { gte: item.qty },
+              },
+              data: { stock: { decrement: item.qty } },
+            })
+          : await tx.product.updateMany({
+              where: { id: item.productId, stock: { gte: item.qty } },
+              data: { stock: { decrement: item.qty } },
+            });
         if (res.count === 0) {
           throw new Error(`Estoque insuficiente para "${item.name}"`);
         }
@@ -163,6 +186,7 @@ export async function cancelOrder(orderId: string) {
   // Estornar -net devolve o resgate e remove o ganho, voltando ao saldo pré-compra.
   const net = order.loyaltyTx.reduce((sum, tx) => sum + tx.points, 0);
   const paymentWasApproved = order.payment?.status === "APPROVED";
+  const pharmacyId = order.pharmacyId ?? (await fallbackPharmacyId());
 
   // Dois caminhos podem cancelar (botão do cliente e dropdown do admin). Para
   // evitar reversão dupla numa corrida, "reivindicamos" o cancelamento de forma
@@ -179,10 +203,17 @@ export async function cancelOrder(orderId: string) {
     if (wasFulfilled) {
       for (const item of order.items) {
         if (item.productId) {
-          await tx.product.updateMany({
-            where: { id: item.productId },
-            data: { stock: { increment: item.qty } },
-          });
+          if (pharmacyId) {
+            await tx.inventory.updateMany({
+              where: { productId: item.productId, pharmacyId },
+              data: { stock: { increment: item.qty } },
+            });
+          } else {
+            await tx.product.updateMany({
+              where: { id: item.productId },
+              data: { stock: { increment: item.qty } },
+            });
+          }
         }
       }
     }
