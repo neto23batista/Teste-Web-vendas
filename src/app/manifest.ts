@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "Farmácia online com entrega rápida, compra segura e atendimento farmacêutico.",
     start_url: "/",
     display: "standalone",
-    background_color: "#faf9f9",
-    theme_color: "#ea1d2c",
+    background_color: "#0c1513",
+    theme_color: "#079685",
     lang: "pt-BR",
     categories: ["health", "medical", "shopping"],
     icons: [

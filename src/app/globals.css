@@ -8,36 +8,40 @@
    (bg-brand-600, text-accent-500, etc.)
    ============================================================ */
 @theme {
-  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system,
+  /* Corpo em Hanken Grotesk; títulos em Space Grotesk (via --font-display). */
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, Arial, sans-serif;
+  --font-display: var(--font-space), "Space Grotesk", ui-sans-serif, system-ui,
+    sans-serif;
 
-  /* Vermelho vibrante (estilo iFood) como marca; azul confiança como apoio. */
-  --color-brand-50: #fef2f2;
-  --color-brand-100: #fee2e2;
-  --color-brand-200: #fecaca;
-  --color-brand-300: #fca5a5;
-  --color-brand-400: #f87171;
-  --color-brand-500: #ef4444;
-  --color-brand-600: #ea1d2c;
-  --color-brand-700: #c81622;
-  --color-brand-800: #a3131d;
-  --color-brand-900: #82141b;
-  --color-brand-950: #45060b;
+  /* Teal/menta vibrante (app premium) como marca; azul-céu como apoio. */
+  --color-brand-50: #e8fbf5;
+  --color-brand-100: #c6f5ea;
+  --color-brand-200: #95ecd9;
+  --color-brand-300: #58dcc3;
+  --color-brand-400: #2cc7ab;
+  --color-brand-500: #11b29c;
+  --color-brand-600: #079685;
+  --color-brand-700: #0a796c;
+  --color-brand-800: #0d6157;
+  --color-brand-900: #105049;
+  --color-brand-950: #022e29;
 
   --color-accent-400: #38bdf8;
   --color-accent-500: #0ea5e9;
   --color-accent-600: #0284c7;
 
-  /* Teal "oferta/economia" (como o iFood usa para descontos): badges de
-     desconto, barra de frete grátis e contadores. Texto claro usa 600+. */
-  --color-promo-50: #f0fdfa;
-  --color-promo-100: #ccfbf1;
-  --color-promo-200: #99f6e4;
-  --color-promo-300: #5eead4;
-  --color-promo-400: #2dd4bf;
-  --color-promo-500: #14b8a6;
-  --color-promo-600: #0d9488;
-  --color-promo-700: #0f766e;
+  /* Coral "oferta/economia": selos de desconto (-25%), contador da sacola e
+     banner de frete grátis. Pop quente que destaca sobre a marca teal.
+     Texto branco legível a partir do 500. */
+  --color-promo-50: #fff2ef;
+  --color-promo-100: #ffe1da;
+  --color-promo-200: #ffc6b8;
+  --color-promo-300: #ffa088;
+  --color-promo-400: #fb7a5c;
+  --color-promo-500: #f15a3b;
+  --color-promo-600: #db4528;
+  --color-promo-700: #b5371f;
 
   --color-success-500: #16a34a;
   --color-success-600: #15803d;
@@ -48,13 +52,13 @@
   --radius-2xl: 1.25rem;
   --radius-3xl: 1.75rem;
 
-  --shadow-soft: 0 1px 2px rgba(40, 8, 12, 0.04),
-    0 8px 24px -8px rgba(40, 8, 12, 0.12);
-  --shadow-card: 0 1px 3px rgba(40, 8, 12, 0.06),
-    0 18px 40px -16px rgba(234, 29, 44, 0.18);
-  --shadow-glow: 0 18px 52px -12px rgba(234, 29, 44, 0.4);
-  /* Glow para banners/CTAs de oferta (teal). */
-  --shadow-promo: 0 16px 44px -12px rgba(20, 184, 166, 0.4);
+  --shadow-soft: 0 1px 2px rgba(6, 28, 26, 0.05),
+    0 8px 24px -8px rgba(6, 28, 26, 0.14);
+  --shadow-card: 0 1px 3px rgba(6, 28, 26, 0.08),
+    0 18px 40px -16px rgba(7, 150, 133, 0.2);
+  --shadow-glow: 0 18px 52px -12px rgba(20, 184, 160, 0.42);
+  /* Glow para banners/CTAs de oferta (coral). */
+  --shadow-promo: 0 16px 44px -12px rgba(241, 90, 59, 0.4);
 
   --animate-fade-up: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-float: float 6s ease-in-out infinite;
@@ -68,35 +72,35 @@
    Tokens semânticos (trocam entre claro/escuro)
    ============================================================ */
 :root {
-  --background: #faf9f9;
-  --foreground: #221416;
+  --background: #f3f8f6;
+  --foreground: #14211e;
   --card: #ffffff;
-  --card-foreground: #221416;
-  --muted: #f2ebec;
-  --muted-foreground: #6e5d60;
-  --border: #ecdfe1;
-  --input: #ecdfe1;
-  --primary: #ea1d2c;
+  --card-foreground: #14211e;
+  --muted: #e8f1ed;
+  --muted-foreground: #5b6b66;
+  --border: #dde9e4;
+  --input: #dde9e4;
+  --primary: #079685;
   --primary-foreground: #ffffff;
   --accent: #0ea5e9;
   --accent-foreground: #082f49;
-  --ring: #ea1d2c;
+  --ring: #079685;
 }
 
 .dark {
-  --background: #150a0b;
-  --foreground: #f5e9ea;
-  --card: #1f1314;
-  --card-foreground: #f5e9ea;
-  --muted: #281a1c;
-  --muted-foreground: #ab9598;
-  --border: #382427;
-  --input: #382427;
-  --primary: #f87171;
-  --primary-foreground: #45060b;
+  --background: #0c1513;
+  --foreground: #eef4f1;
+  --card: #141f1c;
+  --card-foreground: #eef4f1;
+  --muted: #1c2723;
+  --muted-foreground: #9bb0aa;
+  --border: #2a342f;
+  --input: #2a342f;
+  --primary: #2cc7ab;
+  --primary-foreground: #04302a;
   --accent: #38bdf8;
-  --accent-foreground: #082f49;
-  --ring: #f87171;
+  --accent-foreground: #04263a;
+  --ring: #2cc7ab;
 }
 
 @theme inline {
@@ -135,6 +139,14 @@
        scroll container, então não quebra position: sticky). */
     overflow-x: clip;
   }
+  /* Títulos em Space Grotesk, com aperto óptico (estilo app premium). */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
   ::selection {
     background: color-mix(in oklab, var(--primary) 25%, transparent);
   }
@@ -171,27 +183,27 @@
   .gradient-brand {
     background-image: linear-gradient(
       135deg,
-      #82141b 0%,
-      #ea1d2c 50%,
-      #f43f5e 100%
+      #0a796c 0%,
+      #079685 45%,
+      #0ea5e9 100%
     );
   }
   /* Versão animada: o gradiente desliza suavemente (hero). */
   .gradient-brand-animated {
     background-image: linear-gradient(
       120deg,
-      #82141b 0%,
-      #ea1d2c 30%,
-      #f43f5e 55%,
-      #ea1d2c 80%,
-      #82141b 100%
+      #0a796c 0%,
+      #079685 28%,
+      #0ea5e9 52%,
+      #11b29c 78%,
+      #0a796c 100%
     );
     background-size: 220% 220%;
     animation: var(--animate-gradient);
   }
   /* Texto com preenchimento em gradiente da marca. */
   .text-gradient-brand {
-    background-image: linear-gradient(120deg, #ea1d2c, #f43f5e);
+    background-image: linear-gradient(120deg, #079685, #0ea5e9);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -207,10 +219,10 @@
   .gradient-promo {
     background-image: linear-gradient(
       135deg,
-      #0f766e 0%,
-      #0d9488 40%,
-      #14b8a6 70%,
-      #2dd4bf 100%
+      #b5371f 0%,
+      #db4528 40%,
+      #f15a3b 70%,
+      #fb7a5c 100%
     );
   }
   .glass {
@@ -230,17 +242,17 @@
   .aurora {
     background-image: radial-gradient(
         38rem 38rem at 8% -10%,
-        color-mix(in oklab, #f87171 20%, transparent),
+        color-mix(in oklab, #2cc7ab 22%, transparent),
         transparent 60%
       ),
       radial-gradient(
         32rem 32rem at 95% 15%,
-        color-mix(in oklab, #fbbf24 16%, transparent),
+        color-mix(in oklab, #38bdf8 18%, transparent),
         transparent 60%
       ),
       radial-gradient(
         30rem 30rem at 50% 110%,
-        color-mix(in oklab, #f43f5e 12%, transparent),
+        color-mix(in oklab, #8b5cf6 14%, transparent),
         transparent 60%
       );
   }

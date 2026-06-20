@@ -48,7 +48,7 @@ export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) 
       cta: "Ver genéricos",
       href: "/catalogo?generic=1",
       icon: Leaf,
-      bg: "bg-gradient-to-br from-brand-700 via-brand-600 to-rose-500",
+      bg: "bg-gradient-to-br from-accent-600 via-accent-500 to-brand-500",
     },
     {
       badge: "Entrega",

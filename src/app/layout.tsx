@@ -1,12 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Hanken_Grotesk, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { RegisterSW } from "@/components/register-sw";
 
-const jakarta = Plus_Jakarta_Sans({
-  variable: "--font-jakarta",
+// Corpo: Hanken Grotesk. Títulos: Space Grotesk (via --font-display).
+const hanken = Hanken_Grotesk({
+  variable: "--font-hanken",
   subsets: ["latin"],
+  display: "swap",
+});
+
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
@@ -32,8 +40,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ea1d2c" },
-    { media: "(prefers-color-scheme: dark)", color: "#150a0b" },
+    { media: "(prefers-color-scheme: light)", color: "#079685" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c1513" },
   ],
 };
 
@@ -41,7 +49,11 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR" className={jakarta.variable} suppressHydrationWarning>
+    <html
+      lang="pt-BR"
+      className={`${hanken.variable} ${spaceGrotesk.variable}`}
+      suppressHydrationWarning
+    >
       <body className="min-h-dvh antialiased">
         <Providers>{children}</Providers>
         <RegisterSW />
