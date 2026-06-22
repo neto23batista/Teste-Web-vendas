@@ -9,7 +9,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          "gradient-brand text-white shadow-[var(--shadow-glow)] hover:brightness-110 hover:-translate-y-0.5",
+          "sheen gradient-brand text-white shadow-[var(--shadow-glow)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-glow-strong)]",
         solid:
           "bg-primary text-primary-foreground shadow-[var(--shadow-soft)] hover:brightness-110",
         soft: "bg-brand-50 text-brand-700 hover:bg-brand-100 dark:bg-brand-600/15 dark:text-brand-300 dark:hover:bg-brand-600/25",

@@ -26,8 +26,12 @@ export default async function CheckoutPage() {
   ]);
 
   return (
-    <div className="container-page py-6 md:py-8">
-      <h1 className="mb-6 text-2xl font-extrabold md:text-3xl">
+    <div className="aurora">
+      <div className="container-page py-6 md:py-8">
+      <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
+        Pagamento seguro
+      </p>
+      <h1 className="mb-6 text-2xl font-extrabold tracking-tight md:text-3xl">
         Finalizar compra
       </h1>
       <CheckoutForm
@@ -37,6 +41,7 @@ export default async function CheckoutPage() {
         points={loyalty?.points ?? 0}
         shippingConfig={shippingConfig}
       />
+      </div>
     </div>
   );
 }

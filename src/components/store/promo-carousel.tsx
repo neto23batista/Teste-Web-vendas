@@ -98,7 +98,7 @@ export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) 
       onFocusCapture={() => (paused.current = true)}
       onBlurCapture={() => (paused.current = false)}
     >
-      <div ref={emblaRef} className="overflow-hidden rounded-3xl">
+      <div ref={emblaRef} className="overflow-hidden rounded-3xl shadow-[var(--shadow-glow)]">
         <div className="flex touch-pan-y">
           {slides.map((s) => {
             const Icon = s.icon;
@@ -107,7 +107,7 @@ export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) 
                 <Link
                   href={s.href}
                   className={cn(
-                    "relative block overflow-hidden rounded-3xl px-6 py-8 text-white md:px-10 md:py-10",
+                    "group relative block overflow-hidden rounded-3xl px-6 py-8 text-white grain md:px-10 md:py-10",
                     s.bg
                   )}
                 >
@@ -125,7 +125,7 @@ export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) 
                       {s.title}
                     </h2>
                     <p className="text-sm text-white/85 md:text-base">{s.text}</p>
-                    <span className="mt-1 inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-900 shadow-lg transition-transform duration-200 hover:scale-[1.03] active:scale-95">
+                    <span className="sheen mt-1 inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-900 shadow-lg transition-transform duration-200 hover:scale-[1.03] active:scale-95">
                       {s.cta} <ArrowRight className="size-4" />
                     </span>
                   </div>

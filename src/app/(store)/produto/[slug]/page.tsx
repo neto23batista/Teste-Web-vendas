@@ -109,7 +109,8 @@ export default async function ProductPage({
   };
 
   return (
-    <div className="container-page space-y-12 py-6 pb-28 md:py-8 md:pb-8">
+    <div className="aurora">
+      <div className="container-page space-y-12 py-6 pb-28 md:py-8 md:pb-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -183,7 +184,7 @@ export default async function ProductPage({
             size="md"
           />
 
-          <div className="rounded-2xl border border-border bg-card p-5">
+          <div className="gradient-border-on relative overflow-hidden rounded-2xl border border-border gradient-brand-soft p-5 shadow-[var(--shadow-card)]">
             <div className="flex items-end gap-3">
               {product.promoPrice != null && (
                 <span className="text-lg text-muted-foreground line-through">
@@ -360,6 +361,7 @@ export default async function ProductPage({
         href={`/catalogo?cat=${product.category.slug}`}
         products={related}
       />
+      </div>
     </div>
   );
 }

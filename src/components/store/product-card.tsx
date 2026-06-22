@@ -25,7 +25,7 @@ export function ProductCard({
     // sem JS por card). A entrada animada vem do <RevealItem> que o envolve.
     <article
       className={cn(
-        "group relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-[var(--shadow-soft)] transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1.5 hover:border-brand-300/70 hover:shadow-[var(--shadow-card)] active:scale-[0.99] dark:hover:border-brand-400/40",
+        "group gradient-border relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-[var(--shadow-soft)] transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1.5 hover:border-brand-300/70 hover:shadow-[var(--shadow-card)] active:scale-[0.99] dark:hover:border-brand-400/40",
         className
       )}
     >

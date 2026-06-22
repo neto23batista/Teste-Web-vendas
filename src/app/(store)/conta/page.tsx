@@ -28,7 +28,7 @@ export default async function AccountHome() {
           <Link
             key={label}
             href={href}
-            className="rounded-2xl border border-border bg-card p-5 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]"
+            className="group gradient-border hover-glow relative rounded-2xl border border-border bg-card p-5 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]"
           >
             <span className={`grid size-11 place-items-center rounded-xl ${accent}`}>
               <Icon className="size-5" />

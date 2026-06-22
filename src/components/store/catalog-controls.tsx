@@ -17,7 +17,7 @@ const chipCls = (active: boolean) =>
   cn(
     "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold transition",
     active
-      ? "border-brand-600 bg-brand-600 text-white"
+      ? "gradient-brand border-transparent text-white shadow-[var(--shadow-glow)]"
       : "border-border bg-card hover:border-brand-300"
   );
 

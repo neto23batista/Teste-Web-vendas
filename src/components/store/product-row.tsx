@@ -60,7 +60,7 @@ export function ProductRow({
           <RevealItem className="w-[140px] shrink-0 snap-start md:w-[160px]">
             <Link
               href={href}
-              className="group flex h-full min-h-[16rem] flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-border bg-card/60 p-4 text-center transition-colors hover:border-brand-400 hover:bg-card"
+              className="group relative gradient-border hover-glow flex h-full min-h-[16rem] flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-border bg-card/60 p-4 text-center transition-colors hover:border-brand-400 hover:bg-card"
             >
               <span className="grid size-12 place-items-center rounded-full bg-brand-50 text-brand-600 transition-transform duration-300 group-hover:translate-x-1 group-hover:scale-105 dark:bg-brand-600/15 dark:text-brand-300">
                 <ArrowRight className="size-5" />

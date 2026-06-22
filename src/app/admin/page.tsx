@@ -74,7 +74,7 @@ export default async function AdminDashboard({
           return (
             <div
               key={label}
-              className="group rounded-3xl border border-border bg-card p-5 shadow-[var(--shadow-soft)] transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1 hover:border-brand-300/60 hover:shadow-[var(--shadow-card)] dark:hover:border-brand-400/30"
+              className="group gradient-border hover-glow relative rounded-3xl border border-border bg-card p-5 shadow-[var(--shadow-soft)] transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1 hover:border-brand-300/60 hover:shadow-[var(--shadow-card)] dark:hover:border-brand-400/30"
             >
               <div className="flex items-center justify-between">
                 <span className={`grid size-11 place-items-center rounded-2xl transition-transform duration-300 group-hover:scale-110 ${accent}`}>

@@ -21,11 +21,12 @@ const trust = [
 
 export function HomeHero() {
   return (
-    <section className="gradient-brand-animated relative overflow-hidden rounded-[2rem] px-6 py-10 text-white shadow-[var(--shadow-glow)] md:px-12 md:py-14">
-      {/* Luzes decorativas ESTÁTICAS (sem animação contínua = sem repaint por frame) */}
-      <div className="pointer-events-none absolute -right-20 -top-20 size-80 rounded-full bg-sky-400/25 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-28 left-1/4 size-80 rounded-full bg-brand-300/25 blur-3xl" />
-      <div className="pointer-events-none absolute right-1/3 top-1/2 size-44 rounded-full bg-white/10 blur-2xl" />
+    <section className="grain gradient-brand-animated relative overflow-hidden rounded-[2rem] px-6 py-10 text-white shadow-[var(--shadow-glow-strong)] md:px-12 md:py-14">
+      {/* Luzes decorativas com drift suave (transform/opacity = compositor;
+          respeita prefers-reduced-motion via @media no globals.css). */}
+      <div className="animate-blob pointer-events-none absolute -right-20 -top-20 size-80 rounded-full bg-sky-400/25 blur-3xl" />
+      <div className="animate-float pointer-events-none absolute -bottom-28 left-1/4 size-80 rounded-full bg-brand-300/25 blur-3xl" />
+      <div className="animate-blob pointer-events-none absolute right-1/3 top-1/2 size-44 rounded-full bg-white/10 blur-2xl [animation-delay:-7s]" />
 
       <div className="relative grid items-center gap-10 md:grid-cols-[1.15fr_0.85fr]">
         <motion.div
@@ -98,7 +99,7 @@ export function HomeHero() {
             initial={{ opacity: 0, scale: 0.85, y: 30 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ ...SPRING_SOFT, delay: 0.35 }}
-            className="glass rounded-[1.75rem] border border-white/20 p-5"
+            className="conic-glow glass rounded-[1.75rem] border border-white/20 p-5"
           >
             <div className="rounded-2xl bg-white p-5 text-slate-900 shadow-xl">
               <div className="flex items-center gap-3">

@@ -84,10 +84,13 @@ export default async function CatalogPage({
   };
 
   return (
-    <div className="container-page space-y-6 py-6 md:py-8">
+    <div className="aurora">
+      <div className="container-page space-y-6 py-6 md:py-8">
       <Reveal>
-        <p className="text-sm text-muted-foreground">Farmácia online</p>
-        <h1 className="text-2xl font-extrabold md:text-3xl">{title}</h1>
+        <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
+          Farmácia online
+        </p>
+        <h1 className="text-2xl font-extrabold tracking-tight md:text-3xl">{title}</h1>
       </Reveal>
 
       {/* Categorias */}
@@ -97,7 +100,7 @@ export default async function CatalogPage({
           className={cn(
             "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition active:scale-95",
             !cat
-              ? "border-brand-600 bg-brand-600 text-white shadow-[var(--shadow-soft)]"
+              ? "gradient-brand border-transparent text-white shadow-[var(--shadow-glow)]"
               : "border-border bg-card hover:border-brand-300 hover:-translate-y-0.5"
           )}
         >
@@ -112,7 +115,7 @@ export default async function CatalogPage({
               className={cn(
                 "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-semibold transition active:scale-95",
                 cat === c.slug
-                  ? "border-brand-600 bg-brand-600 text-white shadow-[var(--shadow-soft)]"
+                  ? "gradient-brand border-transparent text-white shadow-[var(--shadow-glow)]"
                   : "border-border bg-card hover:border-brand-300 hover:-translate-y-0.5"
               )}
             >
@@ -196,6 +199,7 @@ export default async function CatalogPage({
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

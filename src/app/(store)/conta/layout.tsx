@@ -9,10 +9,13 @@ export default async function AccountLayout({
   const user = await getCurrentUser();
 
   return (
-    <div className="container-page py-6 md:py-8">
+    <div className="aurora">
+      <div className="container-page py-6 md:py-8">
       <div className="mb-6">
-        <p className="text-sm text-muted-foreground">Minha conta</p>
-        <h1 className="text-2xl font-extrabold md:text-3xl">
+        <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
+          Minha conta
+        </p>
+        <h1 className="text-2xl font-extrabold tracking-tight md:text-3xl">
           Olá, {user?.name?.split(" ")[0] ?? "cliente"} 👋
         </h1>
       </div>
@@ -23,6 +26,7 @@ export default async function AccountLayout({
           <AccountNav />
         </aside>
         <div className="min-w-0">{children}</div>
+      </div>
       </div>
     </div>
   );

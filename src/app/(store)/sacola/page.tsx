@@ -42,8 +42,9 @@ export default async function CartPage() {
   const total = cart.subtotal + shipping;
 
   return (
-    <div className="container-page py-6 md:py-8">
-      <h1 className="mb-6 text-2xl font-extrabold md:text-3xl">
+    <div className="aurora">
+      <div className="container-page py-6 md:py-8">
+      <h1 className="mb-6 text-2xl font-extrabold tracking-tight md:text-3xl">
         Sacola{" "}
         <span className="text-base font-semibold text-muted-foreground">
           ({cart.count} {cart.count === 1 ? "item" : "itens"})
@@ -105,7 +106,7 @@ export default async function CartPage() {
 
         {/* Resumo */}
         <aside className="lg:sticky lg:top-24 lg:h-fit">
-          <div className="space-y-4 rounded-2xl border border-border bg-card p-5">
+          <div className="gradient-border-on relative overflow-hidden space-y-4 rounded-2xl border border-border gradient-brand-soft p-5 shadow-[var(--shadow-card)]">
             <h2 className="font-bold">Resumo do pedido</h2>
             <dl className="space-y-2 text-sm">
               <div className="flex justify-between">
@@ -143,6 +144,7 @@ export default async function CartPage() {
             </p>
           </div>
         </aside>
+      </div>
       </div>
     </div>
   );
