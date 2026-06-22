@@ -49,11 +49,15 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ["lucide-react", "framer-motion", "recharts"],
   },
 
-  // Imagens de produto vêm de URLs https (cadastradas no admin). O next/image
-  // otimiza e serve a partir da própria origem (/_next/image), então a CSP
-  // img-src 'self' já cobre a exibição.
+  // Imagens de produto vêm de CDNs https. Restringimos os hosts permitidos
+  // (em vez de "**") para o otimizador do next/image não virar proxy aberto
+  // (risco de SSRF/abuso). Hosts atuais: as fotos validadas do seed.
+  // Para usar outro CDN, adicione o host nesta lista.
   images: {
-    remotePatterns: [{ protocol: "https", hostname: "**" }],
+    remotePatterns: [
+      { protocol: "https", hostname: "images.unsplash.com" },
+      { protocol: "https", hostname: "images.pexels.com" },
+    ],
   },
 
   async headers() {
