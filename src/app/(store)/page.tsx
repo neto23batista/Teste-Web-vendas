@@ -35,7 +35,7 @@ export default async function HomePage() {
     getPromoProducts(10, pharmacyId),
     getFeaturedProducts(10, pharmacyId),
     getProductsByCategory("vitaminas", 10, pharmacyId),
-    getShippingConfig(),
+    getShippingConfig(pharmacyId),
   ]);
 
   const jsonLd = {

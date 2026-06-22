@@ -386,6 +386,9 @@ model Pharmacy {
   phone     String?
   whatsapp  String?
   hours     String?
+  // Frete por unidade: override do frete global (Setting). null = usa o global.
+  shippingFlat    Float?
+  shippingFreeMin Float?
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 

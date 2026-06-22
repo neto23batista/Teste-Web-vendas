@@ -61,6 +61,25 @@ export async function getStoreSettings(): Promise<StoreSettings> {
   };
 }
 
-export async function getShippingConfig(): Promise<ShippingConfig> {
-  return (await getStoreSettings()).shipping;
+/**
+ * Config de frete da UNIDADE que atende o pedido. Sem `pharmacyId` (ou unidade
+ * sem override) devolve o frete global de /admin/configuracoes.
+ * Resiliente: sem banco — ou antes da migration `pharmacy_shipping` — cai no
+ * global (o select da coluna nova falha e é capturado).
+ */
+export async function getShippingConfig(
+  pharmacyId?: string | null
+): Promise<ShippingConfig> {
+  const base = (await getStoreSettings()).shipping;
+  if (!pharmacyId) return base;
+  const ph = await prisma.pharmacy
+    .findUnique({
+      where: { id: pharmacyId },
+      select: { shippingFlat: true, shippingFreeMin: true },
+    })
+    .catch(() => null);
+  return {
+    flat: ph?.shippingFlat ?? base.flat,
+    freeMin: ph?.shippingFreeMin ?? base.freeMin,
+  };
 }

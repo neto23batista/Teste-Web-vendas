@@ -25,6 +25,8 @@ export default async function AdminSettingsPage() {
             active: true,
             city: true,
             state: true,
+            shippingFlat: true,
+            shippingFreeMin: true,
             cepRanges: { orderBy: { start: "asc" }, select: { id: true, start: true, end: true } },
           },
         }),
