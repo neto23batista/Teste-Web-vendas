@@ -1,6 +1,6 @@
 # FarmaVida Next
 
-E-commerce de farmácia com **cara de app premium** — reconstrução do zero em **Next.js 16 + React 19 + TypeScript + Prisma (MySQL)**.
+E-commerce de farmácia com **cara de app premium** — reconstrução do zero em **Next.js 16 + React 19 + TypeScript + Prisma (PostgreSQL/Neon)**.
 
 > Substitui o sistema PHP `Teste-Web-vendas`, que permanece como **referência de regras de negócio**.
 
@@ -8,24 +8,22 @@ E-commerce de farmácia com **cara de app premium** — reconstrução do zero e
 
 - **Next.js 16** (App Router, Server Components/Actions) + **React 19** + **TypeScript**
 - **Tailwind CSS v4** + UI kit próprio sobre **Radix** · ícones **lucide-react** · animações **framer-motion** · toasts **sonner**
-- **Prisma 6** → **MySQL** (XAMPP local)
+- **Prisma 6** → **PostgreSQL** (Neon serverless; conexão *pooled* na app + *direta* nas migrations)
 - **Auth.js v5** (credentials, papéis CUSTOMER/ADMIN)
 - **Mercado Pago** (pagamento) · **recharts** (gráficos do admin)
 
 ## Pré-requisitos
 
-- **Node 20+** (testado em 25; se houver atrito, use Node 22 LTS)
-- **MySQL do XAMPP** rodando na porta 3306 (Laragon MySQL e XAMPP disputam a porta → use um de cada vez)
+- **Node 22 LTS** (engine do projeto: `22.x`)
+- Um banco **PostgreSQL** — recomendado **Neon** (console.neon.tech). Copie do painel as strings `DATABASE_URL` (*pooled*, com `-pooler` no host) e `DATABASE_URL_UNPOOLED` (direta).
 
 ## Setup
 
 ```bash
 npm install
-cp .env.example .env        # ajuste DATABASE_URL e AUTH_SECRET (npx auth secret)
-# crie o banco no XAMPP (phpMyAdmin) OU:
-#   "C:\xampp\mysql\bin\mysql.exe" -u root -e "CREATE DATABASE farmavida_next CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-npm run db:migrate          # cria as tabelas
-npm run db:seed             # catálogo demo + admin + cliente
+cp .env.example .env        # cole DATABASE_URL + DATABASE_URL_UNPOOLED (Neon) e gere AUTH_SECRET (npx auth secret)
+npm run db:migrate          # aplica as migrations (cria as tabelas)
+npm run db:seed             # catálogo demo + admin + cliente — NÃO rode contra produção
 npm run dev                 # http://localhost:3000
 ```
 
@@ -69,9 +67,11 @@ O checkout já está integrado ao Mercado Pago (preferência + webhook). **Sem u
 
 ## Deploy
 
-1. **Banco:** crie um MySQL gerenciado (PlanetScale, Railway, Aiven…). Aponte `DATABASE_URL`.
-2. **App:** publique na **Vercel** (ou outro host Node). Configure as variáveis do `.env.example` (`DATABASE_URL`, `AUTH_SECRET`, `NEXT_PUBLIC_BASE_URL`, tokens do Mercado Pago).
-3. **Migrations:** rode `npx prisma migrate deploy` no ambiente de produção (ou via build step).
-4. `npm run build` já gera o Prisma Client (`postinstall`).
+Hospedado na **Vercel** (deploy automático a cada push na `main`).
 
-> Diferente do sistema PHP, este projeto roda em ambiente **Node**, não em hospedagem PHP compartilhada.
+1. **Banco:** **PostgreSQL na Neon**. Use a integração **Storage → Neon** da Vercel — ela injeta `DATABASE_URL` (pooled) e `DATABASE_URL_UNPOOLED` (direta) automaticamente no ambiente.
+2. **App:** importe o repositório na Vercel e configure as demais variáveis do `.env.example` (`AUTH_SECRET`, `AUTH_TRUST_HOST`, `NEXT_PUBLIC_BASE_URL`, tokens do Mercado Pago, etc.).
+3. **Migrations:** após o deploy do código, rode `npm run db:migrate:deploy` (= `prisma migrate deploy`) apontando para a Neon. O build **não** depende do banco.
+4. `npm run build` já gera o Prisma Client (também no `postinstall`).
+
+> Diferente do sistema PHP, este projeto roda em ambiente **Node** (serverless na Vercel), não em hospedagem PHP compartilhada.

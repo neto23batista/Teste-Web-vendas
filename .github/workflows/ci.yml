@@ -9,7 +9,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: "mysql://root@127.0.0.1:3306/farmavida_next"
+      # Placeholder: o build gera o Prisma Client (não conecta) e os testes mockam o prisma.
+      DATABASE_URL: "postgresql://user:pass@localhost:5432/farmavida_next"
       AUTH_SECRET: "ci-placeholder-secret-not-used-in-tests"
       AUTH_TRUST_HOST: "true"
       NEXT_PUBLIC_APP_NAME: "FarmaVida"
