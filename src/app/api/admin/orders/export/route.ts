@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
+import { resolveUnitFilter } from "@/lib/admin";
 import { toCsv } from "@/lib/csv";
 import type { OrderStatus } from "@prisma/client";
 
@@ -26,10 +27,19 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const raw = searchParams.get("status");
   const status = raw && VALID.has(raw) ? (raw as OrderStatus) : null;
+  // Escopo multi-unidade: a filial só exporta a própria unidade; a matriz exporta
+  // tudo ou filtra por ?unit= (mesma regra das telas do admin).
+  const unit = await resolveUnitFilter(searchParams.get("unit"));
 
   const orders = await prisma.order.findMany({
-    where: status ? { status } : {},
-    include: { user: { select: { name: true, email: true } } },
+    where: {
+      ...(status ? { status } : {}),
+      ...(unit ? { pharmacyId: unit } : {}),
+    },
+    include: {
+      user: { select: { name: true, email: true } },
+      pharmacy: { select: { name: true } },
+    },
     orderBy: { createdAt: "desc" },
     take: 5000,
   });
@@ -39,6 +49,7 @@ export async function GET(request: Request) {
     "Data",
     "Cliente",
     "Email",
+    "Unidade",
     "Status",
     "Pagamento",
     "Cupom",
@@ -52,6 +63,7 @@ export async function GET(request: Request) {
     new Date(o.createdAt).toLocaleString("pt-BR"),
     o.user.name,
     o.user.email,
+    o.pharmacy?.name ?? "—",
     STATUS_LABEL[o.status],
     o.paymentMethod ?? "",
     o.couponCode ?? "",
