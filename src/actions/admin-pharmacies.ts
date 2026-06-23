@@ -110,6 +110,36 @@ export async function removeCepRange(id: string): Promise<PharmacyResult> {
 }
 
 /**
+ * Define o frete da unidade (override do frete global). Campo vazio = herda o
+ * global (null). Só a matriz altera.
+ */
+export async function setPharmacyShipping(
+  id: string,
+  flat: string,
+  freeMin: string
+): Promise<PharmacyResult> {
+  if (!(await ensureMatriz())) return { ok: false, error: "Sem permissão." };
+  // "" → null (herda o global); número válido → valor; senão → inválido.
+  const parse = (v: string): number | null | undefined => {
+    const t = v.trim();
+    if (t === "") return null;
+    const n = Number(t.replace(",", "."));
+    return Number.isFinite(n) && n >= 0 ? n : undefined;
+  };
+  const shippingFlat = parse(flat);
+  const shippingFreeMin = parse(freeMin);
+  if (shippingFlat === undefined || shippingFreeMin === undefined) {
+    return { ok: false, error: "Use valores numéricos não negativos (ex.: 12,90)." };
+  }
+  await prisma.pharmacy.update({
+    where: { id },
+    data: { shippingFlat, shippingFreeMin },
+  });
+  revalidatePharmacies();
+  return { ok: true };
+}
+
+/**
  * Torna um usuário EXISTENTE admin de uma unidade. A pessoa deve ter criado uma
  * conta antes (não criamos usuário/senha aqui). Admin de matriz = escopo global.
  */

@@ -11,6 +11,7 @@ import {
   deletePharmacy,
   addCepRange,
   removeCepRange,
+  setPharmacyShipping,
   assignUnitAdmin,
   removeUnitAdmin,
   type PharmacyResult,
@@ -25,6 +26,8 @@ type UnitView = {
   active: boolean;
   city: string | null;
   state: string | null;
+  shippingFlat: number | null;
+  shippingFreeMin: number | null;
   cepRanges: RangeView[];
 };
 type AdminView = { id: string; name: string; email: string; pharmacyId: string | null };
@@ -203,6 +206,23 @@ export function PharmaciesManager({
               )}
               <AssignAdminForm pharmacyId={u.id} pending={pending} onAssign={run} />
             </div>
+
+            {/* Frete desta unidade (override do global) */}
+            <div className="mt-3 space-y-2 border-t border-border pt-3">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">
+                Frete desta unidade
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Em branco = usa o frete global (Configurações).
+              </p>
+              <ShippingForm
+                pharmacyId={u.id}
+                flat={u.shippingFlat}
+                freeMin={u.shippingFreeMin}
+                pending={pending}
+                onSave={run}
+              />
+            </div>
           </div>
         ))}
       </div>
@@ -298,6 +318,60 @@ function AssignAdminForm({
         className="inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
       >
         <Plus className="size-3.5" /> Tornar admin desta unidade
+      </button>
+    </form>
+  );
+}
+
+function ShippingForm({
+  pharmacyId,
+  flat,
+  freeMin,
+  pending,
+  onSave,
+}: {
+  pharmacyId: string;
+  flat: number | null;
+  freeMin: number | null;
+  pending: boolean;
+  onSave: (fn: () => Promise<PharmacyResult>, after?: () => void) => void;
+}) {
+  const [f, setF] = React.useState(flat?.toString() ?? "");
+  const [m, setM] = React.useState(freeMin?.toString() ?? "");
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave(() => setPharmacyShipping(pharmacyId, f, m));
+      }}
+      className="flex flex-wrap items-end gap-2"
+    >
+      <label className="text-xs font-medium text-muted-foreground">
+        Frete fixo (R$)
+        <input
+          inputMode="decimal"
+          placeholder="global"
+          value={f}
+          onChange={(e) => setF(e.target.value)}
+          className="mt-1 block h-9 w-28 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
+        />
+      </label>
+      <label className="text-xs font-medium text-muted-foreground">
+        Frete grátis acima de (R$)
+        <input
+          inputMode="decimal"
+          placeholder="global"
+          value={m}
+          onChange={(e) => setM(e.target.value)}
+          className="mt-1 block h-9 w-40 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
+        />
+      </label>
+      <button
+        type="submit"
+        disabled={pending}
+        className="inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
+      >
+        Salvar frete
       </button>
     </form>
   );

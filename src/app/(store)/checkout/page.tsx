@@ -22,7 +22,7 @@ export default async function CheckoutPage() {
       where: { userId: user.id },
       select: { points: true },
     }),
-    getShippingConfig(),
+    getShippingConfig(cart.pharmacyId),
   ]);
 
   return (

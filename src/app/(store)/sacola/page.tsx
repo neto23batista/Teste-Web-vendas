@@ -36,7 +36,7 @@ export default async function CartPage() {
     );
   }
 
-  const shippingConfig = await getShippingConfig();
+  const shippingConfig = await getShippingConfig(cart.pharmacyId);
   const shipping = shippingFor(cart.subtotal, undefined, shippingConfig);
   const missing = missingForFreeShipping(cart.subtotal, shippingConfig);
   const total = cart.subtotal + shipping;

@@ -161,7 +161,7 @@ export async function placeOrder(
         select: { zip: true },
       })
     : null;
-  const shipping = shippingFor(subtotal, shipAddr?.zip, await getShippingConfig());
+  const shipping = shippingFor(subtotal, shipAddr?.zip, await getShippingConfig(cart.pharmacyId));
   const total = Math.max(0, subtotal - discount) + shipping;
 
   // Reserva atômica dos pontos (antes do cupom): decrementa só se o saldo
