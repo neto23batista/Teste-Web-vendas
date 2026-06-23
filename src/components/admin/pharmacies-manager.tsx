@@ -12,6 +12,7 @@ import {
   addCepRange,
   removeCepRange,
   setPharmacyShipping,
+  setPharmacyRegulatory,
   assignUnitAdmin,
   removeUnitAdmin,
   type PharmacyResult,
@@ -28,6 +29,9 @@ type UnitView = {
   state: string | null;
   shippingFlat: number | null;
   shippingFreeMin: number | null;
+  cnpj: string | null;
+  pharmacistName: string | null;
+  pharmacistCrf: string | null;
   cepRanges: RangeView[];
 };
 type AdminView = { id: string; name: string; email: string; pharmacyId: string | null };
@@ -223,6 +227,25 @@ export function PharmaciesManager({
                 onSave={run}
               />
             </div>
+
+            {/* Dados regulatórios desta unidade (override do global) */}
+            <div className="mt-3 space-y-2 border-t border-border pt-3">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">
+                Dados regulatórios (ANVISA)
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Exibidos no rodapé para clientes desta unidade. Em branco = usa
+                os dados globais (Configurações).
+              </p>
+              <RegulatoryForm
+                pharmacyId={u.id}
+                cnpj={u.cnpj}
+                pharmacistName={u.pharmacistName}
+                pharmacistCrf={u.pharmacistCrf}
+                pending={pending}
+                onSave={run}
+              />
+            </div>
           </div>
         ))}
       </div>
@@ -372,6 +395,70 @@ function ShippingForm({
         className="inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
       >
         Salvar frete
+      </button>
+    </form>
+  );
+}
+
+function RegulatoryForm({
+  pharmacyId,
+  cnpj,
+  pharmacistName,
+  pharmacistCrf,
+  pending,
+  onSave,
+}: {
+  pharmacyId: string;
+  cnpj: string | null;
+  pharmacistName: string | null;
+  pharmacistCrf: string | null;
+  pending: boolean;
+  onSave: (fn: () => Promise<PharmacyResult>, after?: () => void) => void;
+}) {
+  const [c, setC] = React.useState(cnpj ?? "");
+  const [n, setN] = React.useState(pharmacistName ?? "");
+  const [r, setR] = React.useState(pharmacistCrf ?? "");
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave(() => setPharmacyRegulatory(pharmacyId, c, n, r));
+      }}
+      className="flex flex-wrap items-end gap-2"
+    >
+      <label className="text-xs font-medium text-muted-foreground">
+        CNPJ
+        <input
+          placeholder="global"
+          value={c}
+          onChange={(e) => setC(e.target.value)}
+          className="mt-1 block h-9 w-44 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
+        />
+      </label>
+      <label className="text-xs font-medium text-muted-foreground">
+        Responsável técnico(a)
+        <input
+          placeholder="global"
+          value={n}
+          onChange={(e) => setN(e.target.value)}
+          className="mt-1 block h-9 w-52 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
+        />
+      </label>
+      <label className="text-xs font-medium text-muted-foreground">
+        CRF
+        <input
+          placeholder="global"
+          value={r}
+          onChange={(e) => setR(e.target.value)}
+          className="mt-1 block h-9 w-36 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
+        />
+      </label>
+      <button
+        type="submit"
+        disabled={pending}
+        className="inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
+      >
+        Salvar dados
       </button>
     </form>
   );

@@ -140,6 +140,29 @@ export async function setPharmacyShipping(
 }
 
 /**
+ * Define os dados regulatórios (CNPJ + responsável técnico) da unidade. Campo
+ * vazio = herda o global de /admin/configuracoes (null). Só a matriz altera.
+ */
+export async function setPharmacyRegulatory(
+  id: string,
+  cnpj: string,
+  pharmacistName: string,
+  pharmacistCrf: string
+): Promise<PharmacyResult> {
+  if (!(await ensureMatriz())) return { ok: false, error: "Sem permissão." };
+  await prisma.pharmacy.update({
+    where: { id },
+    data: {
+      cnpj: cnpj.trim() || null,
+      pharmacistName: pharmacistName.trim() || null,
+      pharmacistCrf: pharmacistCrf.trim() || null,
+    },
+  });
+  revalidatePharmacies();
+  return { ok: true };
+}
+
+/**
  * Torna um usuário EXISTENTE admin de uma unidade. A pessoa deve ter criado uma
  * conta antes (não criamos usuário/senha aqui). Admin de matriz = escopo global.
  */

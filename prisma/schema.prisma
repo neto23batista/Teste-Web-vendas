@@ -389,6 +389,10 @@ model Pharmacy {
   // Frete por unidade: override do frete global (Setting). null = usa o global.
   shippingFlat    Float?
   shippingFreeMin Float?
+  // Dados regulatórios (ANVISA) por unidade: override do global. null = global.
+  cnpj           String?
+  pharmacistName String?
+  pharmacistCrf  String?
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 

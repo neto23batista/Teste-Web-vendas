@@ -61,6 +61,41 @@ export async function getStoreSettings(): Promise<StoreSettings> {
   };
 }
 
+export type RegulatoryInfo = {
+  cnpj: string;
+  pharmacistName: string;
+  pharmacistCrf: string;
+};
+
+/**
+ * Dados regulatórios (CNPJ + responsável técnico) da UNIDADE selecionada, com
+ * fallback ao global de /admin/configuracoes. Cada campo vazio na unidade herda
+ * o global. Resiliente: sem banco — ou antes da migration `pharmacy_regulatory`
+ * — cai no global (o select das colunas novas falha e é capturado).
+ */
+export async function getRegulatoryInfo(
+  pharmacyId?: string | null
+): Promise<RegulatoryInfo> {
+  const g = await getStoreSettings();
+  const base: RegulatoryInfo = {
+    cnpj: g.cnpj,
+    pharmacistName: g.pharmacistName,
+    pharmacistCrf: g.pharmacistCrf,
+  };
+  if (!pharmacyId) return base;
+  const ph = await prisma.pharmacy
+    .findUnique({
+      where: { id: pharmacyId },
+      select: { cnpj: true, pharmacistName: true, pharmacistCrf: true },
+    })
+    .catch(() => null);
+  return {
+    cnpj: ph?.cnpj?.trim() || base.cnpj,
+    pharmacistName: ph?.pharmacistName?.trim() || base.pharmacistName,
+    pharmacistCrf: ph?.pharmacistCrf?.trim() || base.pharmacistCrf,
+  };
+}
+
 /**
  * Config de frete da UNIDADE que atende o pedido. Sem `pharmacyId` (ou unidade
  * sem override) devolve o frete global de /admin/configuracoes.

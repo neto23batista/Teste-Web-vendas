@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Brand } from "@/components/store/brand";
-import { getStoreSettings } from "@/lib/settings";
+import { getStoreSettings, getRegulatoryInfo } from "@/lib/settings";
+import { getSelectedPharmacyId } from "@/lib/pharmacy";
 import {
   ShieldCheck,
   Truck,
@@ -21,8 +22,13 @@ const trust = [
 ];
 
 export async function SiteFooter() {
-  // Dados regulatórios e de contato vêm de /admin/configuracoes (fallback .env).
-  const s = await getStoreSettings();
+  // Contato vem do global; os dados regulatórios (CNPJ/RT) são da unidade
+  // selecionada pelo cliente, com fallback ao global de /admin/configuracoes.
+  const pharmacyId = await getSelectedPharmacyId();
+  const [s, reg] = await Promise.all([
+    getStoreSettings(),
+    getRegulatoryInfo(pharmacyId),
+  ]);
   const contact = [
     { icon: Phone, value: s.phone },
     { icon: MessageCircle, value: s.whatsapp ? `WhatsApp ${s.whatsapp}` : "" },
@@ -118,8 +124,9 @@ export async function SiteFooter() {
           </span>
           <span className="inline-flex items-center gap-1.5 text-center">
             <Stethoscope className="size-3.5 text-brand-600 dark:text-brand-400" />
-            Farmacêutico(a) responsável: {s.pharmacistName} · {s.pharmacistCrf}
-            {s.cnpj && ` · CNPJ ${s.cnpj}`}
+            Farmacêutico(a) responsável: {reg.pharmacistName} ·{" "}
+            {reg.pharmacistCrf}
+            {reg.cnpj && ` · CNPJ ${reg.cnpj}`}
           </span>
         </div>
       </div>
