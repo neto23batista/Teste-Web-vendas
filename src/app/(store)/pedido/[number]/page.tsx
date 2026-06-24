@@ -21,6 +21,8 @@ import {
   OrderTimeline,
 } from "@/components/store/order-status";
 import { SimulatePaymentButton } from "@/components/store/simulate-payment-button";
+import { PixPayment } from "@/components/store/pix-payment";
+import { readPixRaw } from "@/lib/mercadopago";
 import { PrescriptionResubmit } from "@/components/store/prescription-resubmit";
 import { CancelOrderButton } from "@/components/store/cancel-order-button";
 import { ReorderButton } from "@/components/store/reorder-button";
@@ -56,6 +58,9 @@ export default async function OrderPage({
   const isPaid = order.status !== "PENDING" && order.status !== "CANCELED";
   const awaitingPayment =
     order.status === "PENDING" && order.paymentMethod !== "cash";
+  // PIX nativo: QR + copia-e-cola gerados no checkout e persistidos no pagamento.
+  const pixData = readPixRaw(order.payment?.raw);
+  const showPix = awaitingPayment && order.paymentMethod === "pix" && !!pixData;
   // O cliente ainda pode cancelar enquanto o pedido não saiu para entrega.
   const canCancel =
     order.status === "PENDING" ||
@@ -98,7 +103,14 @@ export default async function OrderPage({
       </div>
 
       {/* Pagamento pendente */}
-      {awaitingPayment && (
+      {showPix && pixData ? (
+        <PixPayment
+          orderNumber={order.number}
+          amount={order.total}
+          qrCode={pixData.qrCode}
+          qrCodeBase64={pixData.qrCodeBase64}
+        />
+      ) : awaitingPayment ? (
         <div className="mt-6 space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-500/30 dark:bg-amber-500/10">
           {allowSimulate ? (
             <>
@@ -111,13 +123,13 @@ export default async function OrderPage({
             </>
           ) : (
             <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-              Aguardando confirmação do pagamento. Assim que o Mercado Pago
-              confirmar, seu pedido avança automaticamente — você pode
-              acompanhar por aqui ou em “Meus pedidos”.
+              Aguardando confirmação do pagamento. Assim que for confirmado, seu
+              pedido avança automaticamente — você pode acompanhar por aqui ou em
+              “Meus pedidos”.
             </p>
           )}
         </div>
-      )}
+      ) : null}
 
       {/* Validação farmacêutica da receita */}
       {order.requiresPrescription && (

@@ -1,7 +1,91 @@
-import { MercadoPagoConfig, Preference } from "mercadopago";
+import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
 
 export function mpConfigured(): boolean {
   return !!process.env.MERCADO_PAGO_ACCESS_TOKEN;
+}
+
+export type PixCharge = {
+  paymentId: string;
+  status: string;
+  qrCode: string; // copia-e-cola (EMV)
+  qrCodeBase64: string; // imagem PNG em base64 (sem o prefixo data:)
+  ticketUrl: string | null;
+  expiresAt: string | null;
+};
+
+/** Shape do PIX persistido em Payment.raw (para a página do pedido exibir). */
+export type PixRaw = {
+  qrCode: string;
+  qrCodeBase64: string;
+  ticketUrl: string | null;
+  expiresAt: string | null;
+};
+
+/**
+ * Cria uma cobrança PIX nativa (QR + copia-e-cola) via Payments API, sem sair
+ * do site. O webhook confirma a aprovação. Retorna null se o MP não estiver
+ * configurado ou a API falhar (o checkout cai no fluxo de "aguardando").
+ */
+export async function createPixPayment(opts: {
+  orderNumber: string;
+  amount: number;
+  payerEmail: string;
+  payerName?: string | null;
+  description?: string;
+}): Promise<PixCharge | null> {
+  if (!mpConfigured() || opts.amount <= 0 || !opts.payerEmail) return null;
+
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+  const client = new MercadoPagoConfig({
+    accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN!,
+  });
+
+  try {
+    const res = await new Payment(client).create({
+      body: {
+        transaction_amount: Number(opts.amount.toFixed(2)),
+        description: opts.description ?? `Pedido ${opts.orderNumber}`,
+        payment_method_id: "pix",
+        external_reference: opts.orderNumber,
+        notification_url: `${baseUrl}/api/webhooks/mercadopago`,
+        payer: {
+          email: opts.payerEmail,
+          first_name: opts.payerName ?? undefined,
+        },
+      },
+      // Idempotência: reenvio do mesmo pedido não gera cobrança duplicada.
+      requestOptions: { idempotencyKey: `pix-${opts.orderNumber}` },
+    });
+
+    const tx = res.point_of_interaction?.transaction_data;
+    if (!tx?.qr_code) return null;
+    return {
+      paymentId: String(res.id),
+      status: res.status ?? "pending",
+      qrCode: tx.qr_code,
+      qrCodeBase64: tx.qr_code_base64 ?? "",
+      ticketUrl: tx.ticket_url ?? null,
+      expiresAt: res.date_of_expiration ?? null,
+    };
+  } catch (err) {
+    console.error("[mercadopago] falha ao criar pix:", err);
+    return null;
+  }
+}
+
+/** Lê com segurança o PIX persistido em Payment.raw (Json). null se ausente. */
+export function readPixRaw(raw: unknown): PixRaw | null {
+  if (!raw || typeof raw !== "object") return null;
+  const pix = (raw as Record<string, unknown>).pix;
+  if (!pix || typeof pix !== "object") return null;
+  const p = pix as Record<string, unknown>;
+  if (typeof p.qrCode !== "string" || !p.qrCode) return null;
+  return {
+    qrCode: p.qrCode,
+    qrCodeBase64: typeof p.qrCodeBase64 === "string" ? p.qrCodeBase64 : "",
+    ticketUrl: typeof p.ticketUrl === "string" ? p.ticketUrl : null,
+    expiresAt: typeof p.expiresAt === "string" ? p.expiresAt : null,
+  };
 }
 
 type PrefItem = { name: string; price: number; qty: number };

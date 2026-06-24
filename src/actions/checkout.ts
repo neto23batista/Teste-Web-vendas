@@ -12,7 +12,7 @@ import { validateCoupon } from "@/lib/coupons";
 import { maxRedeemablePoints, pointsToBRL } from "@/lib/loyalty";
 import { saveUpload } from "@/lib/uploads";
 import { createOrder, fulfillOrder, cancelOrder } from "@/lib/orders";
-import { createPreference, mpConfigured } from "@/lib/mercadopago";
+import { createPreference, createPixPayment, mpConfigured } from "@/lib/mercadopago";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { sendMail, baseUrl } from "@/lib/mail";
 import { orderReceivedEmail } from "@/lib/email-templates";
@@ -257,6 +257,15 @@ export async function placeOrder(
   }
 
   // Pagamento
+  // Total zerado (100% desconto/pontos): nada a cobrar — confirma direto.
+  if (total <= 0) {
+    try {
+      await fulfillOrder(order.id);
+    } catch {
+      // Corrida rara de estoque: pedido fica PENDENTE para tratativa manual.
+    }
+    redirect(`/pedido/${order.number}`);
+  }
   if (paymentMethod === "cash") {
     try {
       await fulfillOrder(order.id);
@@ -266,6 +275,35 @@ export async function placeOrder(
     redirect(`/pedido/${order.number}`);
   }
   if (mpConfigured()) {
+    // PIX nativo: gera o QR/copia-e-cola e mostra na própria página do pedido
+    // (sem sair do site). O webhook confirma a aprovação.
+    if (paymentMethod === "pix") {
+      const pix = await createPixPayment({
+        orderNumber: order.number,
+        amount: order.total,
+        payerEmail: user.email ?? "",
+        payerName: user.name,
+        description: `FarmaVida ${order.number}`,
+      });
+      if (pix) {
+        await prisma.payment.updateMany({
+          where: { orderId: order.id },
+          data: {
+            externalId: pix.paymentId,
+            raw: {
+              pix: {
+                qrCode: pix.qrCode,
+                qrCodeBase64: pix.qrCodeBase64,
+                ticketUrl: pix.ticketUrl,
+                expiresAt: pix.expiresAt,
+              },
+            },
+          },
+        });
+      }
+      redirect(`/pedido/${order.number}`);
+    }
+    // Cartão (e demais): Checkout Pro hospedado no Mercado Pago.
     const url = await createPreference({
       orderNumber: order.number,
       items: order.items.map((i) => ({ name: i.name, price: i.price, qty: i.qty })),
