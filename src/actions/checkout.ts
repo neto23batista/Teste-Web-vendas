@@ -15,7 +15,8 @@ import { createOrder, fulfillOrder, cancelOrder } from "@/lib/orders";
 import { createPreference, createPixPayment, mpConfigured } from "@/lib/mercadopago";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { sendMail, baseUrl } from "@/lib/mail";
-import { orderReceivedEmail } from "@/lib/email-templates";
+import { notifyUnit } from "@/lib/notifications";
+import { orderReceivedEmail, newOrderForUnitEmail } from "@/lib/email-templates";
 
 export type CheckoutState = { error?: string } | undefined;
 
@@ -255,6 +256,15 @@ export async function placeOrder(
     );
     await sendMail({ to: user.email, subject: mail.subject, html: mail.html });
   }
+
+  // Avisa a equipe da unidade que atende o pedido (best-effort).
+  await notifyUnit(
+    cart.pharmacyId,
+    newOrderForUnitEmail(
+      { number: order.number, total: order.total, itemsCount: order.items.length },
+      `${baseUrl()}/admin/pedidos/${order.id}`
+    )
+  );
 
   // Pagamento
   // Total zerado (100% desconto/pontos): nada a cobrar — confirma direto.

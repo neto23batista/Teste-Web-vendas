@@ -147,6 +147,51 @@ export async function fulfillOrder(orderId: string) {
   // (revalidateTag com "max" funciona tanto em server actions quanto no webhook.)
   revalidateProductsSafe();
 
+  // Alerta de reposição: avisa a equipe da unidade só quando um item CRUZA o
+  // mínimo agora (antes acima, agora <= minStock) — evita spam a cada pedido.
+  // Best-effort: nunca afeta a confirmação do pedido (já commitada).
+  if (pharmacyId) {
+    try {
+      const ids = order.items
+        .map((i) => i.productId)
+        .filter((x): x is string => !!x);
+      if (ids.length > 0) {
+        const invs = await prisma.inventory.findMany({
+          where: { pharmacyId, productId: { in: ids } },
+          select: {
+            productId: true,
+            stock: true,
+            minStock: true,
+            product: { select: { name: true } },
+          },
+        });
+        const qtyById = new Map(order.items.map((i) => [i.productId, i.qty]));
+        const crossed = invs.filter((iv) => {
+          const before = iv.stock + (qtyById.get(iv.productId) ?? 0);
+          return before > iv.minStock && iv.stock <= iv.minStock;
+        });
+        if (crossed.length > 0) {
+          const { notifyUnit } = await import("@/lib/notifications");
+          const { lowStockAlertEmail } = await import("@/lib/email-templates");
+          const { baseUrl } = await import("@/lib/mail");
+          await notifyUnit(
+            pharmacyId,
+            lowStockAlertEmail(
+              crossed.map((c) => ({
+                name: c.product.name,
+                stock: c.stock,
+                minStock: c.minStock,
+              })),
+              `${baseUrl()}/admin/estoque`
+            )
+          );
+        }
+      }
+    } catch (err) {
+      console.error("[fulfillOrder] alerta de baixo estoque falhou:", err);
+    }
+  }
+
   return prisma.order.findUnique({ where: { id: order.id } });
 }
 

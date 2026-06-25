@@ -100,6 +100,46 @@ export function prescriptionStatusEmail(
   };
 }
 
+// --- Avisos operacionais para a equipe da unidade ---
+
+export function newOrderForUnitEmail(
+  order: { number: string; total: number; itemsCount: number },
+  url: string
+) {
+  return {
+    subject: `Novo pedido na sua unidade — ${order.number}`,
+    html: layout(
+      "Novo pedido recebido",
+      `<p>Um novo pedido entrou para a sua unidade e precisa de atenção.</p>
+       <p>Pedido <strong>${escapeHtml(order.number)}</strong> · ${order.itemsCount} ${order.itemsCount === 1 ? "item" : "itens"}</p>
+       <p>Total: <strong>${formatBRL(order.total)}</strong></p>
+       ${button(url, "Abrir no painel")}`
+    ),
+  };
+}
+
+export function lowStockAlertEmail(
+  items: { name: string; stock: number; minStock: number }[],
+  url: string
+) {
+  const list = items
+    .map(
+      (i) =>
+        `<li><strong>${escapeHtml(i.name)}</strong> — ${i.stock} un (mínimo ${i.minStock})</li>`
+    )
+    .join("");
+  return {
+    subject: `Estoque baixo: ${items.length} ${items.length === 1 ? "produto" : "produtos"} para repor`,
+    html: layout(
+      "Hora de repor o estoque",
+      `<p>Os itens abaixo atingiram o estoque mínimo na sua unidade:</p>
+       <ul style="padding-left:18px;margin:12px 0">${list}</ul>
+       <p style="color:#64748b">Considere transferir de outra unidade ou comprar reposição.</p>
+       ${button(url, "Ver estoque")}`
+    ),
+  };
+}
+
 export function orderStatusEmail(
   order: { number: string },
   statusLabel: string,

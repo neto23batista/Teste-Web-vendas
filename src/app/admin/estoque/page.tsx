@@ -1,8 +1,11 @@
 import { AlertTriangle, PackageCheck } from "lucide-react";
 import { getStockRows } from "@/lib/admin";
+import { getAdminScope } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { cn } from "@/lib/utils";
 import { ProductImage } from "@/components/store/product-image";
 import { StockAdjust } from "@/components/admin/stock-adjust";
+import { StockTransfer } from "@/components/admin/stock-transfer";
 
 export const metadata = { title: "Estoque" };
 
@@ -15,8 +18,35 @@ export default async function AdminStockPage({
 }) {
   const sp = await searchParams;
   const unit = (Array.isArray(sp.unit) ? sp.unit[0] : sp.unit) || undefined;
-  const { unitId, rows } = await getStockRows(unit);
+  const [{ unitId, rows }, scope] = await Promise.all([
+    getStockRows(unit),
+    getAdminScope(),
+  ]);
   const lowCount = rows.filter((p) => p.stock <= p.minStock).length;
+
+  // Transferência entre unidades é exclusiva da matriz. Carrega as unidades e o
+  // estoque de cada produto por unidade (para mostrar de/para onde mover).
+  const canTransfer = scope.isGlobal && !!unitId;
+  let units: { id: string; name: string }[] = [];
+  const stockByProduct: Record<string, Record<string, number>> = {};
+  if (canTransfer && rows.length > 0) {
+    const [unitList, invs] = await Promise.all([
+      prisma.pharmacy.findMany({
+        where: { active: true },
+        select: { id: true, name: true },
+        orderBy: [{ type: "asc" }, { name: "asc" }],
+      }),
+      prisma.inventory.findMany({
+        where: { productId: { in: rows.map((r) => r.productId) } },
+        select: { productId: true, pharmacyId: true, stock: true },
+      }),
+    ]);
+    units = unitList;
+    for (const iv of invs) {
+      (stockByProduct[iv.productId] ??= {})[iv.pharmacyId] = iv.stock;
+    }
+  }
+  const showTransfer = canTransfer && units.length > 1;
 
   return (
     <div className="space-y-6">
@@ -84,6 +114,14 @@ export default async function AdminStockPage({
                 {unitId && (
                   <StockAdjust id={p.productId} pharmacyId={unitId} stock={p.stock} />
                 )}
+                {showTransfer && unitId && (
+                  <StockTransfer
+                    productId={p.productId}
+                    fromUnitId={unitId}
+                    units={units}
+                    perUnit={stockByProduct[p.productId] ?? {}}
+                  />
+                )}
               </div>
             );
           })}
@@ -97,6 +135,9 @@ export default async function AdminStockPage({
                 <th className="p-4 font-semibold">Mínimo</th>
                 <th className="p-4 font-semibold">Situação</th>
                 <th className="p-4 text-right font-semibold">Estoque</th>
+                {showTransfer && (
+                  <th className="p-4 font-semibold">Transferir</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -136,6 +177,18 @@ export default async function AdminStockPage({
                         )}
                       </div>
                     </td>
+                    {showTransfer && (
+                      <td className="p-4">
+                        {unitId && (
+                          <StockTransfer
+                            productId={p.productId}
+                            fromUnitId={unitId}
+                            units={units}
+                            perUnit={stockByProduct[p.productId] ?? {}}
+                          />
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })}

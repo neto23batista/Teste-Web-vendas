@@ -383,3 +383,57 @@ export async function adjustStock(
   revalidatePath("/admin/estoque");
   return { ok: true };
 }
+
+/**
+ * Transfere `qty` de um produto entre unidades (rebalanceamento/reposição).
+ * Atômico e anti-corrida: baixa condicional na origem (só move se houver saldo)
+ * e soma no destino (cria a linha se faltar). Só a matriz move estoque entre
+ * unidades.
+ */
+export async function transferStock(
+  productId: string,
+  fromPharmacyId: string,
+  toPharmacyId: string,
+  qty: number
+): Promise<{ ok: boolean; error?: string }> {
+  if (!(await isCatalogAdmin())) {
+    return { ok: false, error: "Apenas a matriz transfere estoque entre unidades." };
+  }
+  if (fromPharmacyId === toPharmacyId) {
+    return { ok: false, error: "Escolha unidades de origem e destino diferentes." };
+  }
+  const n = Math.floor(Number(qty));
+  if (!Number.isFinite(n) || n <= 0) {
+    return { ok: false, error: "Informe uma quantidade válida." };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const taken = await tx.inventory.updateMany({
+        where: { productId, pharmacyId: fromPharmacyId, stock: { gte: n } },
+        data: { stock: { decrement: n } },
+      });
+      if (taken.count === 0) {
+        throw new Error("Estoque insuficiente na unidade de origem.");
+      }
+      const dest = await tx.inventory.updateMany({
+        where: { productId, pharmacyId: toPharmacyId },
+        data: { stock: { increment: n } },
+      });
+      if (dest.count === 0) {
+        await tx.inventory.create({
+          data: { productId, pharmacyId: toPharmacyId, stock: n, minStock: 5 },
+        });
+      }
+    });
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Falha ao transferir estoque.",
+    };
+  }
+
+  revalidateProducts();
+  revalidatePath("/admin/estoque");
+  return { ok: true };
+}
