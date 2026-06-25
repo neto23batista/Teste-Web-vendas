@@ -1,8 +1,12 @@
 import type { NextConfig } from "next";
 
 // Cabeçalhos de segurança aplicados a todas as rotas.
-// HSTS só tem efeito sob HTTPS (produção). A CSP começa em modo Report-Only
-// porque o Next injeta scripts inline; evoluir para enforce com nonce depois.
+// HSTS só tem efeito sob HTTPS (produção). A CSP é ENFORCED, mas mantém
+// 'unsafe-inline'/'unsafe-eval' em script/style porque o Next/React injetam
+// scripts inline e o Tailwind usa estilos inline — removê-los exige nonce por
+// requisição (via proxy.ts) e validação em browser. Mesmo assim ela já protege
+// contra clickjacking (frame-ancestors), injeção de <base>, sequestro de
+// formulário (form-action) e bloqueia origens externas de script/connect/frame.
 const securityHeaders = [
   {
     key: "Strict-Transport-Security",
@@ -16,16 +20,20 @@ const securityHeaders = [
     value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
   },
   {
-    key: "Content-Security-Policy-Report-Only",
+    key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
       "img-src 'self' data: blob:",
+      "font-src 'self' data:",
       "style-src 'self' 'unsafe-inline'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "connect-src 'self' https://api.mercadopago.com https://viacep.com.br",
+      // Sentry (opt-in) envia eventos para *.ingest.sentry.io; sem isso o enforce
+      // bloquearia a telemetria no browser.
+      "connect-src 'self' https://api.mercadopago.com https://viacep.com.br https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.sentry.io",
       "frame-src 'self' https://*.mercadopago.com",
       "frame-ancestors 'none'",
-      "base-uri 'self'",
       "form-action 'self' https://*.mercadopago.com",
     ].join("; "),
   },

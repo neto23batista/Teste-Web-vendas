@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getAdminScope, requireAdminAtPharmacy } from "@/lib/session";
+import { logAudit } from "@/lib/audit";
 import { slugify } from "@/lib/utils";
 import { parseCsvRecords } from "@/lib/csv";
 
@@ -130,6 +131,12 @@ export async function createProduct(
   await ensureInventoryForAllUnits(product.id, d.minStock);
   await setMatrizStock(product.id, d.stock, d.minStock);
 
+  await logAudit({
+    action: "product.create",
+    entity: "Product",
+    entityId: product.id,
+    detail: `Criou o produto "${product.name}"`,
+  });
   revalidateProducts();
   redirect("/admin/produtos");
 }
@@ -177,6 +184,12 @@ export async function updateProduct(
   await ensureInventoryForAllUnits(id, d.minStock);
   await setMatrizStock(id, d.stock, d.minStock);
 
+  await logAudit({
+    action: "product.update",
+    entity: "Product",
+    entityId: id,
+    detail: `Editou o produto "${d.name}"`,
+  });
   revalidateProducts();
   redirect("/admin/produtos");
 }
@@ -186,6 +199,12 @@ export async function toggleProductActive(id: string) {
   const product = await prisma.product.findUnique({ where: { id } });
   if (product) {
     await prisma.product.update({ where: { id }, data: { active: !product.active } });
+    await logAudit({
+      action: "product.toggle",
+      entity: "Product",
+      entityId: id,
+      detail: `${product.active ? "Desativou" : "Ativou"} o produto "${product.name}"`,
+    });
     revalidateProducts();
   }
   return { ok: true };
@@ -193,7 +212,17 @@ export async function toggleProductActive(id: string) {
 
 export async function deleteProduct(id: string) {
   if (!(await isCatalogAdmin())) return { ok: false };
+  const product = await prisma.product.findUnique({
+    where: { id },
+    select: { name: true },
+  });
   await prisma.product.delete({ where: { id } }).catch(() => {});
+  await logAudit({
+    action: "product.delete",
+    entity: "Product",
+    entityId: id,
+    detail: `Excluiu o produto "${product?.name ?? id}"`,
+  });
   revalidateProducts();
   return { ok: true };
 }
@@ -433,6 +462,13 @@ export async function transferStock(
     };
   }
 
+  await logAudit({
+    action: "stock.transfer",
+    entity: "Product",
+    entityId: productId,
+    detail: `Transferiu ${n} un entre unidades`,
+    pharmacyId: toPharmacyId,
+  });
   revalidateProducts();
   revalidatePath("/admin/estoque");
   return { ok: true };

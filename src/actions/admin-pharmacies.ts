@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getAdminScope, getCurrentUser } from "@/lib/session";
+import { logAudit } from "@/lib/audit";
 import { cepToInt } from "@/lib/pharmacy";
 import { slugify } from "@/lib/utils";
 import type { PharmacyType } from "@prisma/client";
@@ -43,7 +44,7 @@ export async function createPharmacy(data: {
     const exists = await prisma.pharmacy.findFirst({ where: { type: "MATRIZ" } });
     if (exists) return { ok: false, error: "Já existe uma matriz; cadastre como filial." };
   }
-  await prisma.pharmacy.create({
+  const created = await prisma.pharmacy.create({
     data: {
       name,
       slug: await uniquePharmacySlug(name),
@@ -52,6 +53,13 @@ export async function createPharmacy(data: {
       state: data.state?.trim() || null,
       phone: data.phone?.trim() || null,
     },
+  });
+  await logAudit({
+    action: "pharmacy.create",
+    entity: "Pharmacy",
+    entityId: created.id,
+    detail: `Cadastrou a unidade "${name}" (${data.type})`,
+    pharmacyId: created.id,
   });
   revalidatePharmacies();
   return { ok: true };
@@ -67,18 +75,31 @@ export async function setPharmacyActive(
     return { ok: false, error: "A matriz não pode ser desativada." };
   }
   await prisma.pharmacy.update({ where: { id }, data: { active } });
+  await logAudit({
+    action: "pharmacy.active",
+    entity: "Pharmacy",
+    entityId: id,
+    detail: active ? "Ativou a unidade" : "Desativou a unidade",
+    pharmacyId: id,
+  });
   revalidatePharmacies();
   return { ok: true };
 }
 
 export async function deletePharmacy(id: string): Promise<PharmacyResult> {
   if (!(await ensureMatriz())) return { ok: false, error: "Sem permissão." };
-  const ph = await prisma.pharmacy.findUnique({ where: { id }, select: { type: true } });
+  const ph = await prisma.pharmacy.findUnique({ where: { id }, select: { type: true, name: true } });
   if (ph?.type === "MATRIZ") {
     return { ok: false, error: "A matriz não pode ser excluída." };
   }
   // Cascade remove Inventory e faixas de CEP; pedidos ficam sem unidade (SetNull).
   await prisma.pharmacy.delete({ where: { id } }).catch(() => {});
+  await logAudit({
+    action: "pharmacy.delete",
+    entity: "Pharmacy",
+    entityId: id,
+    detail: `Excluiu a unidade "${ph?.name ?? id}"`,
+  });
   revalidatePharmacies();
   return { ok: true };
 }
@@ -135,6 +156,13 @@ export async function setPharmacyShipping(
     where: { id },
     data: { shippingFlat, shippingFreeMin },
   });
+  await logAudit({
+    action: "pharmacy.shipping",
+    entity: "Pharmacy",
+    entityId: id,
+    detail: "Atualizou o frete da unidade",
+    pharmacyId: id,
+  });
   revalidatePharmacies();
   return { ok: true };
 }
@@ -157,6 +185,13 @@ export async function setPharmacyRegulatory(
       pharmacistName: pharmacistName.trim() || null,
       pharmacistCrf: pharmacistCrf.trim() || null,
     },
+  });
+  await logAudit({
+    action: "pharmacy.regulatory",
+    entity: "Pharmacy",
+    entityId: id,
+    detail: "Atualizou os dados regulatórios da unidade",
+    pharmacyId: id,
   });
   revalidatePharmacies();
   return { ok: true };
@@ -185,6 +220,13 @@ export async function assignUnitAdmin(
     where: { id: user.id },
     data: { role: "ADMIN", pharmacyId },
   });
+  await logAudit({
+    action: "admin.assign",
+    entity: "User",
+    entityId: user.id,
+    detail: `Tornou ${email.trim().toLowerCase()} admin de uma unidade`,
+    pharmacyId,
+  });
   revalidatePharmacies();
   revalidatePath("/admin/clientes");
   return { ok: true };
@@ -197,9 +239,19 @@ export async function removeUnitAdmin(userId: string): Promise<PharmacyResult> {
   if (me?.id === userId) {
     return { ok: false, error: "Você não pode remover seu próprio acesso." };
   }
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
   await prisma.user.update({
     where: { id: userId },
     data: { role: "CUSTOMER", pharmacyId: null },
+  });
+  await logAudit({
+    action: "admin.revoke",
+    entity: "User",
+    entityId: userId,
+    detail: `Revogou o acesso admin de ${target?.email ?? userId}`,
   });
   revalidatePharmacies();
   revalidatePath("/admin/clientes");

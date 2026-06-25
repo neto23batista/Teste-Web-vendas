@@ -216,8 +216,32 @@ export async function searchProducts(params: CatalogParams): Promise<SearchResul
     prisma.product.count({ where }),
   ]);
 
+  let items = rows.map(toProductCard);
+
+  // Relevância na ordenação padrão (sem ordenar por preço/nome): com o LIKE, o
+  // banco devolve por avaliação; aqui reordenamos a página para que o NOME que
+  // bate com a busca apareça primeiro (melhora muito o autocomplete).
+  const isDefaultSort =
+    params.sort !== "menor" && params.sort !== "maior" && params.sort !== "nome";
+  if (params.q && isDefaultSort) {
+    const q = params.q.trim().toLowerCase();
+    const terms = q.split(/\s+/).filter(Boolean);
+    const score = (name: string): number => {
+      const n = name.toLowerCase();
+      if (n === q) return 0;
+      if (n.startsWith(q)) return 1;
+      if (n.includes(q)) return 2;
+      if (terms.length > 0 && terms.every((t) => n.includes(t))) return 3;
+      return 4;
+    };
+    items = items
+      .map((it, i) => ({ it, i, s: score(it.name) }))
+      .sort((a, b) => a.s - b.s || a.i - b.i) // empate mantém a ordem do banco
+      .map((x) => x.it);
+  }
+
   return {
-    items: rows.map(toProductCard),
+    items,
     total,
     page,
     perPage,

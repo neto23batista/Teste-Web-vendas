@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+import { logAudit } from "@/lib/audit";
 import { sendMail, baseUrl } from "@/lib/mail";
 import { prescriptionStatusEmail } from "@/lib/email-templates";
 import type { PrescriptionStatus } from "@prisma/client";
@@ -40,6 +41,13 @@ export async function setPrescriptionStatus(
     );
     await sendMail({ to: pres.user.email, subject: mail.subject, html: mail.html });
   }
+
+  await logAudit({
+    action: "prescription.status",
+    entity: "Prescription",
+    entityId: id,
+    detail: `Receita ${pres.order?.number ? `do pedido ${pres.order.number} ` : ""}→ ${status === "APPROVED" ? "aprovada" : status === "REJECTED" ? "recusada" : status.toLowerCase()}`,
+  });
 
   revalidatePath("/admin/receitas");
   revalidatePath("/conta/receitas");

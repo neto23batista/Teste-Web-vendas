@@ -79,6 +79,7 @@ model User {
   carts         Cart[]
   resetTokens   PasswordResetToken[]
   favorites     Favorite[]
+  auditLogs     AuditLog[]
   pharmacy      Pharmacy? @relation(fields: [pharmacyId], references: [id])
 
   @@index([role])
@@ -433,4 +434,23 @@ model Inventory {
   @@unique([productId, pharmacyId])
   @@index([pharmacyId])
   @@index([productId])
+}
+
+// Trilha de auditoria das ações do admin. userEmail é um snapshot (sobrevive à
+// exclusão/anonimização do usuário). Best-effort: gravado fora do caminho crítico.
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  userEmail  String?
+  action     String
+  entity     String?
+  entityId   String?
+  detail     String?  @db.Text
+  pharmacyId String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([action])
 }

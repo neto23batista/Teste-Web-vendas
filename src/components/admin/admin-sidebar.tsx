@@ -15,6 +15,7 @@ import {
   Plus,
   Settings,
   Star,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/actions/auth";
@@ -28,15 +29,19 @@ const items = [
   { href: "/admin/produtos", label: "Produtos", icon: Boxes },
   { href: "/admin/estoque", label: "Estoque", icon: PackageSearch },
   { href: "/admin/cupons", label: "Cupons", icon: TicketPercent },
+  { href: "/admin/auditoria", label: "Auditoria", icon: ScrollText, globalOnly: true },
   { href: "/admin/configuracoes", label: "Configurações", icon: Settings },
 ];
 
 export function AdminSidebar({
   badges,
+  isGlobal = false,
 }: {
   badges?: Record<string, number>;
+  isGlobal?: boolean;
 }) {
   const pathname = usePathname();
+  const visibleItems = items.filter((it) => !it.globalOnly || isGlobal);
 
   return (
     <aside className="lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:border-r lg:border-border lg:bg-card print:hidden">
@@ -54,7 +59,7 @@ export function AdminSidebar({
         </div>
 
         <nav className="no-scrollbar flex gap-2 overflow-x-auto p-3 lg:flex-1 lg:flex-col lg:overflow-visible lg:px-3 lg:py-2">
-          {items.map(({ href, label, icon: Icon, exact }) => {
+          {visibleItems.map(({ href, label, icon: Icon, exact }) => {
             const active = exact ? pathname === href : pathname.startsWith(href);
             const count = badges?.[href] ?? 0;
             return (

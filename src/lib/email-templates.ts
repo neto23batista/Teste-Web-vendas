@@ -118,6 +118,20 @@ export function newOrderForUnitEmail(
   };
 }
 
+export function orderIncomingTransferEmail(
+  order: { number: string },
+  url: string
+) {
+  return {
+    subject: `Pedido transferido para sua unidade — ${order.number}`,
+    html: layout(
+      "Pedido recebido por transferência",
+      `<p>O pedido <strong>${escapeHtml(order.number)}</strong> foi transferido para a sua unidade e já aparece no painel.</p>
+       ${button(url, "Abrir no painel")}`
+    ),
+  };
+}
+
 export function lowStockAlertEmail(
   items: { name: string; stock: number; minStock: number }[],
   url: string

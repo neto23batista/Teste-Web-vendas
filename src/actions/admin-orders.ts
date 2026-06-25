@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireAdminAtPharmacy } from "@/lib/session";
 import { sendMail, baseUrl } from "@/lib/mail";
-import { orderStatusEmail } from "@/lib/email-templates";
+import { notifyUnit } from "@/lib/notifications";
+import { orderStatusEmail, orderIncomingTransferEmail } from "@/lib/email-templates";
 import { cancelOrder, transferOrder } from "@/lib/orders";
+import { logAudit } from "@/lib/audit";
 import type { OrderStatus } from "@prisma/client";
 
 // Status que representam o pedido seguindo para preparo/entrega. Itens com
@@ -74,6 +76,13 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
     await sendMail({ to: updated.user.email, subject: mail.subject, html: mail.html });
   }
 
+  await logAudit({
+    action: "order.status",
+    entity: "Order",
+    entityId: id,
+    detail: `Pedido ${updated.number} → ${STATUS_LABEL[status]}`,
+  });
+
   revalidatePath(`/admin/pedidos/${id}`);
   revalidatePath("/admin/pedidos");
   revalidatePath("/admin");
@@ -114,6 +123,28 @@ export async function transferOrderToUnit(orderId: string, targetPharmacyId: str
       ok: false as const,
       error: e instanceof Error ? e.message : "Falha ao transferir o pedido.",
     };
+  }
+
+  // Avisa a equipe da unidade de destino + registra na auditoria (best-effort).
+  const moved = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { number: true },
+  });
+  if (moved) {
+    await notifyUnit(
+      targetPharmacyId,
+      orderIncomingTransferEmail(
+        { number: moved.number },
+        `${baseUrl()}/admin/pedidos/${orderId}`
+      )
+    );
+    await logAudit({
+      action: "order.transfer",
+      entity: "Order",
+      entityId: orderId,
+      detail: `Pedido ${moved.number} transferido para outra unidade`,
+      pharmacyId: targetPharmacyId,
+    });
   }
 
   revalidatePath(`/admin/pedidos/${orderId}`);
