@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Search, Loader2, ArrowRight, TrendingUp } from "lucide-react";
 import { formatBRL, cn } from "@/lib/utils";
@@ -168,10 +169,13 @@ export function SearchBox({
                   >
                     <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-xl border border-border bg-muted">
                       {it.image ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                        // next/image serve via /_next/image (mesma origem) —
+                        // um <img> direto na CDN seria bloqueado pela CSP.
+                        <Image
                           src={it.image}
                           alt=""
+                          width={44}
+                          height={44}
                           className="size-full object-cover"
                         />
                       ) : (

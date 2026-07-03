@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+import { logAudit } from "@/lib/audit";
 
 export type SettingsFormState =
   | { error?: string; success?: boolean }
@@ -59,6 +60,11 @@ export async function saveSettings(
     )
   );
 
+  await logAudit({
+    action: "settings.update",
+    entity: "Setting",
+    detail: "Atualizou as configurações da loja (frete/contato/regulatório)",
+  });
   revalidateTag("settings", "max");
   // Frete e rodapé aparecem em toda a loja.
   revalidatePath("/", "layout");

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { ScrollText } from "lucide-react";
+import { Prisma } from "@prisma/client";
 import { getAdminScope } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 
@@ -22,6 +23,14 @@ const ACTION_LABEL: Record<string, string> = {
   "pharmacy.shipping": "Frete da unidade",
   "pharmacy.regulatory": "Dados regulatórios",
   "prescription.status": "Receita validada",
+  "coupon.create": "Cupom criado",
+  "coupon.update": "Cupom editado",
+  "coupon.toggle": "Cupom ativado/desativado",
+  "coupon.delete": "Cupom excluído",
+  "settings.update": "Configurações da loja",
+  "review.approve": "Avaliação aprovada",
+  "review.reject": "Avaliação recusada",
+  "order.notes": "Observações do pedido",
 };
 
 export default async function AdminAuditPage() {
@@ -29,10 +38,20 @@ export default async function AdminAuditPage() {
   const scope = await getAdminScope();
   if (!scope.isGlobal) redirect("/admin");
 
-  // Resiliente: antes da migration `audit_log`, a query falha → lista vazia.
+  // Resiliente SÓ ao caso pré-migration (tabela/coluna inexistente): P2021/
+  // P2022 → lista vazia. Qualquer outro erro (banco fora do ar etc.) estoura
+  // no error boundary do admin — não pode passar por "nenhuma ação registrada".
   const logs = await prisma.auditLog
     .findMany({ orderBy: { createdAt: "desc" }, take: 200 })
-    .catch(() => []);
+    .catch((err: unknown) => {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        (err.code === "P2021" || err.code === "P2022")
+      ) {
+        return [];
+      }
+      throw err;
+    });
 
   return (
     <div className="space-y-6">
@@ -66,7 +85,10 @@ export default async function AdminAuditPage() {
                 {logs.map((log) => (
                   <tr key={log.id} className="align-top transition hover:bg-muted/30">
                     <td className="whitespace-nowrap p-4 text-muted-foreground">
-                      {new Date(log.createdAt).toLocaleString("pt-BR")}
+                      {/* timeZone explícito: o servidor (Vercel) roda em UTC. */}
+                      {new Date(log.createdAt).toLocaleString("pt-BR", {
+                        timeZone: "America/Sao_Paulo",
+                      })}
                     </td>
                     <td className="p-4">{log.userEmail ?? "—"}</td>
                     <td className="p-4">

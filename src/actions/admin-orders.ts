@@ -158,7 +158,7 @@ export async function transferOrderToUnit(orderId: string, targetPharmacyId: str
 export async function saveOrderNotes(id: string, notes: string) {
   const exists = await prisma.order.findUnique({
     where: { id },
-    select: { id: true, pharmacyId: true },
+    select: { id: true, pharmacyId: true, number: true },
   });
   if (!exists) return { ok: false as const, error: "Pedido não encontrado." };
   if (exists.pharmacyId) await requireAdminAtPharmacy(exists.pharmacyId);
@@ -166,6 +166,12 @@ export async function saveOrderNotes(id: string, notes: string) {
   await prisma.order.update({
     where: { id },
     data: { notes: notes.trim().slice(0, 1000) || null },
+  });
+  await logAudit({
+    action: "order.notes",
+    entity: "Order",
+    entityId: id,
+    detail: `Atualizou as observações do pedido ${exists.number}`,
   });
   revalidatePath(`/admin/pedidos/${id}`);
   return { ok: true as const };

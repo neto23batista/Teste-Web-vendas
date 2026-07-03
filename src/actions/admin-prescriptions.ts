@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import { requireAdmin, requireAdminAtPharmacy } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import { sendMail, baseUrl } from "@/lib/mail";
 import { prescriptionStatusEmail } from "@/lib/email-templates";
@@ -13,7 +13,19 @@ export async function setPrescriptionStatus(
   status: PrescriptionStatus,
   reason?: string
 ) {
-  await requireAdmin();
+  // Filial só valida receitas de pedidos da PRÓPRIA unidade; matriz, de todas.
+  // (Receita sem pedido/unidade: qualquer admin — não libera pedido de ninguém.)
+  const target = await prisma.prescription.findUnique({
+    where: { id },
+    select: { order: { select: { pharmacyId: true } } },
+  });
+  if (!target) return { ok: false };
+  if (target.order?.pharmacyId) {
+    await requireAdminAtPharmacy(target.order.pharmacyId);
+  } else {
+    await requireAdmin();
+  }
+
   const pres = await prisma.prescription.update({
     where: { id },
     data: { status },

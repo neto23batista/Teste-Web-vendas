@@ -216,15 +216,21 @@ export async function deleteProduct(id: string) {
     where: { id },
     select: { name: true },
   });
-  await prisma.product.delete({ where: { id } }).catch(() => {});
-  await logAudit({
-    action: "product.delete",
-    entity: "Product",
-    entityId: id,
-    detail: `Excluiu o produto "${product?.name ?? id}"`,
-  });
-  revalidateProducts();
-  return { ok: true };
+  // Só registra na auditoria (e reporta sucesso) se o delete de fato ocorreu.
+  const deleted = await prisma.product
+    .delete({ where: { id } })
+    .then(() => true)
+    .catch(() => false);
+  if (deleted) {
+    await logAudit({
+      action: "product.delete",
+      entity: "Product",
+      entityId: id,
+      detail: `Excluiu o produto "${product?.name ?? id}"`,
+    });
+    revalidateProducts();
+  }
+  return { ok: deleted };
 }
 
 // ─────────────────────── Importação de catálogo (CSV) ───────────────────────

@@ -28,8 +28,9 @@ export function ProductRowActions({
   const remove = () =>
     start(async () => {
       if (!confirm(`Excluir "${name}"? Esta ação não pode ser desfeita.`)) return;
-      await deleteProduct(id);
-      toast.success("Produto excluído");
+      const res = await deleteProduct(id);
+      if (res.ok) toast.success("Produto excluído");
+      else toast.error("Não foi possível excluir o produto. Tente novamente.");
       router.refresh();
     });
 

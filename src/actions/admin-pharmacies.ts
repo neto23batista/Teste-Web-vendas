@@ -93,7 +93,14 @@ export async function deletePharmacy(id: string): Promise<PharmacyResult> {
     return { ok: false, error: "A matriz não pode ser excluída." };
   }
   // Cascade remove Inventory e faixas de CEP; pedidos ficam sem unidade (SetNull).
-  await prisma.pharmacy.delete({ where: { id } }).catch(() => {});
+  // Só registra na auditoria (e reporta sucesso) se o delete de fato ocorreu.
+  const deleted = await prisma.pharmacy
+    .delete({ where: { id } })
+    .then(() => true)
+    .catch(() => false);
+  if (!deleted) {
+    return { ok: false, error: "Não foi possível excluir a unidade. Tente novamente." };
+  }
   await logAudit({
     action: "pharmacy.delete",
     entity: "Pharmacy",

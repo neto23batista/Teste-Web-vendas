@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+import { logAudit } from "@/lib/audit";
 import type { CouponType } from "@prisma/client";
+
+/** Descrição curta do desconto para a trilha de auditoria (ex.: "10%", "R$ 15"). */
+function couponValueLabel(type: CouponType, value: number): string {
+  return type === "PERCENT" ? `${value}%` : `R$ ${value}`;
+}
 
 export type CouponFormState = { error?: string } | undefined;
 
@@ -47,7 +53,7 @@ export async function createCoupon(
   const exists = await prisma.coupon.findUnique({ where: { code: d.code } });
   if (exists) return { error: "Já existe um cupom com esse código." };
 
-  await prisma.coupon.create({
+  const created = await prisma.coupon.create({
     data: {
       code: d.code,
       type: d.type,
@@ -59,6 +65,12 @@ export async function createCoupon(
     },
   });
 
+  await logAudit({
+    action: "coupon.create",
+    entity: "Coupon",
+    entityId: created.id,
+    detail: `Criou o cupom "${d.code}" (${couponValueLabel(d.type, d.value!)})`,
+  });
   revalidatePath("/admin/cupons");
   redirect("/admin/cupons");
 }
@@ -91,6 +103,12 @@ export async function updateCoupon(
     },
   });
 
+  await logAudit({
+    action: "coupon.update",
+    entity: "Coupon",
+    entityId: id,
+    detail: `Editou o cupom "${d.code}" (${couponValueLabel(d.type, d.value!)})`,
+  });
   revalidatePath("/admin/cupons");
   redirect("/admin/cupons");
 }
@@ -100,6 +118,12 @@ export async function toggleCoupon(id: string) {
   const coupon = await prisma.coupon.findUnique({ where: { id } });
   if (coupon) {
     await prisma.coupon.update({ where: { id }, data: { active: !coupon.active } });
+    await logAudit({
+      action: "coupon.toggle",
+      entity: "Coupon",
+      entityId: id,
+      detail: `${coupon.active ? "Desativou" : "Ativou"} o cupom "${coupon.code}"`,
+    });
     revalidatePath("/admin/cupons");
   }
   return { ok: true };
@@ -107,7 +131,23 @@ export async function toggleCoupon(id: string) {
 
 export async function deleteCoupon(id: string) {
   await requireAdmin();
-  await prisma.coupon.delete({ where: { id } }).catch(() => {});
-  revalidatePath("/admin/cupons");
-  return { ok: true };
+  const coupon = await prisma.coupon.findUnique({
+    where: { id },
+    select: { code: true },
+  });
+  // Só registra na auditoria (e reporta sucesso) se o delete de fato ocorreu.
+  const deleted = await prisma.coupon
+    .delete({ where: { id } })
+    .then(() => true)
+    .catch(() => false);
+  if (deleted) {
+    await logAudit({
+      action: "coupon.delete",
+      entity: "Coupon",
+      entityId: id,
+      detail: `Excluiu o cupom "${coupon?.code ?? id}"`,
+    });
+    revalidatePath("/admin/cupons");
+  }
+  return { ok: deleted };
 }

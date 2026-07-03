@@ -28,8 +28,9 @@ export function CouponRowActions({
   const remove = () =>
     start(async () => {
       if (!confirm(`Excluir o cupom "${code}"?`)) return;
-      await deleteCoupon(id);
-      toast.success("Cupom excluído");
+      const res = await deleteCoupon(id);
+      if (res.ok) toast.success("Cupom excluído");
+      else toast.error("Não foi possível excluir o cupom. Tente novamente.");
       router.refresh();
     });
 

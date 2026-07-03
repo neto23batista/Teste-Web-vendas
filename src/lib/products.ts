@@ -141,6 +141,11 @@ type SearchResult = {
   pages: number;
 };
 
+// Tamanho da janela de ranking por relevância: os N melhores resultados (por
+// avaliação) são re-ranqueados por nome no app. Buscas com mais matches que
+// isso caem na paginação direta do banco nas páginas além da janela.
+const RELEVANCE_WINDOW = 200;
+
 export async function searchProducts(params: CatalogParams): Promise<SearchResult> {
   const perPage = params.perPage ?? 12;
   const page = Math.max(1, params.page ?? 1);
@@ -196,15 +201,70 @@ export async function searchProducts(params: CatalogParams): Promise<SearchResul
     where.AND = [...((where.AND as Prisma.ProductWhereInput[]) ?? []), ...priceConds];
   }
 
+  // Modo de ordenação num único discriminante (usado no orderBy e na relevância).
+  const sortMode =
+    params.sort === "menor" || params.sort === "maior" || params.sort === "nome"
+      ? params.sort
+      : "relevancia";
   const orderBy: Prisma.ProductOrderByWithRelationInput =
-    params.sort === "menor"
+    sortMode === "menor"
       ? { price: "asc" }
-      : params.sort === "maior"
+      : sortMode === "maior"
         ? { price: "desc" }
-        : params.sort === "nome"
+        : sortMode === "nome"
           ? { name: "asc" }
           : { ratingCount: "desc" };
 
+  // Relevância: ranqueia por correspondência de NOME (igual > prefixo > contém)
+  // sobre uma JANELA dos melhores resultados — antes da paginação — para que um
+  // match exato com poucas avaliações chegue à 1ª página/autocomplete. A janela
+  // é buscada só com id+nome (leve); os cards da página vêm por id em seguida.
+  const useRelevance =
+    !!params.q &&
+    sortMode === "relevancia" &&
+    (page - 1) * perPage + perPage <= RELEVANCE_WINDOW;
+  if (useRelevance) {
+    const [win, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        select: { id: true, name: true },
+        orderBy,
+        take: RELEVANCE_WINDOW,
+      }),
+      prisma.product.count({ where }),
+    ]);
+
+    const q = params.q!.trim().toLowerCase();
+    const terms = q.split(/\s+/).filter(Boolean);
+    const score = (name: string): number => {
+      const n = name.toLowerCase();
+      if (n === q) return 0;
+      if (n.startsWith(q)) return 1;
+      if (n.includes(q)) return 2;
+      if (terms.every((t) => n.includes(t))) return 3;
+      return 4;
+    };
+    // sort é estável (ES2019): empate mantém a ordem por avaliação do banco.
+    win.sort((a, b) => score(a.name) - score(b.name));
+
+    const start = (page - 1) * perPage;
+    const pageIds = win.slice(start, start + perPage).map((w) => w.id);
+    const rows = pageIds.length
+      ? await prisma.product.findMany({
+          where: { id: { in: pageIds } },
+          select: productCardSelect(params.pharmacyId),
+        })
+      : [];
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const items = pageIds
+      .map((id) => byId.get(id))
+      .filter((r): r is NonNullable<typeof r> => r != null)
+      .map(toProductCard);
+
+    return { items, total, page, perPage, pages: Math.ceil(total / perPage) };
+  }
+
+  // Demais ordenações (ou páginas além da janela): paginação direta no banco.
   const [rows, total] = await Promise.all([
     prisma.product.findMany({
       where,
@@ -216,32 +276,8 @@ export async function searchProducts(params: CatalogParams): Promise<SearchResul
     prisma.product.count({ where }),
   ]);
 
-  let items = rows.map(toProductCard);
-
-  // Relevância na ordenação padrão (sem ordenar por preço/nome): com o LIKE, o
-  // banco devolve por avaliação; aqui reordenamos a página para que o NOME que
-  // bate com a busca apareça primeiro (melhora muito o autocomplete).
-  const isDefaultSort =
-    params.sort !== "menor" && params.sort !== "maior" && params.sort !== "nome";
-  if (params.q && isDefaultSort) {
-    const q = params.q.trim().toLowerCase();
-    const terms = q.split(/\s+/).filter(Boolean);
-    const score = (name: string): number => {
-      const n = name.toLowerCase();
-      if (n === q) return 0;
-      if (n.startsWith(q)) return 1;
-      if (n.includes(q)) return 2;
-      if (terms.length > 0 && terms.every((t) => n.includes(t))) return 3;
-      return 4;
-    };
-    items = items
-      .map((it, i) => ({ it, i, s: score(it.name) }))
-      .sort((a, b) => a.s - b.s || a.i - b.i) // empate mantém a ordem do banco
-      .map((x) => x.it);
-  }
-
   return {
-    items,
+    items: rows.map(toProductCard),
     total,
     page,
     perPage,
