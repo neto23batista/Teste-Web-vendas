@@ -6,6 +6,7 @@ import { requireAdmin, requireAdminAtPharmacy } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import { sendMail, baseUrl } from "@/lib/mail";
 import { prescriptionStatusEmail } from "@/lib/email-templates";
+import { PRESCRIPTION_STATUS_LABEL } from "@/lib/prescription-status";
 import type { PrescriptionStatus } from "@prisma/client";
 
 export async function setPrescriptionStatus(
@@ -58,7 +59,7 @@ export async function setPrescriptionStatus(
     action: "prescription.status",
     entity: "Prescription",
     entityId: id,
-    detail: `Receita ${pres.order?.number ? `do pedido ${pres.order.number} ` : ""}→ ${status === "APPROVED" ? "aprovada" : status === "REJECTED" ? "recusada" : status.toLowerCase()}`,
+    detail: `Receita ${pres.order?.number ? `do pedido ${pres.order.number} ` : ""}→ ${PRESCRIPTION_STATUS_LABEL[status]}`,
   });
 
   revalidatePath("/admin/receitas");

@@ -96,7 +96,15 @@ export default async function AdminAuditPage() {
                         {ACTION_LABEL[log.action] ?? log.action}
                       </span>
                     </td>
-                    <td className="p-4 text-muted-foreground">{log.detail ?? "—"}</td>
+                    <td className="p-4 text-muted-foreground">
+                      {log.detail ?? "—"}
+                      {log.entity && (
+                        <span className="mt-0.5 block text-xs text-muted-foreground/60">
+                          {log.entity}
+                          {log.entityId ? ` · ${log.entityId}` : ""}
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

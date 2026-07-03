@@ -7,19 +7,21 @@ import { toast } from "sonner";
 import { setPrescriptionStatus } from "@/actions/admin-prescriptions";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PRESCRIPTION_STATUS_LABEL } from "@/lib/prescription-status";
 import type { PrescriptionStatus } from "@prisma/client";
 
+// Rótulos vêm da fonte única (lib/prescription-status); aqui só o estilo.
 const badge: Record<PrescriptionStatus, { label: string; className: string }> = {
   PENDING: {
-    label: "Em análise",
+    label: PRESCRIPTION_STATUS_LABEL.PENDING,
     className: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
   },
   APPROVED: {
-    label: "Aprovada",
+    label: PRESCRIPTION_STATUS_LABEL.APPROVED,
     className: "bg-success-500/10 text-success-600",
   },
   REJECTED: {
-    label: "Recusada",
+    label: PRESCRIPTION_STATUS_LABEL.REJECTED,
     className: "bg-danger-500/10 text-danger-500",
   },
 };

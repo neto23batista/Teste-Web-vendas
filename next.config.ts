@@ -29,9 +29,10 @@ const securityHeaders = [
       "font-src 'self' data:",
       "style-src 'self' 'unsafe-inline'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      // Sentry (opt-in) envia eventos para *.ingest.sentry.io; sem isso o enforce
-      // bloquearia a telemetria no browser.
-      "connect-src 'self' https://api.mercadopago.com https://viacep.com.br https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.sentry.io",
+      // Sentry (opt-in) envia eventos para *.ingest(.us).sentry.io — o wildcard
+      // *.sentry.io cobre subdomínios multi-label; sem ele o enforce bloquearia
+      // a telemetria no browser.
+      "connect-src 'self' https://api.mercadopago.com https://viacep.com.br https://*.sentry.io",
       "frame-src 'self' https://*.mercadopago.com",
       "frame-ancestors 'none'",
       "form-action 'self' https://*.mercadopago.com",

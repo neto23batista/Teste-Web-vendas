@@ -96,7 +96,7 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
 export async function transferOrderToUnit(orderId: string, targetPharmacyId: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { pharmacyId: true, status: true },
+    select: { pharmacyId: true, status: true, number: true },
   });
   if (!order) return { ok: false as const, error: "Pedido não encontrado." };
 
@@ -125,27 +125,22 @@ export async function transferOrderToUnit(orderId: string, targetPharmacyId: str
     };
   }
 
-  // Avisa a equipe da unidade de destino + registra na auditoria (best-effort).
-  const moved = await prisma.order.findUnique({
-    where: { id: orderId },
-    select: { number: true },
+  // Avisa a equipe da unidade de destino + registra na auditoria (best-effort;
+  // o número veio na primeira query — imutável na transferência).
+  await notifyUnit(
+    targetPharmacyId,
+    orderIncomingTransferEmail(
+      { number: order.number },
+      `${baseUrl()}/admin/pedidos/${orderId}`
+    )
+  );
+  await logAudit({
+    action: "order.transfer",
+    entity: "Order",
+    entityId: orderId,
+    detail: `Pedido ${order.number} transferido para outra unidade`,
+    pharmacyId: targetPharmacyId,
   });
-  if (moved) {
-    await notifyUnit(
-      targetPharmacyId,
-      orderIncomingTransferEmail(
-        { number: moved.number },
-        `${baseUrl()}/admin/pedidos/${orderId}`
-      )
-    );
-    await logAudit({
-      action: "order.transfer",
-      entity: "Order",
-      entityId: orderId,
-      detail: `Pedido ${moved.number} transferido para outra unidade`,
-      pharmacyId: targetPharmacyId,
-    });
-  }
 
   revalidatePath(`/admin/pedidos/${orderId}`);
   revalidatePath("/admin/pedidos");

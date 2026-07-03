@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { getCurrentUser } from "@/lib/session";
+import { getAdminScope, getCurrentUser } from "@/lib/session";
 import { getAdminBadges } from "@/lib/admin";
 import { listPharmaciesSafe } from "@/lib/pharmacy";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
@@ -33,8 +33,8 @@ export default async function AdminLayout({
   };
 
   // Matriz (escopo global) escolhe a unidade pelo seletor; filial fica fixa na
-  // própria e só vê o nome.
-  const isGlobal = user.pharmacyType === "MATRIZ";
+  // própria e só vê o nome. Escopo vem de getAdminScope (fonte única da regra).
+  const { isGlobal } = await getAdminScope();
   const pharmacies = await listPharmaciesSafe();
   const ownUnit = pharmacies.find((p) => p.id === user.pharmacyId) ?? null;
 
