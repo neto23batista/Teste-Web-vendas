@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { Hanken_Grotesk, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
@@ -45,9 +46,12 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Nonce gerado pelo middleware (proxy.ts) — o script inline anti-flash do
+  // next-themes precisa dele para passar na CSP estrita.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html
       lang="pt-BR"
@@ -55,7 +59,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-dvh antialiased">
-        <Providers>{children}</Providers>
+        <Providers nonce={nonce}>{children}</Providers>
         <RegisterSW />
       </body>
     </html>

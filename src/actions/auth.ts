@@ -22,7 +22,7 @@ export async function authenticate(
 
   // Limita tentativas de login por IP+e-mail (anti brute force).
   const ip = await clientIp();
-  if (!rateLimit(`login:${ip}:${parsed.data.email.toLowerCase()}`, 5, 60_000).ok) {
+  if (!(await rateLimit(`login:${ip}:${parsed.data.email.toLowerCase()}`, 5, 60_000)).ok) {
     return { error: TOO_MANY };
   }
 
@@ -57,7 +57,7 @@ export async function register(
 
   // Limita cadastros por IP (anti-abuso).
   const ip = await clientIp();
-  if (!rateLimit(`register:${ip}`, 5, 60_000).ok) {
+  if (!(await rateLimit(`register:${ip}`, 5, 60_000)).ok) {
     return { error: TOO_MANY };
   }
 

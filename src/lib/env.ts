@@ -31,6 +31,12 @@ export function assertEnv(): void {
     if (!process.env.RESEND_API_KEY || !process.env.MAIL_FROM) {
       warn.push("RESEND_API_KEY/MAIL_FROM ausentes (e-mails transacionais desativados)");
     }
+    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+      warn.push("UPSTASH_REDIS_REST_* ausentes (rate-limit só por instância — fraco em serverless)");
+    }
+    if (!process.env.CRON_SECRET) {
+      warn.push("CRON_SECRET ausente (cron de assinaturas desativado em produção)");
+    }
     if (warn.length) {
       console.warn("[env] avisos de produção:\n" + warn.map((w) => `- ${w}`).join("\n"));
     }

@@ -30,7 +30,7 @@ export async function requestPasswordReset(
   if (!parsed.success) return { error: "Informe um e-mail válido." };
 
   const ip = await clientIp();
-  if (!rateLimit(`pwreset:${ip}`, 5, 60_000).ok) {
+  if (!(await rateLimit(`pwreset:${ip}`, 5, 60_000)).ok) {
     return { error: "Muitas tentativas. Aguarde um instante e tente de novo." };
   }
 

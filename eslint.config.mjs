@@ -11,6 +11,8 @@ const eslintConfig = defineConfig([
     ".next/**",
     // Saídas de build alternativas (distDir via NEXT_BUILD_DIST: .next-prod, .next-e2e, .next-verify…)
     ".next-*/**",
+    // Worktrees temporários de agente (têm .next próprio — nunca lintar):
+    ".claude/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

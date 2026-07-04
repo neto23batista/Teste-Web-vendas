@@ -1,7 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { login } from "./helpers";
+import { login, ALLOW_WRITES } from "./helpers";
 
 test.describe("Fluxo de compra", () => {
+  // Cria pedido de verdade — só com banco descartável/autorizado.
+  test.skip(!ALLOW_WRITES, "escreve no banco — rode com E2E_ALLOW_WRITES=1");
+
   test("compra com pagamento em dinheiro até a página do pedido", async ({
     page,
   }) => {

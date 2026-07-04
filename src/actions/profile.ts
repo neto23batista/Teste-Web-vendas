@@ -38,7 +38,7 @@ export async function changePassword(
 
   // Anti brute-force da senha atual (mesma janela do login).
   const ip = await clientIp();
-  if (!rateLimit(`chpass:${ip}:${user.id}`, 5, 60_000).ok) {
+  if (!(await rateLimit(`chpass:${ip}:${user.id}`, 5, 60_000)).ok) {
     return { error: "Muitas tentativas. Aguarde um instante e tente novamente." };
   }
 

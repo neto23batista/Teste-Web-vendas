@@ -13,6 +13,7 @@ import {
   Store,
   LogOut,
   Plus,
+  Repeat,
   Settings,
   Star,
   ScrollText,
@@ -29,6 +30,7 @@ const items = [
   { href: "/admin/produtos", label: "Produtos", icon: Boxes },
   { href: "/admin/estoque", label: "Estoque", icon: PackageSearch },
   { href: "/admin/cupons", label: "Cupons", icon: TicketPercent },
+  { href: "/admin/assinaturas", label: "Assinaturas", icon: Repeat, globalOnly: true },
   { href: "/admin/auditoria", label: "Auditoria", icon: ScrollText, globalOnly: true },
   { href: "/admin/configuracoes", label: "Configurações", icon: Settings },
 ];

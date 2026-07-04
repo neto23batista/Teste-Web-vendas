@@ -30,7 +30,7 @@ export async function placeOrder(
 
   // Limita a frequência de checkout por usuário (anti-abuso / duplo clique).
   const ip = await clientIp();
-  if (!rateLimit(`checkout:${ip}:${user.id}`, 10, 60_000).ok) {
+  if (!(await rateLimit(`checkout:${ip}:${user.id}`, 10, 60_000)).ok) {
     return { error: "Muitas tentativas em sequência. Aguarde um instante." };
   }
 

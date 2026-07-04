@@ -154,6 +154,28 @@ export function lowStockAlertEmail(
   };
 }
 
+export function subscriptionDueEmail(
+  name: string,
+  productName: string,
+  qty: number,
+  url: string
+) {
+  const first = name.split(" ")[0] ?? name;
+  return {
+    subject: `Hora de repor: ${productName}`,
+    html: layout(
+      "Hora de repor 💊",
+      `<p>Olá, ${escapeHtml(first)}.</p>
+       <p>Pela sua assinatura de reposição, está na hora de repor
+       <strong>${escapeHtml(productName)}</strong>${qty > 1 ? ` (${qty} un.)` : ""}.</p>
+       <p>É só confirmar — o item vai direto para a sua sacola. Você também pode
+       pausar ou cancelar a assinatura quando quiser.</p>
+       ${button(url, "Repor em 1 clique")}
+       <p style="color:#64748b">Sem cobrança automática: nada é comprado sem a sua confirmação.</p>`
+    ),
+  };
+}
+
 export function orderStatusEmail(
   order: { number: string },
   statusLabel: string,

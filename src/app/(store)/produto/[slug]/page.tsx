@@ -15,6 +15,7 @@ import {
   getProductBySlug,
   getRelatedProducts,
 } from "@/lib/products";
+import { getUserSubscriptionFor } from "@/lib/subscriptions";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { getSelectedPharmacyId } from "@/lib/pharmacy";
@@ -22,6 +23,7 @@ import { formatBRL, discountPercent } from "@/lib/utils";
 import { ProductGallery } from "@/components/store/product-gallery";
 import { StarRating } from "@/components/store/star-rating";
 import { ProductPurchase } from "@/components/store/product-purchase";
+import { SubscribeBox } from "@/components/store/subscribe-box";
 import { StickyBuyBar } from "@/components/store/sticky-buy-bar";
 import { TrackRecentView } from "@/components/store/recently-viewed";
 import { FavoriteButton } from "@/components/store/favorite-button";
@@ -65,6 +67,11 @@ export default async function ProductPage({
         select: { rating: true, comment: true },
       })
     : null;
+  // Assinatura de reposição: só para produtos sem receita.
+  const mySubscription =
+    user && !product.requiresPrescription
+      ? await getUserSubscriptionFor(user.id, product.id)
+      : null;
 
   // Ficha técnica: só as linhas com valor preenchido no cadastro.
   const specs: [string, string][] = [];
@@ -243,6 +250,22 @@ export default async function ProductPage({
               />
             </div>
           </div>
+
+          {/* Assinatura de reposição (uso contínuo, sem receita) */}
+          {!product.requiresPrescription && (
+            <SubscribeBox
+              productId={product.id}
+              loggedIn={!!user}
+              existing={
+                mySubscription
+                  ? {
+                      intervalDays: mySubscription.intervalDays,
+                      status: mySubscription.status,
+                    }
+                  : null
+              }
+            />
+          )}
 
           {/* Garantias */}
           <div className="grid grid-cols-3 gap-3">

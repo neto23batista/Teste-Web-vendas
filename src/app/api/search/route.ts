@@ -11,9 +11,9 @@ export async function GET(request: Request) {
   if (q.length < 2) return NextResponse.json({ items: [] });
 
   // Endpoint público que consulta o banco a cada tecla — limita por IP para
-  // conter abuso/scraping. (Por instância hoje; durável quando o Redis entrar — P1 #5.)
+  // conter abuso/scraping (durável via Upstash quando configurado).
   const ip = await clientIp();
-  const rl = rateLimit(`search:${ip}`, 40, 10_000);
+  const rl = await rateLimit(`search:${ip}`, 40, 10_000);
   if (!rl.ok) {
     return NextResponse.json(
       { items: [], error: "rate_limited" },

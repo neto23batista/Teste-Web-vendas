@@ -56,6 +56,12 @@ enum PharmacyType {
   FILIAL
 }
 
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELED
+}
+
 // ─────────────────────────── Usuário ───────────────────────────
 model User {
   id           String   @id @default(cuid())
@@ -80,6 +86,7 @@ model User {
   resetTokens   PasswordResetToken[]
   favorites     Favorite[]
   auditLogs     AuditLog[]
+  subscriptions Subscription[]
   pharmacy      Pharmacy? @relation(fields: [pharmacyId], references: [id])
 
   @@index([role])
@@ -169,6 +176,7 @@ model Product {
   reviews   Review[]
   favoritedBy Favorite[]
   inventory Inventory[]
+  subscriptions Subscription[]
 
   @@index([categoryId])
   @@index([brandId])
@@ -434,6 +442,29 @@ model Inventory {
   @@unique([productId, pharmacyId])
   @@index([pharmacyId])
   @@index([productId])
+}
+
+// ─────────────────────────── Assinaturas ───────────────────────────
+// Reposição recorrente de uso contínuo (sem cobrança automática): no vencimento
+// o cron lembra o cliente por e-mail e o "Repor agora" leva à sacola em 1 clique.
+// Produtos com receita ficam de fora (exigem validação farmacêutica a cada compra).
+model Subscription {
+  id             String             @id @default(cuid())
+  userId         String
+  productId      String
+  qty            Int                @default(1)
+  intervalDays   Int                @default(30)
+  status         SubscriptionStatus @default(ACTIVE)
+  nextDueAt      DateTime
+  lastNotifiedAt DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([status, nextDueAt])
 }
 
 // Trilha de auditoria das ações do admin. userEmail é um snapshot (sobrevive à
