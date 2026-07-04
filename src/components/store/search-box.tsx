@@ -38,7 +38,26 @@ export function SearchBox({
   const [loading, setLoading] = React.useState(false);
   const [active, setActive] = React.useState(-1);
   const rootRef = React.useRef<HTMLFormElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const abortRef = React.useRef<AbortController | null>(null);
+
+  // Atalho "/" foca a busca de qualquer lugar da página (vibe app/coder).
+  // Ignora quando o usuário já está digitando em outro campo.
+  React.useEffect(() => {
+    function onSlash(e: KeyboardEvent) {
+      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      const typing =
+        t instanceof HTMLInputElement ||
+        t instanceof HTMLTextAreaElement ||
+        t?.isContentEditable;
+      if (typing) return;
+      e.preventDefault();
+      inputRef.current?.focus();
+    }
+    document.addEventListener("keydown", onSlash);
+    return () => document.removeEventListener("keydown", onSlash);
+  }, []);
 
   // Busca com debounce. O estado de "carregando"/limpeza é setado no onChange
   // (evento); o efeito só agenda o fetch e atualiza no callback assíncrono.
@@ -120,6 +139,7 @@ export function SearchBox({
     >
       <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
       <input
+        ref={inputRef}
         type="search"
         name="q"
         value={q}
@@ -145,8 +165,17 @@ export function SearchBox({
         aria-controls="search-suggestions"
         className="h-12 w-full rounded-2xl border border-border bg-muted/60 pl-12 pr-10 text-sm outline-none transition focus:border-brand-400 focus:bg-card"
       />
-      {loading && (
+      {loading ? (
         <Loader2 className="absolute right-4 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+      ) : (
+        !q && (
+          <span
+            aria-hidden
+            className="kbd-chip pointer-events-none absolute right-4 top-1/2 hidden -translate-y-1/2 md:inline-grid"
+          >
+            /
+          </span>
+        )
       )}
 
       {showDropdown && (

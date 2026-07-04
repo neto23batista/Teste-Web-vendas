@@ -20,7 +20,12 @@ export async function SiteHeader() {
   const current = pharmacies.find((p) => p.id === selectedId) ?? null;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 shadow-[0_1px_0_0_color-mix(in_oklab,var(--border)_50%,transparent)] backdrop-blur-xl backdrop-saturate-150">
+    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl backdrop-saturate-150">
+      {/* Hairline em gradiente da marca na base do header (liquid glass). */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-brand-400/60 to-transparent dark:via-brand-400/40"
+      />
       <div className="container-page flex h-16 items-center gap-3 md:h-18">
         <Brand />
 

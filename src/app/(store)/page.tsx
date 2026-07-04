@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { CategoryStrip } from "@/components/store/category-strip";
 import { ProductRow } from "@/components/store/product-row";
+import { RecentlyViewedRail } from "@/components/store/recently-viewed";
 import { HomeHero } from "@/components/store/home-hero";
 import { PromoCarousel } from "@/components/store/promo-carousel";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/motion";
@@ -124,10 +125,14 @@ export default async function HomePage() {
         products={vitaminas}
       />
 
+      {/* VISTOS RECENTEMENTE (localStorage — só aparece com histórico) */}
+      <RecentlyViewedRail />
+
       {/* CTA */}
       <Reveal className="gradient-brand-soft overflow-hidden rounded-3xl border border-border p-8 text-center md:p-12">
         <h2 className="text-2xl font-extrabold md:text-3xl">
-          Tudo o que sua saúde precisa, em um só lugar
+          Tudo o que sua saúde precisa,{" "}
+          <span className="text-gradient-vivid">em um só lugar</span>
         </h2>
         <p className="mx-auto mt-2 max-w-lg text-muted-foreground">
           Mais de {categories.length} categorias com entrega rápida e

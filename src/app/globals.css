@@ -240,21 +240,27 @@
     -webkit-backdrop-filter: blur(18px) saturate(1.4);
     border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
   }
-  /* Fundo aurora: manchas de luz da marca para seções de destaque. */
+  /* Fundo aurora: mesh de luz da marca (teal → ciano → violeta → menta).
+     Mais vivo que a v1 — as páginas que já usam .aurora ganham o mesh novo. */
   .aurora {
     background-image: radial-gradient(
-        38rem 38rem at 8% -10%,
-        color-mix(in oklab, #2cc7ab 22%, transparent),
+        40rem 40rem at 8% -10%,
+        color-mix(in oklab, #2cc7ab 30%, transparent),
         transparent 60%
       ),
       radial-gradient(
-        32rem 32rem at 95% 15%,
-        color-mix(in oklab, #38bdf8 18%, transparent),
+        34rem 34rem at 95% 12%,
+        color-mix(in oklab, #38bdf8 26%, transparent),
         transparent 60%
       ),
       radial-gradient(
-        30rem 30rem at 50% 110%,
-        color-mix(in oklab, #8b5cf6 14%, transparent),
+        32rem 32rem at 55% 108%,
+        color-mix(in oklab, #8b5cf6 22%, transparent),
+        transparent 62%
+      ),
+      radial-gradient(
+        26rem 26rem at 20% 70%,
+        color-mix(in oklab, #58dcc3 16%, transparent),
         transparent 60%
       );
   }
@@ -388,6 +394,84 @@
     animation: spin-slow 8s linear infinite;
   }
 
+  /* Texto em gradiente VIVO e animado (teal → ciano → violeta) — títulos de
+     seção sobre fundo claro/escuro. Usa a mesma animação de pan do hero. */
+  .text-gradient-vivid {
+    background-image: linear-gradient(
+      110deg,
+      #079685 0%,
+      #0ea5e9 32%,
+      #8b5cf6 58%,
+      #11b29c 85%,
+      #079685 100%
+    );
+    background-size: 240% 240%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: var(--animate-gradient);
+  }
+  /* Variante para uso SOBRE o hero teal (tons claros, contraste alto). */
+  .text-gradient-hero {
+    background-image: linear-gradient(
+      105deg,
+      #c6f5ea 0%,
+      #ffffff 35%,
+      #bae6fd 60%,
+      #ddd6fe 90%
+    );
+    background-size: 220% 220%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: var(--animate-gradient);
+  }
+
+  /* Feedback de pressão (vibe app): encolhe levemente ao tocar/clicar. */
+  .press {
+    transition: transform 0.15s ease;
+  }
+  .press:active {
+    transform: scale(0.97);
+  }
+
+  /* Tecla de atalho (hint "/" da busca) — vibe coder. O display fica por conta
+     de quem usa (ex.: "hidden md:inline-grid"), senão venceria o `hidden`. */
+  .kbd-chip {
+    place-items: center;
+    min-width: 1.4rem;
+    height: 1.4rem;
+    padding-inline: 0.3rem;
+    border-radius: 0.4rem;
+    border: 1px solid var(--border);
+    background: color-mix(in oklab, var(--muted) 80%, transparent);
+    color: var(--muted-foreground);
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: inset 0 -1.5px 0 color-mix(in oklab, var(--border) 80%, transparent);
+  }
+
+  /* Pontinho de presença pulsante ("farmacêutico online"). */
+  .glow-dot {
+    position: relative;
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background: #22c55e;
+  }
+  .glow-dot::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    background: #22c55e;
+    opacity: 0.4;
+    animation: ping-soft 1.8s ease-out infinite;
+  }
+
   /* Grão sutil para superfícies "caras" (hero, banners). */
   .grain {
     position: relative;
@@ -487,6 +571,17 @@
 @keyframes spin-slow {
   to {
     transform: rotate(360deg);
+  }
+}
+@keyframes ping-soft {
+  0% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  80%,
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
   }
 }
 

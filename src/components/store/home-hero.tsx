@@ -27,6 +27,7 @@ export function HomeHero() {
       <div className="animate-blob pointer-events-none absolute -right-20 -top-20 size-80 rounded-full bg-sky-400/25 blur-3xl" />
       <div className="animate-float pointer-events-none absolute -bottom-28 left-1/4 size-80 rounded-full bg-brand-300/25 blur-3xl" />
       <div className="animate-blob pointer-events-none absolute right-1/3 top-1/2 size-44 rounded-full bg-white/10 blur-2xl [animation-delay:-7s]" />
+      <div className="animate-blob pointer-events-none absolute -left-16 top-1/4 size-64 rounded-full bg-violet-500/20 blur-3xl [animation-delay:-4s]" />
 
       <div className="relative grid items-center gap-10 md:grid-cols-[1.15fr_0.85fr]">
         <motion.div
@@ -47,9 +48,7 @@ export function HomeHero() {
             className="text-balance text-4xl font-extrabold leading-[1.04] tracking-tight md:text-6xl"
           >
             Saúde e bem-estar{" "}
-            <span className="bg-gradient-to-r from-teal-100 via-white to-sky-200 bg-clip-text text-transparent">
-              entregues na sua porta
-            </span>
+            <span className="text-gradient-hero">entregues na sua porta</span>
           </motion.h1>
 
           <motion.p

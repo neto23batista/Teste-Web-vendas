@@ -23,6 +23,7 @@ import { ProductGallery } from "@/components/store/product-gallery";
 import { StarRating } from "@/components/store/star-rating";
 import { ProductPurchase } from "@/components/store/product-purchase";
 import { StickyBuyBar } from "@/components/store/sticky-buy-bar";
+import { TrackRecentView } from "@/components/store/recently-viewed";
 import { FavoriteButton } from "@/components/store/favorite-button";
 import { ProductRow } from "@/components/store/product-row";
 import { ReviewForm } from "@/components/store/review-form";
@@ -114,6 +115,16 @@ export default async function ProductPage({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      {/* Registra no "vistos recentemente" (localStorage, sem servidor). */}
+      <TrackRecentView
+        product={{
+          slug: product.slug,
+          name: product.name,
+          emoji: product.emoji,
+          image: product.images[0]?.url ?? null,
+          price,
+        }}
       />
       {/* CTA fixo no mobile (acima do bottom-nav) */}
       <StickyBuyBar

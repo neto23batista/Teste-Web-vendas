@@ -29,7 +29,15 @@ export function ProductRow({
                 <Flame className="size-4" />
               </span>
             )}
-            <h2 className="text-xl font-bold md:text-2xl">{title}</h2>
+            <h2 className="text-xl font-bold md:text-2xl">
+              {tone === "promo" ? (
+                <span className="gradient-promo bg-clip-text text-transparent">
+                  {title}
+                </span>
+              ) : (
+                title
+              )}
+            </h2>
           </div>
           {subtitle && (
             <p className="text-sm text-muted-foreground">{subtitle}</p>

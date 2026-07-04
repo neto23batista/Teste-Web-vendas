@@ -1,7 +1,9 @@
 import { SiteHeader } from "@/components/store/site-header";
 import { SiteFooter } from "@/components/store/site-footer";
 import { BottomNav } from "@/components/store/bottom-nav";
+import { WhatsAppFab } from "@/components/store/whatsapp-fab";
 import { getCartCount } from "@/lib/cart";
+import { getStoreSettings } from "@/lib/settings";
 
 // A loja lê dados do banco (produtos, sacola, conta) a cada requisição.
 // `force-dynamic` impede o Next de tentar pré-renderizar essas páginas no
@@ -14,13 +16,17 @@ export default async function StoreLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const cartCount = await getCartCount();
+  const [cartCount, settings] = await Promise.all([
+    getCartCount(),
+    getStoreSettings(),
+  ]);
   return (
     <div className="flex min-h-dvh flex-col">
       <SiteHeader />
       <main className="flex-1 pb-24 md:pb-0">{children}</main>
       <SiteFooter />
       <BottomNav cartCount={cartCount} />
+      {settings.whatsapp && <WhatsAppFab whatsapp={settings.whatsapp} />}
     </div>
   );
 }
