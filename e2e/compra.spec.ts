@@ -19,7 +19,8 @@ test.describe("Fluxo de compra", () => {
       .filter({ hasNotText: "Sem estoque" })
       .first();
     await expect(card).toBeVisible({ timeout: 30_000 });
-    await card.getByRole("button", { name: /Adicionar/ }).click();
+    // exact: o card também tem o coração "Adicionar aos favoritos".
+    await card.getByRole("button", { name: "Adicionar", exact: true }).click();
     // Confirmação do toast de adição.
     await expect(page.getByText("Adicionado à sacola")).toBeVisible({
       timeout: 30_000,
