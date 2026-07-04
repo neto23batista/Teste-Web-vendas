@@ -52,7 +52,9 @@ export default async function AdminDashboard({
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold">Dashboard</h1>
+          <h1 className="text-2xl font-extrabold">
+            <span className="text-gradient-vivid">Dashboard</span>
+          </h1>
           <p className="text-sm text-muted-foreground">Visão geral da operação</p>
         </div>
         <div className="flex items-center gap-2 print:hidden">

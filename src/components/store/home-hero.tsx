@@ -120,8 +120,10 @@ export function HomeHero() {
                     R$ 59,90
                   </p>
                 </div>
-                <Button size="sm" variant="primary">
-                  Adicionar
+                {/* Cartão ilustrativo — o CTA leva às ofertas reais (um botão
+                    "morto" aqui parecia travado para quem clicava). */}
+                <Button asChild size="sm" variant="primary">
+                  <a href="/catalogo?promo=1">Adicionar</a>
                 </Button>
               </div>
             </div>
