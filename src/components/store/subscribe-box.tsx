@@ -5,8 +5,8 @@ import Link from "next/link";
 import { Repeat, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { subscribeToProduct } from "@/actions/subscriptions";
-import { SUBSCRIPTION_INTERVALS, intervalLabel } from "@/lib/subscriptions";
-import { cn } from "@/lib/utils";
+import { intervalLabel } from "@/lib/subscriptions";
+import { IntervalPicker } from "@/components/store/interval-picker";
 
 /**
  * Bloco "assine e nunca fique sem" da página de produto. Sem cobrança
@@ -25,21 +25,25 @@ export function SubscribeBox({
   const [interval, setInterval] = React.useState<number>(
     existing?.intervalDays ?? 30
   );
-  const [active, setActive] = React.useState(
-    existing != null && existing.status !== "CANCELED"
-  );
+  // "Ativa" só quando o status é ACTIVE — uma assinatura PAUSADA cai no ramo de
+  // ativação (o cliente pode religá-la aqui), não no selo verde "ativa".
+  const [active, setActive] = React.useState(existing?.status === "ACTIVE");
   const [pending, startTransition] = React.useTransition();
 
   function activate() {
     startTransition(async () => {
-      const res = await subscribeToProduct(productId, interval);
-      if (res.ok) {
-        setActive(true);
-        toast.success("Reposição ativada!", {
-          description: `Vamos te lembrar ${intervalLabel(interval).toLowerCase()}. Gerencie em Minha conta → Assinaturas.`,
-        });
-      } else {
-        toast.error(res.error ?? "Não foi possível ativar a reposição.");
+      try {
+        const res = await subscribeToProduct(productId, interval);
+        if (res.ok) {
+          setActive(true);
+          toast.success("Reposição ativada!", {
+            description: `Vamos te lembrar ${intervalLabel(interval).toLowerCase()}. Gerencie em Minha conta → Assinaturas.`,
+          });
+        } else {
+          toast.error(res.error ?? "Não foi possível ativar a reposição.");
+        }
+      } catch {
+        toast.error("Não foi possível ativar a reposição agora. Tente novamente.");
       }
     });
   }
@@ -69,22 +73,7 @@ export function SubscribeBox({
         </div>
       ) : loggedIn ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {SUBSCRIPTION_INTERVALS.map((days) => (
-            <button
-              key={days}
-              type="button"
-              onClick={() => setInterval(days)}
-              aria-pressed={interval === days}
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
-                interval === days
-                  ? "border-brand-500 bg-brand-600 text-white"
-                  : "border-border bg-card text-muted-foreground hover:border-brand-300 hover:text-foreground"
-              )}
-            >
-              {intervalLabel(days)}
-            </button>
-          ))}
+          <IntervalPicker value={interval} onSelect={setInterval} disabled={pending} />
           <button
             type="button"
             onClick={activate}

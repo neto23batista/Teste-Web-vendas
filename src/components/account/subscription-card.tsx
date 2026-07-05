@@ -13,7 +13,8 @@ import {
   updateSubscriptionInterval,
   refillNow,
 } from "@/actions/subscriptions";
-import { SUBSCRIPTION_INTERVALS, intervalLabel } from "@/lib/subscriptions";
+import { intervalLabel } from "@/lib/subscriptions";
+import { IntervalPicker } from "@/components/store/interval-picker";
 import { cn, formatBRL } from "@/lib/utils";
 
 export type SubscriptionCardData = {
@@ -44,13 +45,17 @@ export function SubscriptionCard({ sub }: { sub: SubscriptionCardData }) {
     after?: () => void
   ) {
     startTransition(async () => {
-      const res = await fn();
-      if (res.ok) {
-        toast.success(okMsg);
-        after?.();
-        router.refresh();
-      } else {
-        toast.error(res.error ?? "Algo deu errado. Tente novamente.");
+      try {
+        const res = await fn();
+        if (res.ok) {
+          toast.success(okMsg);
+          after?.();
+          router.refresh();
+        } else {
+          toast.error(res.error ?? "Algo deu errado. Tente novamente.");
+        }
+      } catch {
+        toast.error("Algo deu errado. Tente novamente.");
       }
     });
   }
@@ -104,30 +109,17 @@ export function SubscriptionCard({ sub }: { sub: SubscriptionCardData }) {
       </div>
 
       {/* Frequência */}
-      <div className="mt-4 flex flex-wrap items-center gap-1.5">
-        {SUBSCRIPTION_INTERVALS.map((days) => (
-          <button
-            key={days}
-            type="button"
-            disabled={pending || days === sub.intervalDays}
-            onClick={() =>
-              run(
-                () => updateSubscriptionInterval(sub.id, days),
-                `Frequência alterada: ${intervalLabel(days).toLowerCase()}.`
-              )
-            }
-            aria-pressed={days === sub.intervalDays}
-            className={cn(
-              "rounded-full border px-3 py-1 text-xs font-semibold transition disabled:cursor-default",
-              days === sub.intervalDays
-                ? "border-brand-500 bg-brand-600 text-white"
-                : "border-border text-muted-foreground hover:border-brand-300 hover:text-foreground disabled:opacity-50"
-            )}
-          >
-            {intervalLabel(days)}
-          </button>
-        ))}
-      </div>
+      <IntervalPicker
+        className="mt-4"
+        value={sub.intervalDays}
+        disabled={pending}
+        onSelect={(days) =>
+          run(
+            () => updateSubscriptionInterval(sub.id, days),
+            `Frequência alterada: ${intervalLabel(days).toLowerCase()}.`
+          )
+        }
+      />
 
       {/* Ações */}
       <div className="mt-4 flex flex-wrap gap-2">

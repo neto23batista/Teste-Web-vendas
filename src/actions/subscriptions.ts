@@ -29,7 +29,10 @@ export async function subscribeToProduct(
   if (!isValidInterval(intervalDays)) {
     return { ok: false, error: "Frequência inválida." };
   }
-  const safeQty = Math.min(10, Math.max(1, Math.trunc(qty)));
+  // Number.isFinite barra NaN/Infinity (a action é invocável direto — input
+  // não confiável); trunc(NaN) propagaria e o Prisma rejeitaria o Int.
+  const n = Math.trunc(Number(qty));
+  const safeQty = Number.isFinite(n) ? Math.min(10, Math.max(1, n)) : 1;
 
   const product = await prisma.product.findUnique({
     where: { id: productId },
@@ -60,7 +63,10 @@ export async function subscribeToProduct(
     });
   } catch (err) {
     if (missingTable(err)) return { ok: false, error: NOT_READY };
-    throw err;
+    // Qualquer outra falha (ex.: P2002 numa corrida de duplo-clique) vira uma
+    // mensagem amigável em vez de estourar o error boundary do cliente.
+    console.error("[subscriptions] subscribe falhou:", err);
+    return { ok: false, error: "Não foi possível ativar a reposição agora. Tente novamente." };
   }
 
   revalidatePath("/conta/assinaturas");
@@ -73,7 +79,15 @@ async function ownSubscription(id: string) {
   try {
     return await prisma.subscription.findFirst({
       where: { id, userId: user.id },
-      select: { id: true, productId: true, qty: true, intervalDays: true, status: true },
+      select: {
+        id: true,
+        productId: true,
+        qty: true,
+        intervalDays: true,
+        status: true,
+        // Necessário para revalidar disponibilidade/receita antes de reativar/repor.
+        product: { select: { active: true, requiresPrescription: true } },
+      },
     });
   } catch (err) {
     if (missingTable(err)) return null;
@@ -92,6 +106,14 @@ export async function pauseSubscription(id: string): Promise<SubscriptionActionR
 export async function resumeSubscription(id: string): Promise<SubscriptionActionResult> {
   const sub = await ownSubscription(id);
   if (!sub) return { ok: false, error: "Assinatura não encontrada." };
+  // Não reativar assinatura de produto que saiu de linha ou passou a exigir
+  // receita (evita lembrete/refill de item que não pode ser reposto em 1 clique).
+  if (!sub.product.active) {
+    return { ok: false, error: "Este produto não está mais disponível." };
+  }
+  if (sub.product.requiresPrescription) {
+    return { ok: false, error: "Este produto passou a exigir receita e não pode mais ser assinado." };
+  }
   // Retomar reinicia o ciclo a partir de hoje.
   await prisma.subscription.update({
     where: { id: sub.id },
@@ -122,12 +144,11 @@ export async function updateSubscriptionInterval(
   }
   const sub = await ownSubscription(id);
   if (!sub) return { ok: false, error: "Assinatura não encontrada." };
+  // Muda só a frequência dos PRÓXIMOS ciclos; preserva o vencimento já agendado
+  // (não empurra para longe um lembrete que estava prestes a disparar).
   await prisma.subscription.update({
     where: { id: sub.id },
-    data: {
-      intervalDays,
-      nextDueAt: new Date(Date.now() + intervalDays * 86_400_000),
-    },
+    data: { intervalDays },
   });
   revalidatePath("/conta/assinaturas");
   return { ok: true };
@@ -138,17 +159,26 @@ export async function refillNow(id: string): Promise<SubscriptionActionResult> {
   const sub = await ownSubscription(id);
   if (!sub) return { ok: false, error: "Assinatura não encontrada." };
 
+  // Produto que passou a exigir receita não entra na sacola em 1 clique — pausa
+  // a assinatura (encerra lembretes órfãos) e avisa.
+  if (sub.product.requiresPrescription) {
+    await prisma.subscription.update({ where: { id: sub.id }, data: { status: "PAUSED" } });
+    revalidatePath("/conta/assinaturas");
+    return { ok: false, error: "Este produto passou a exigir receita; a assinatura foi pausada." };
+  }
+
   const added = await addToCart(sub.productId, sub.qty);
   if (!added.ok) {
     return { ok: false, error: added.error ?? "Não foi possível adicionar à sacola." };
   }
 
+  // Reinicia o ciclo, mas PRESERVA o status: repor uma assinatura pausada não
+  // deve reativá-la — o cliente pausou os lembretes de propósito.
   await prisma.subscription.update({
     where: { id: sub.id },
     data: {
       nextDueAt: new Date(Date.now() + sub.intervalDays * 86_400_000),
       lastNotifiedAt: null,
-      status: "ACTIVE",
     },
   });
   revalidatePath("/conta/assinaturas");

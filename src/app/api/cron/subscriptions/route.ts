@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendMail, baseUrl } from "@/lib/mail";
+import { sendMail, mailConfigured, baseUrl } from "@/lib/mail";
 import { subscriptionDueEmail } from "@/lib/email-templates";
 
 // Cron diário (vercel.json): lembra por e-mail as assinaturas vencidas e
 // reinicia o ciclo. Sem cobrança automática — o cliente confirma o pedido.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Lembretes em lote levam alguns segundos; pede mais fôlego onde o plano permite
+// (ignorado no Hobby, que limita a 10s — por isso o lote é pequeno e paralelo).
+export const maxDuration = 60;
+
+const CHUNK = 10; // e-mails enviados em paralelo por vez (limita a concorrência)
 
 export async function GET(request: Request) {
   // A Vercel envia `Authorization: Bearer ${CRON_SECRET}` quando a env existe.
@@ -23,30 +28,41 @@ export async function GET(request: Request) {
     );
   }
 
+  // Sem provedor de e-mail, NÃO processa: avançar o vencimento aqui "queimaria"
+  // o lembrete sem enviar nada. Volta a rodar quando RESEND/MAIL_FROM existirem.
+  if (!mailConfigured()) {
+    return NextResponse.json({ skipped: "mail_not_configured", due: 0, notified: 0 });
+  }
+
   const now = new Date();
-  // Lote defensivo: 200 por execução — o cron diário drena o restante amanhã.
+  // Lote defensivo (mais atrasadas primeiro); o cron diário drena o restante.
   const due = await prisma.subscription
     .findMany({
       where: { status: "ACTIVE", nextDueAt: { lte: now } },
-      take: 200,
+      orderBy: { nextDueAt: "asc" },
+      take: 100,
       include: {
         user: { select: { email: true, name: true } },
-        product: { select: { name: true, active: true } },
+        product: { select: { name: true, active: true, requiresPrescription: true } },
       },
     })
     .catch(() => []); // tabela ainda não migrada → nada a fazer
 
-  let notified = 0;
-  for (const sub of due) {
-    const nextDueAt = new Date(now.getTime() + sub.intervalDays * 86_400_000);
+  const nextDue = (days: number) => new Date(now.getTime() + days * 86_400_000);
 
-    // Produto desativado ou conta anonimizada (LGPD): pausa em vez de avisar.
-    if (!sub.product.active || sub.user.email.endsWith("@anon.invalid")) {
+  async function processOne(sub: (typeof due)[number]): Promise<boolean> {
+    // Produto fora de linha, que passou a exigir receita, ou conta anonimizada
+    // (LGPD): pausa em vez de avisar (evita lembrete órfão).
+    if (
+      !sub.product.active ||
+      sub.product.requiresPrescription ||
+      sub.user.email.endsWith("@anon.invalid")
+    ) {
       await prisma.subscription.update({
         where: { id: sub.id },
-        data: { status: "PAUSED", nextDueAt },
+        data: { status: "PAUSED", nextDueAt: nextDue(sub.intervalDays) },
       });
-      continue;
+      return false;
     }
 
     const mail = subscriptionDueEmail(
@@ -56,13 +72,20 @@ export async function GET(request: Request) {
       `${baseUrl()}/conta/assinaturas`
     );
     const sent = await sendMail({ to: sub.user.email, ...mail });
-    if (sent) notified += 1;
 
-    // Avança o ciclo mesmo sem provedor de e-mail (evita loop de reenvio).
+    // Avança mesmo se um envio pontual falhar (evita travar o lote num endereço
+    // ruim); o provedor já está configurado (checado acima).
     await prisma.subscription.update({
       where: { id: sub.id },
-      data: { nextDueAt, lastNotifiedAt: now },
+      data: { nextDueAt: nextDue(sub.intervalDays), lastNotifiedAt: now },
     });
+    return sent;
+  }
+
+  let notified = 0;
+  for (let i = 0; i < due.length; i += CHUNK) {
+    const results = await Promise.all(due.slice(i, i + CHUNK).map(processOne));
+    notified += results.filter(Boolean).length;
   }
 
   return NextResponse.json({ due: due.length, notified });
