@@ -55,3 +55,6 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# backups locais de banco (handover) — nunca comitar
+/backups/
