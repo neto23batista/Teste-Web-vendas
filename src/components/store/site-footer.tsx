@@ -38,7 +38,7 @@ export async function SiteFooter() {
   ].filter((c) => c.value);
 
   return (
-    <footer className="mt-16 border-t border-border bg-card">
+    <footer className="mt-16 border-t border-border bg-card pb-24 md:pb-0">
       <div
         className={
           contact.length > 0

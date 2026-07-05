@@ -42,17 +42,25 @@ export async function SiteHeader() {
             Catálogo
           </Link>
           <ThemeToggle />
+          {/* Conta e Sacola: só no desktop. No mobile já estão na barra inferior
+              fixa (bottom-nav) — repeti-los aqui estourava a largura do header. */}
           <Button
             asChild
             variant="ghost"
             size="icon"
             aria-label={user ? "Minha conta" : "Entrar"}
+            className="hidden md:inline-flex"
           >
             <Link href={user ? "/conta" : "/login"}>
               <User className="size-5" />
             </Link>
           </Button>
-          <Button asChild variant="primary" className="relative gap-2" aria-label="Sacola">
+          <Button
+            asChild
+            variant="primary"
+            className="relative hidden gap-2 md:inline-flex"
+            aria-label="Sacola"
+          >
             <Link href="/sacola">
               <ShoppingBag className="size-5" />
               <span className="hidden sm:inline">Sacola</span>
