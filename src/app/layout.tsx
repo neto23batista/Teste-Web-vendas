@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { Hanken_Grotesk, Space_Grotesk } from "next/font/google";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Providers } from "@/components/providers";
 import { RegisterSW } from "@/components/register-sw";
@@ -62,10 +63,15 @@ export default async function RootLayout({
       <body className="min-h-dvh antialiased">
         <Providers nonce={nonce}>{children}</Providers>
         <RegisterSW />
-        {/* Só na Vercel: fora dela o script /_vercel/... não existe (404 no
-            console — e o e2e de qualidade exige console limpo). O script é
-            injetado no cliente, então a CSP strict-dynamic já o permite. */}
-        {process.env.VERCEL ? <SpeedInsights /> : null}
+        {/* Só na Vercel: fora dela os scripts /_vercel/... não existem (404 no
+            console — e o e2e de qualidade exige console limpo). Os scripts são
+            injetados no cliente, então a CSP strict-dynamic já os permite. */}
+        {process.env.VERCEL ? (
+          <>
+            <Analytics />
+            <SpeedInsights />
+          </>
+        ) : null}
       </body>
     </html>
   );
