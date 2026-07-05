@@ -73,4 +73,4 @@ Hospedado na **Vercel** (deploy automático a cada push na `main`).
 3. **Migrations:** após o deploy do código, rode `npm run db:migrate:deploy` (= `prisma migrate deploy`) apontando para a Neon. O build **não** depende do banco.
 4. `npm run build` já gera o Prisma Client (também no `postinstall`).
 
-Detalhes de variáveis e operação: ver **DEPLOY.md** (técnico) e **GO-LIVE.md** (checklist regulatório + operacional).
+Detalhes de variáveis e operação: ver [docs/DEPLOY.md](docs/DEPLOY.md) (técnico) e [docs/GO-LIVE.md](docs/GO-LIVE.md) (checklist regulatório + operacional).
