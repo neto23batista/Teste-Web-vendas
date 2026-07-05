@@ -1,8 +1,6 @@
 # FarmaVida Next
 
-E-commerce de farmácia com **cara de app premium** — reconstrução do zero em **Next.js 16 + React 19 + TypeScript + Prisma (PostgreSQL/Neon)**.
-
-> Substitui o sistema PHP `Teste-Web-vendas`, que permanece como **referência de regras de negócio**.
+E-commerce de farmácia com **cara de app premium** — **Next.js 16 + React 19 + TypeScript + Prisma (PostgreSQL/Neon)**.
 
 ## Stack
 
@@ -23,7 +21,7 @@ E-commerce de farmácia com **cara de app premium** — reconstrução do zero e
 npm install
 cp .env.example .env        # cole DATABASE_URL + DATABASE_URL_UNPOOLED (Neon) e gere AUTH_SECRET (npx auth secret)
 npm run db:migrate          # aplica as migrations (cria as tabelas)
-npm run db:seed             # catálogo demo + admin + cliente — NÃO rode contra produção
+npm run db:seed             # SÓ em banco de desenvolvimento — NUNCA em produção (recria demos e apaga dados reais)
 npm run dev                 # http://localhost:3000
 ```
 
@@ -35,8 +33,10 @@ npm run dev                 # http://localhost:3000
 | `npm run build` / `start` | Build e execução de produção |
 | `npm run lint` / `typecheck` | ESLint / checagem de tipos |
 | `npm run db:migrate` | Aplica migrations (Prisma) |
-| `npm run db:seed` | Popula dados demo |
+| `npm run db:seed` | Popula dados demo (**apenas** banco de desenvolvimento) |
 | `npm run db:studio` | Abre o Prisma Studio |
+| `npm test` | Testes unitários (Vitest) |
+| `npm run test:e2e` | Testes de navegador (Playwright) — fluxo completo roda no CI |
 | `npm run shots` | Screenshots de QA (Edge + Playwright) em `screenshots/` |
 
 ## Estrutura
@@ -52,14 +52,13 @@ src/
 prisma/             schema.prisma, seed.ts
 ```
 
-## Contas de demonstração
+## Primeiro acesso (produção)
 
-| Perfil | E-mail | Senha |
-| --- | --- | --- |
-| **Admin** | `owner@farmavida.local` | `Dono@Farma2026` |
-| **Cliente** | `cliente@farmavida.local` | `Cliente@2026` |
-
-> Admin entra direto no painel (`/admin`); cliente vai para a conta (`/conta`).
+O banco de produção é entregue **limpo** (sem dados de demonstração), com um único
+administrador inicial — `admin@farmavida.local` — cuja senha é entregue **fora do
+repositório**. Troque-a no primeiro acesso (*Minha conta → Meus dados*) e cadastre
+os demais usuários pelo próprio painel. Admin entra direto em `/admin`; cliente vai
+para `/conta`.
 
 ## Pagamento (Mercado Pago)
 
@@ -74,4 +73,4 @@ Hospedado na **Vercel** (deploy automático a cada push na `main`).
 3. **Migrations:** após o deploy do código, rode `npm run db:migrate:deploy` (= `prisma migrate deploy`) apontando para a Neon. O build **não** depende do banco.
 4. `npm run build` já gera o Prisma Client (também no `postinstall`).
 
-> Diferente do sistema PHP, este projeto roda em ambiente **Node** (serverless na Vercel), não em hospedagem PHP compartilhada.
+Detalhes de variáveis e operação: ver **DEPLOY.md** (técnico) e **GO-LIVE.md** (checklist regulatório + operacional).

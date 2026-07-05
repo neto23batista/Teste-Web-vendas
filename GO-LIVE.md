@@ -31,7 +31,7 @@ Copie `.env.example` → `.env` (produção) e preencha:
 ### Obrigatórias (o boot falha sem elas — ver `src/lib/env.ts`)
 | Variável | O quê |
 |---|---|
-| `DATABASE_URL` | MySQL de produção (com `?connection_limit=...` em serverless) |
+| `DATABASE_URL` | PostgreSQL de produção (Neon, string *pooled*; junto com `DATABASE_URL_UNPOOLED` para migrations) |
 | `AUTH_SECRET` | gere com `npx auth secret` |
 
 ### Recomendadas para produção
@@ -64,9 +64,9 @@ Copie `.env.example` → `.env` (produção) e preencha:
 A Vercel roda o Next nativamente, então **não** habilite `output: "standalone"`
 (isso é para Docker/VPS). Passos:
 
-1. **Banco gerenciado** (a Vercel é serverless, sem MySQL local): crie um MySQL
-   gerenciado (PlanetScale, Railway, Neon-MySQL, etc.). Use `DATABASE_URL` com pool,
-   ex.: `mysql://user:pass@host/db?connection_limit=5&sslaccept=strict`.
+1. **Banco gerenciado**: PostgreSQL na **Neon**. Use a integração **Storage → Neon**
+   da Vercel — ela injeta `DATABASE_URL` (pooled/pgbouncer) e `DATABASE_URL_UNPOOLED`
+   (direta, usada pelas migrations) automaticamente.
 2. **Migrations** (passo manual, **fora do build** — o build da Vercel não deve
    migrar): a partir da sua máquina, com a `DATABASE_URL` de produção:
    ```bash
@@ -118,17 +118,14 @@ npm run lint
 npm run typecheck
 npm test          # unitários (Vitest)
 npm run build
-npm run test:e2e  # E2E (Playwright/Edge) — precisa do MySQL no ar
+npm run test:e2e  # E2E (Playwright) — ver nota abaixo
 ```
 
-> **E2E (Playwright):** usa o **Edge do sistema** (`channel: "msedge"`, sem baixar
-> Chromium). Por padrão o Playwright sobe `npm run dev` na porta 3210. Se o dev
-> server não subir (ex.: projeto dentro do **OneDrive**, cujo *cloud sync*
-> desidrata o `node_modules` e quebra o Turbopack), rode contra um servidor já no
-> ar com:
-> ```bash
-> PW_NO_SERVER=1 PW_BASE_URL=http://localhost:3100 npx playwright test
-> ```
+> **E2E (Playwright):** local usa o **Edge do sistema** (sem baixar Chromium) e roda
+> apenas os specs de **leitura** — os que escrevem no banco (compra, perfil) são
+> pulados sem `E2E_ALLOW_WRITES=1`, porque o banco local é o de produção. O fluxo
+> completo roda no **CI** (Postgres descartável). Para rodar contra um servidor já
+> no ar: `PW_NO_SERVER=1 PW_BASE_URL=http://localhost:3210 npx playwright test`.
 
 Fluxos para testar manualmente em produção:
 - [ ] Cadastro → recebe e-mail de boas-vindas.
@@ -146,4 +143,7 @@ Fluxos para testar manualmente em produção:
 
 ## 5. CI
 
-`.github/workflows/ci.yml` roda `lint → typecheck → test → build` em cada push/PR.
+`.github/workflows/ci.yml` roda dois jobs em cada push/PR:
+- **qualidade**: `lint → typecheck → test → build`;
+- **e2e**: Postgres de serviço (descartável) + `migrate deploy` + seed + build de
+  produção + Playwright/Chromium com os fluxos completos (incluindo compra).
