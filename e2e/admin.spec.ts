@@ -32,4 +32,19 @@ test.describe("Painel admin", () => {
     // O middleware manda para o login (sem sessão de admin).
     await expect(page).not.toHaveURL(/\/admin$/, { timeout: 30_000 });
   });
+
+  // Regressão: no mobile o "Sair" só existia no rodapé da sidebar (hidden lg:flex),
+  // então o admin não conseguia deslogar pelo celular. Agora o avatar abre um menu.
+  test("logout pelo menu do avatar funciona no mobile", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 780 });
+    await login(page, DEMO_ADMIN);
+    await expect(page).toHaveURL(/\/admin/, { timeout: 30_000 });
+
+    await page.getByRole("button", { name: "Conta do administrador" }).click();
+    await page.getByRole("menuitem", { name: "Sair" }).click();
+
+    // Deslogado: /admin passa a redirecionar para o login.
+    await page.goto("/admin");
+    await expect(page).not.toHaveURL(/\/admin$/, { timeout: 30_000 });
+  });
 });

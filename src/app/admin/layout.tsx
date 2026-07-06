@@ -6,6 +6,7 @@ import { getAdminBadges } from "@/lib/admin";
 import { listPharmaciesSafe } from "@/lib/pharmacy";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminUnitSwitcher } from "@/components/admin/admin-unit-switcher";
+import { AdminUserMenu } from "@/components/admin/admin-user-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = {
@@ -43,7 +44,11 @@ export default async function AdminLayout({
       <AdminSidebar badges={badges} isGlobal={isGlobal} />
       <div className="flex min-h-dvh flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-xl md:px-6 print:hidden">
-          <span className="font-extrabold lg:hidden">FarmaVida Admin</span>
+          {/* Escondido no celular (≤sm): libera largura p/ seletor de unidade +
+              tema + avatar caberem sem cortar. Reaparece do tablet ao desktop. */}
+          <span className="hidden font-extrabold sm:inline-block lg:hidden">
+            FarmaVida Admin
+          </span>
           <div className="ml-auto flex items-center gap-3">
             {isGlobal && pharmacies.length > 1 ? (
               <Suspense fallback={null}>
@@ -55,15 +60,7 @@ export default async function AdminLayout({
               </span>
             ) : null}
             <ThemeToggle />
-            <div className="flex items-center gap-2.5">
-              <span className="grid size-9 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white">
-                {user.name?.[0]?.toUpperCase() ?? "A"}
-              </span>
-              <div className="hidden text-sm sm:block">
-                <p className="font-semibold leading-tight">{user.name}</p>
-                <p className="text-xs text-muted-foreground">Administrador</p>
-              </div>
-            </div>
+            <AdminUserMenu name={user.name ?? "Administrador"} />
           </div>
         </header>
         <main className="aurora flex-1 p-4 md:p-6 lg:p-8">{children}</main>

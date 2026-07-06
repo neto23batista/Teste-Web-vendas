@@ -54,10 +54,6 @@ export function LoginForm() {
           Criar agora
         </Link>
       </p>
-
-      <div className="rounded-xl border border-dashed border-border bg-muted/50 p-3 text-xs text-muted-foreground">
-        <strong className="text-foreground">Conta demo:</strong> cliente@farmavida.local · senha <strong>Cliente@2026</strong>
-      </div>
     </div>
   );
 }
