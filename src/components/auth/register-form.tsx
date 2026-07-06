@@ -1,14 +1,23 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { useActionState } from "react";
 import { AlertCircle, Loader2, UserPlus } from "lucide-react";
+import { toast } from "sonner";
 import { register } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 
 export function RegisterForm() {
   const [state, formAction, pending] = useActionState(register, undefined);
+
+  // No celular, quem envia o form está rolado no FIM da página — o banner de
+  // erro fica no topo, fora da vista, e parece que "nada aconteceu". O toast
+  // garante que o motivo apareça na tela (mesmo padrão do checkout).
+  React.useEffect(() => {
+    if (state?.error) toast.error(state.error);
+  }, [state]);
 
   return (
     <div className="space-y-6">
@@ -41,11 +50,11 @@ export function RegisterForm() {
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Senha" htmlFor="password">
-            <Input id="password" name="password" type="password" autoComplete="new-password" placeholder="••••••••" required />
+          <Field label="Senha" htmlFor="password" hint="Mínimo de 8 caracteres">
+            <Input id="password" name="password" type="password" autoComplete="new-password" placeholder="••••••••" minLength={8} required />
           </Field>
           <Field label="Confirmar" htmlFor="confirm">
-            <Input id="confirm" name="confirm" type="password" autoComplete="new-password" placeholder="••••••••" required />
+            <Input id="confirm" name="confirm" type="password" autoComplete="new-password" placeholder="••••••••" minLength={8} required />
           </Field>
         </div>
 

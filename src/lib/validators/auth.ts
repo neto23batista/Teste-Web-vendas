@@ -5,6 +5,11 @@ export const loginSchema = z.object({
   password: z.string().min(6, "Mínimo de 6 caracteres"),
 });
 
+// CPF/telefone: normaliza ANTES de validar (aceita qualquer pontuação/espaços
+// que pessoas reais digitam — "11 9 8765-4321", "(11)98765.4321"…) e valida só
+// a quantidade de dígitos. O valor validado sai normalizado (apenas dígitos).
+const digits = (v: string | undefined) => (v ? v.replace(/\D/g, "") : v);
+
 export const registerSchema = z
   .object({
     name: z.string().min(3, "Informe seu nome completo"),
@@ -12,18 +17,17 @@ export const registerSchema = z
     cpf: z
       .string()
       .optional()
-      .refine(
-        (v) => !v || /^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(v),
-        "CPF inválido"
-      ),
+      .transform(digits)
+      .refine((v) => !v || v.length === 11, "CPF inválido — confira os 11 dígitos"),
     phone: z
       .string()
       .optional()
+      .transform(digits)
       .refine(
-        (v) => !v || /^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/.test(v),
-        "Telefone inválido"
+        (v) => !v || v.length === 10 || v.length === 11,
+        "Telefone inválido — use DDD + número"
       ),
-    password: z.string().min(8, "Mínimo de 8 caracteres"),
+    password: z.string().min(8, "A senha precisa de pelo menos 8 caracteres"),
     confirm: z.string().min(8, "Confirme a senha"),
     lgpd: z.literal("on", { message: "É necessário aceitar a política" }).or(z.boolean()),
   })

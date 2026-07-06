@@ -1,14 +1,21 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { useActionState } from "react";
 import { AlertCircle, Loader2, LogIn } from "lucide-react";
+import { toast } from "sonner";
 import { authenticate } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 
 export function LoginForm() {
   const [state, formAction, pending] = useActionState(authenticate, undefined);
+
+  // Toast além do banner: garante que o erro seja visto no mobile.
+  React.useEffect(() => {
+    if (state?.error) toast.error(state.error);
+  }, [state]);
 
   return (
     <div className="space-y-6">

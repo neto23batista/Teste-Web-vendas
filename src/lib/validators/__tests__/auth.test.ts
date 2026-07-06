@@ -29,6 +29,24 @@ describe("registerSchema", () => {
     const r = registerSchema.safeParse({ ...baseRegister, cpf: "123" });
     expect(r.success).toBe(false);
   });
+  it("aceita telefone em QUALQUER formatação real e normaliza para dígitos", () => {
+    for (const phone of ["11 9 8765-4321", "(11)98765.4321", "(11) 4004-1234", "11987654321"]) {
+      const r = registerSchema.safeParse({ ...baseRegister, phone });
+      expect(r.success, `telefone ${phone}`).toBe(true);
+      if (r.success) expect(r.data.phone).toMatch(/^\d{10,11}$/);
+    }
+  });
+  it("aceita CPF com ou sem pontuação e normaliza", () => {
+    for (const cpf of ["529.982.247-25", "52998224725", "529 982 247 25"]) {
+      const r = registerSchema.safeParse({ ...baseRegister, cpf });
+      expect(r.success, `cpf ${cpf}`).toBe(true);
+      if (r.success) expect(r.data.cpf).toBe("52998224725");
+    }
+  });
+  it("campos vazios de CPF/telefone continuam opcionais", () => {
+    const r = registerSchema.safeParse({ ...baseRegister, cpf: "", phone: "" });
+    expect(r.success).toBe(true);
+  });
 });
 
 describe("resetPasswordSchema", () => {
