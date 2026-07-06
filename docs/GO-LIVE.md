@@ -147,3 +147,29 @@ Fluxos para testar manualmente em produção:
 - **qualidade**: `lint → typecheck → test → build`;
 - **e2e**: Postgres de serviço (descartável) + `migrate deploy` + seed + build de
   produção + Playwright/Chromium com os fluxos completos (incluindo compra).
+
+---
+
+## 6. Performance & disponibilidade
+
+O que já está configurado e o que o operador precisa manter:
+
+- **Região BR (feito):** as funções da Vercel rodam em `gru1` (São Paulo), mesma
+  região do Neon (`sa-east-1`) — ver `regions` em `vercel.json`. Isso mantém o
+  caminho usuário → função → banco **100% no Brasil**. **Não** remova o `gru1` nem
+  mova o Neon de região; se um dia configurar o Upstash (rate-limit durável),
+  escolha também uma região **South America**.
+
+- [ ] **Keep-warm do banco (ação recomendada):** no plano free/Launch o Neon
+      **suspende** o compute após ~5 min ocioso, deixando a 1ª visita lenta. Para
+      evitar, aponte um **pinger externo grátis** para o endpoint de saúde, a cada
+      ~4 minutos:
+      - URL: `https://SEU_DOMINIO/api/health` (responde `{ ok: true }` e "acorda" o banco)
+      - Serviços: **cron-job.org** (intervalo de 4 min) ou **UptimeRobot** (5 min).
+      - No plano **Vercel Pro**, dá para usar um cron `*/4 * * * *` → `/api/health`
+        no `vercel.json` (no Hobby o cron da Vercel só roda 1×/dia).
+      - Solução de raiz: aumentar/desligar o *"Suspend compute after"* no painel do
+        Neon (requer plano pago) — aí o keep-warm deixa de ser necessário.
+
+- **Monitorar:** Vercel **Speed Insights** (TTFB/LCP) e **Analytics** já estão
+  ativos no projeto (aparecem só quando publicado na Vercel).
