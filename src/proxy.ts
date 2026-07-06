@@ -51,7 +51,30 @@ function buildCsp(nonce: string): string {
 }
 
 export default auth((req) => {
-  // A proteção de rota vive em authConfig.callbacks.authorized (roda antes).
+  // Proteção de rota: é o MIDDLEWARE quem redireciona quem não pode ver a
+  // página. Sem isto, um visitante SEM login chega no RSC de /conta|/checkout|
+  // /admin e requireUser()/requireAdmin() lançam → aparece o error boundary
+  // ("Algo deu errado") no lugar da tela de login. Atenção: no modo
+  // `auth((req) => ...)` o callback `authorized` do authConfig NÃO é aplicado
+  // automaticamente — a decisão precisa ser feita aqui.
+  const { nextUrl } = req;
+  const { pathname } = nextUrl;
+  const user = req.auth?.user;
+  const needsAuth =
+    pathname.startsWith("/conta") ||
+    pathname.startsWith("/checkout") ||
+    pathname.startsWith("/admin");
+
+  if (needsAuth && !user) {
+    const login = new URL("/login", nextUrl.origin);
+    login.searchParams.set("callbackUrl", pathname + nextUrl.search);
+    return NextResponse.redirect(login);
+  }
+  if (pathname.startsWith("/admin") && user?.role !== "ADMIN") {
+    // Logado, mas sem permissão de admin: manda para a loja (não vaza o painel).
+    return NextResponse.redirect(new URL("/", nextUrl.origin));
+  }
+
   const nonce = makeNonce();
   const csp = buildCsp(nonce);
 
