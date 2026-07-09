@@ -255,6 +255,7 @@ model Order {
   payment       Payment?
   prescriptions Prescription[]
   loyaltyTx     LoyaltyTransaction[]
+  orderExport   OrderExport?
 
   @@index([userId])
   @@index([status])
@@ -402,6 +403,9 @@ model Pharmacy {
   cnpj           String?
   pharmacistName String?
   pharmacistCrf  String?
+  // Integração InovaFarma: hash SHA-256 do token do conector desta unidade.
+  // O token em claro só é exibido uma vez, ao ser gerado no admin.
+  integrationTokenHash String?
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
@@ -410,8 +414,59 @@ model Pharmacy {
   orders    Order[]
   users     User[]
   carts     Cart[]
+  orderExports OrderExport[]
+  syncRuns     SyncRun[]
 
   @@index([type])
+}
+
+// ─────────────────── Integração InovaFarma (PDV on-premise) ───────────────────
+// O conector (PC da farmácia) puxa catálogo da InovaFarma e empurra pedidos.
+// OrderExport é a fila/idempotência da exportação: um pedido só vira venda no
+// PDV uma vez (orderId único); erro fica registrado e é re-tentado.
+
+enum ExportStatus {
+  PENDING
+  SENT
+  ERROR
+}
+
+model OrderExport {
+  id             String       @id @default(cuid())
+  orderId        String       @unique
+  pharmacyId     String
+  status         ExportStatus @default(PENDING)
+  /// id da venda gerada na InovaFarma (confirmação da exportação)
+  externalSaleId String?
+  attempts       Int          @default(0)
+  lastError      String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@index([pharmacyId, status])
+}
+
+enum SyncKind {
+  CATALOG
+  ORDERS
+}
+
+// Telemetria dos syncs do conector (alimenta /admin/integracao).
+model SyncRun {
+  id         String   @id @default(cuid())
+  pharmacyId String
+  kind       SyncKind
+  ok         Boolean
+  items      Int      @default(0)
+  message    String?
+  createdAt  DateTime @default(now())
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@index([pharmacyId, kind, createdAt])
 }
 
 // Faixas de CEP atendidas por uma unidade (numéricas, 8 dígitos). O roteamento

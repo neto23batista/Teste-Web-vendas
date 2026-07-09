@@ -17,6 +17,7 @@ import {
   Settings,
   Star,
   ScrollText,
+  Plug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/actions/auth";
@@ -31,6 +32,7 @@ const items = [
   { href: "/admin/estoque", label: "Estoque", icon: PackageSearch },
   { href: "/admin/cupons", label: "Cupons", icon: TicketPercent },
   { href: "/admin/assinaturas", label: "Assinaturas", icon: Repeat, globalOnly: true },
+  { href: "/admin/integracao", label: "Integração", icon: Plug },
   { href: "/admin/auditoria", label: "Auditoria", icon: ScrollText, globalOnly: true },
   { href: "/admin/configuracoes", label: "Configurações", icon: Settings },
 ];
