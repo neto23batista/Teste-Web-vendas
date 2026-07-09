@@ -15,7 +15,9 @@ export function Providers({
   return (
     <ThemeProvider
       attribute="class"
-      defaultTheme="dark"
+      // Padrão CLARO; o toggle do cabeçalho persiste a escolha do cliente
+      // (localStorage), que sempre prevalece sobre o padrão.
+      defaultTheme="light"
       enableSystem={false}
       disableTransitionOnChange
       nonce={nonce}

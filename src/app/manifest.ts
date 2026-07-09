@@ -8,7 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "Farmácia online com entrega rápida, compra segura e atendimento farmacêutico.",
     start_url: "/",
     display: "standalone",
-    background_color: "#0c1513",
+    // Fundo da splash do PWA acompanha o tema padrão (claro).
+    background_color: "#f3f8f6",
     theme_color: "#079685",
     lang: "pt-BR",
     categories: ["health", "medical", "shopping"],
