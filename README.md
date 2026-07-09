@@ -8,7 +8,7 @@ E-commerce de farmácia com **cara de app premium** — **Next.js 16 + React 19 
 - **Tailwind CSS v4** + UI kit próprio sobre **Radix** · ícones **lucide-react** · animações **framer-motion** · toasts **sonner**
 - **Prisma 6** → **PostgreSQL** (Neon serverless; conexão *pooled* na app + *direta* nas migrations)
 - **Auth.js v5** (credentials, papéis CUSTOMER/ADMIN)
-- **Mercado Pago** (pagamento) · **recharts** (gráficos do admin)
+- **PagBank** (pagamento) · **recharts** (gráficos do admin)
 
 ## Pré-requisitos
 
@@ -60,16 +60,16 @@ repositório**. Troque-a no primeiro acesso (*Minha conta → Meus dados*) e cad
 os demais usuários pelo próprio painel. Admin entra direto em `/admin`; cliente vai
 para `/conta`.
 
-## Pagamento (Mercado Pago)
+## Pagamento (PagBank)
 
-O checkout já está integrado ao Mercado Pago (preferência + webhook). **Sem um Access Token válido** no `.env` (`MERCADO_PAGO_ACCESS_TOKEN`), o fluxo cai num **pagamento simulado** na página do pedido — útil para demonstração. Com um token válido, o cliente é redirecionado ao Checkout Pro e o webhook confirma o pedido.
+O checkout está integrado ao PagBank (PIX nativo com QR na página do pedido + página de pagamento hospedada para cartão + webhook). **Sem um token válido** no `.env` (`PAGBANK_TOKEN`), o fluxo cai num **pagamento simulado** na página do pedido — útil para demonstração. Com o token, o PIX mostra QR/copia-e-cola no site e o cartão redireciona à página do PagBank; o webhook confirma o pedido.
 
 ## Deploy
 
 Hospedado na **Vercel** (deploy automático a cada push na `main`).
 
 1. **Banco:** **PostgreSQL na Neon**. Use a integração **Storage → Neon** da Vercel — ela injeta `DATABASE_URL` (pooled) e `DATABASE_URL_UNPOOLED` (direta) automaticamente no ambiente.
-2. **App:** importe o repositório na Vercel e configure as demais variáveis do `.env.example` (`AUTH_SECRET`, `AUTH_TRUST_HOST`, `NEXT_PUBLIC_BASE_URL`, tokens do Mercado Pago, etc.).
+2. **App:** importe o repositório na Vercel e configure as demais variáveis do `.env.example` (`AUTH_SECRET`, `AUTH_TRUST_HOST`, `NEXT_PUBLIC_BASE_URL`, `PAGBANK_TOKEN`, etc.).
 3. **Migrations:** após o deploy do código, rode `npm run db:migrate:deploy` (= `prisma migrate deploy`) apontando para a Neon. O build **não** depende do banco.
 4. `npm run build` já gera o Prisma Client (também no `postinstall`).
 

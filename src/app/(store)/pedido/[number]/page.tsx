@@ -23,7 +23,7 @@ import {
 import { SimulatePaymentButton } from "@/components/store/simulate-payment-button";
 import { PixPayment } from "@/components/store/pix-payment";
 import { OrderLiveStatus } from "@/components/store/order-live-status";
-import { readPixRaw } from "@/lib/mercadopago";
+import { readPixRaw } from "@/lib/pagbank";
 import { PrescriptionResubmit } from "@/components/store/prescription-resubmit";
 import { CancelOrderButton } from "@/components/store/cancel-order-button";
 import { ReorderButton } from "@/components/store/reorder-button";
@@ -130,7 +130,7 @@ export default async function OrderPage({
             <>
               <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
                 Aguardando pagamento. Em produção, aqui o cliente é levado ao
-                Mercado Pago. Para demonstrar o fluxo (apenas em desenvolvimento),
+                PagBank. Para demonstrar o fluxo (apenas em desenvolvimento),
                 confirme abaixo:
               </p>
               <SimulatePaymentButton orderNumber={order.number} />

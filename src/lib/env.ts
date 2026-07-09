@@ -22,11 +22,8 @@ export function assertEnv(): void {
     if (!process.env.NEXT_PUBLIC_BASE_URL?.startsWith("https://")) {
       warn.push("NEXT_PUBLIC_BASE_URL deveria usar https://");
     }
-    if (!process.env.MERCADO_PAGO_ACCESS_TOKEN) {
-      warn.push("MERCADO_PAGO_ACCESS_TOKEN ausente (pagamentos online desativados)");
-    }
-    if (!process.env.MERCADO_PAGO_WEBHOOK_SECRET) {
-      warn.push("MERCADO_PAGO_WEBHOOK_SECRET ausente (webhook sem validação de assinatura)");
+    if (!process.env.PAGBANK_TOKEN) {
+      warn.push("PAGBANK_TOKEN ausente (pagamentos online desativados)");
     }
     if (!process.env.RESEND_API_KEY || !process.env.MAIL_FROM) {
       warn.push("RESEND_API_KEY/MAIL_FROM ausentes (e-mails transacionais desativados)");

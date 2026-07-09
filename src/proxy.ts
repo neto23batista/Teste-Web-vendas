@@ -29,7 +29,10 @@ function buildCsp(nonce: string): string {
   const script = isDev
     ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
     : `script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline' https:`;
-  const connect = `connect-src 'self'${isDev ? " ws: wss:" : ""} https://api.mercadopago.com https://viacep.com.br https://*.sentry.io`;
+  // PagBank: toda a conversa com a API é server-side (QR do PIX vem em base64
+  // e o cartão é redirect de página inteira) — o browser não precisa de
+  // liberação para hosts do PagBank na CSP.
+  const connect = `connect-src 'self'${isDev ? " ws: wss:" : ""} https://viacep.com.br https://*.sentry.io`;
   return [
     "default-src 'self'",
     "base-uri 'self'",
@@ -44,9 +47,9 @@ function buildCsp(nonce: string): string {
     // strict-dynamic descarta allowlist de host em script-src; o service
     // worker (sw.js) e workers blob (Sentry) precisam de worker-src explícito.
     "worker-src 'self' blob:",
-    "frame-src 'self' https://*.mercadopago.com",
+    "frame-src 'self'",
     "frame-ancestors 'none'",
-    "form-action 'self' https://*.mercadopago.com",
+    "form-action 'self'",
   ].join("; ");
 }
 

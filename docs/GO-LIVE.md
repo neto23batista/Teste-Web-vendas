@@ -39,9 +39,8 @@ Copie `.env.example` → `.env` (produção) e preencha:
 |---|---|---|
 | `NEXT_PUBLIC_BASE_URL` | URL pública `https://...` | cookies seguros / links de e-mail quebram |
 | `AUTH_TRUST_HOST` | `"true"` atrás de proxy | login pode falhar |
-| `MERCADO_PAGO_ACCESS_TOKEN` | pagamento real | checkout cai no **pagamento simulado** |
-| `NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY` | SDK do MP no cliente | — |
-| `MERCADO_PAGO_WEBHOOK_SECRET` | valida assinatura do webhook | webhook sem verificação |
+| `PAGBANK_TOKEN` | pagamento real (PIX + cartão via PagBank) | checkout cai no **pagamento simulado** |
+| `PAGBANK_SANDBOX=1` | aponta para o sandbox do PagBank (testes) | usa produção |
 | `RESEND_API_KEY` + `MAIL_FROM` | e-mails transacionais (Resend) | e-mails só no console |
 | `STORAGE_DRIVER=s3` + `S3_*` | storage de receitas (S3/R2/MinIO) | em serverless as receitas **somem** |
 
@@ -78,8 +77,7 @@ A Vercel roda o Next nativamente, então **não** habilite `output: "standalone"
    dashboard (Production):
    - `DATABASE_URL`, `AUTH_SECRET`, `AUTH_TRUST_HOST=true`
    - `NEXT_PUBLIC_BASE_URL=https://SEU_DOMINIO`, `AUTH_URL=https://SEU_DOMINIO`
-   - `MERCADO_PAGO_ACCESS_TOKEN`, `NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY`,
-     `MERCADO_PAGO_WEBHOOK_SECRET`
+   - `PAGBANK_TOKEN`
    - `RESEND_API_KEY`, `MAIL_FROM`
    - `STORAGE_DRIVER=s3`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`,
      `S3_SECRET_ACCESS_KEY` (e `S3_ENDPOINT` se for R2/MinIO)
@@ -102,8 +100,8 @@ Para container, descomente `output: "standalone"` em `next.config.ts`.
 ### Checklist pós-deploy (qualquer provedor)
 
 - [ ] HTTPS ativo (cookies seguros do Auth.js dependem disso).
-- [ ] Webhook do Mercado Pago apontado para `https://SEU_DOMINIO/api/webhooks/mercadopago`
-      e o **segredo** configurado.
+- [ ] `PAGBANK_TOKEN` configurado (o webhook `https://SEU_DOMINIO/api/webhooks/pagbank`
+      é informado automaticamente em cada cobrança e validado por re-consulta na API).
 - [ ] Domínio do remetente verificado no Resend (para `MAIL_FROM`).
 - [ ] Bucket S3/R2 criado e credenciais com permissão de leitura/escrita.
 - [ ] Catálogo real cadastrado — via admin ou **Importar CSV** em

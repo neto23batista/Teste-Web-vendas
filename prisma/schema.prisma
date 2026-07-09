@@ -28,7 +28,7 @@ enum OrderStatus {
 }
 
 enum PaymentProvider {
-  MERCADO_PAGO
+  PAGBANK
   PIX
   CASH
 }
@@ -278,7 +278,7 @@ model OrderItem {
 model Payment {
   id         String          @id @default(cuid())
   orderId    String          @unique
-  provider   PaymentProvider @default(MERCADO_PAGO)
+  provider   PaymentProvider @default(PAGBANK)
   status     PaymentStatus   @default(PENDING)
   externalId String?
   amount     Float

@@ -12,7 +12,11 @@ import { validateCoupon } from "@/lib/coupons";
 import { maxRedeemablePoints, pointsToBRL } from "@/lib/loyalty";
 import { saveUpload } from "@/lib/uploads";
 import { createOrder, fulfillOrder, cancelOrder } from "@/lib/orders";
-import { createPreference, createPixPayment, mpConfigured } from "@/lib/mercadopago";
+import {
+  createHostedCheckout,
+  createPixPayment,
+  pagbankConfigured,
+} from "@/lib/pagbank";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { sendMail, baseUrl } from "@/lib/mail";
 import { notifyUnit } from "@/lib/notifications";
@@ -284,15 +288,21 @@ export async function placeOrder(
     }
     redirect(`/pedido/${order.number}`);
   }
-  if (mpConfigured()) {
+  if (pagbankConfigured()) {
     // PIX nativo: gera o QR/copia-e-cola e mostra na própria página do pedido
     // (sem sair do site). O webhook confirma a aprovação.
     if (paymentMethod === "pix") {
+      // O PagBank pede o CPF do pagador no PIX — usa o do cadastro se houver.
+      const payer = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { cpf: true },
+      });
       const pix = await createPixPayment({
         orderNumber: order.number,
         amount: order.total,
         payerEmail: user.email ?? "",
         payerName: user.name,
+        payerTaxId: payer?.cpf ?? null,
         description: `FarmaVida ${order.number}`,
       });
       if (pix) {
@@ -313,15 +323,17 @@ export async function placeOrder(
       }
       redirect(`/pedido/${order.number}`);
     }
-    // Cartão (e demais): Checkout Pro hospedado no Mercado Pago.
-    const url = await createPreference({
+    // Cartão (e demais): página de pagamento hospedada do PagBank.
+    const url = await createHostedCheckout({
       orderNumber: order.number,
       items: order.items.map((i) => ({ name: i.name, price: i.price, qty: i.qty })),
       shipping,
+      customerEmail: user.email,
+      customerName: user.name,
     });
     if (url) redirect(url);
   }
-  // Fallback (sem token MP): página do pedido com pagamento simulado
+  // Fallback (sem token PagBank): página do pedido em "aguardando pagamento"
   redirect(`/pedido/${order.number}`);
 }
 
@@ -386,7 +398,7 @@ export async function cancelMyOrder(
 }
 
 export async function confirmPaymentSimulated(orderNumber: string) {
-  // Atalho de demonstração — desabilitado em produção (pagamento real via MP/webhook).
+  // Atalho de demonstração — desabilitado em produção (pagamento real via PagBank/webhook).
   if (process.env.NODE_ENV === "production") return { ok: false };
 
   const user = await requireUser();

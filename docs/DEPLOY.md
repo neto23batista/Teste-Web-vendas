@@ -17,7 +17,7 @@ Vercel. Banco **PostgreSQL na Neon** (integração *Storage → Neon* da Vercel 
 ### Para operar de verdade
 | Variável | Destrava | Sem ela |
 |---|---|---|
-| `MERCADO_PAGO_ACCESS_TOKEN` + `MERCADO_PAGO_WEBHOOK_SECRET` | cartão e PIX reais | só "dinheiro na entrega" |
+| `PAGBANK_TOKEN` | cartão e PIX reais (PagBank) | só "dinheiro na entrega" |
 | `RESEND_API_KEY` + `MAIL_FROM` | e-mails (pedido, reset, assinaturas) | e-mails só no log |
 | `CRON_SECRET` | cron diário de assinaturas (`vercel.json`, 8h SP) | lembretes desligados |
 | `UPSTASH_REDIS_REST_URL` + `_TOKEN` | rate-limit durável entre instâncias | limite só por instância |
@@ -43,11 +43,12 @@ Catálogo real: *Admin → Produtos* (ou **Importar CSV** em `/admin/produtos/im
 
 ---
 
-## 3. Mercado Pago (quando ativar pagamento)
+## 3. PagBank (quando ativar pagamento)
 
-1. Painel MP → **Webhooks** → URL: `https://SEU_DOMINIO/api/webhooks/mercadopago`.
-2. Copie o segredo de assinatura para `MERCADO_PAGO_WEBHOOK_SECRET`.
-3. Em produção o pagamento é real (o simulado só existe fora de produção).
+1. Painel PagBank → **Integrações** → gere o token de API e configure `PAGBANK_TOKEN`.
+2. O webhook é registrado automaticamente a cada cobrança (`notification_urls` → `https://SEU_DOMINIO/api/webhooks/pagbank`); a notificação é validada por re-consulta na API (não confia no payload).
+3. Para testar sem dinheiro real, use `PAGBANK_SANDBOX=1` com um token de sandbox.
+4. Em produção o pagamento é real (o simulado só existe fora de produção).
 
 ---
 

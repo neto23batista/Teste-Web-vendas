@@ -72,7 +72,7 @@ export async function createOrder(input: CreateInput) {
       },
       payment: {
         create: {
-          provider: input.paymentMethod === "cash" ? "CASH" : "MERCADO_PAGO",
+          provider: input.paymentMethod === "cash" ? "CASH" : "PAGBANK",
           status: "PENDING",
           amount: input.total,
         },
@@ -204,7 +204,7 @@ export async function fulfillOrder(orderId: string) {
  *    restaurando o saldo anterior à compra.
  *  - Cupom: libera 1 uso (decrementa usedCount).
  *  - Status: pedido → CANCELED; pagamento aprovado → REFUNDED.
- * O reembolso no provedor (Mercado Pago) é best-effort e fica FORA da transação.
+ * O reembolso no provedor (PagBank) é best-effort e fica FORA da transação.
  * Retorna o pedido atualizado, ou null se o id não existir.
  */
 export async function cancelOrder(orderId: string) {
@@ -283,16 +283,16 @@ export async function cancelOrder(orderId: string) {
     }
   });
 
-  // Reembolso no Mercado Pago (best-effort, fora da transação): só quem reivindicou
+  // Reembolso no PagBank (best-effort, fora da transação): só quem reivindicou
   // o cancelamento e tinha pagamento online aprovado tenta estornar. A chave de
   // idempotência no provedor também protege contra reembolso duplicado.
   if (
     didCancel &&
     paymentWasApproved &&
-    order.payment?.provider === "MERCADO_PAGO" &&
+    order.payment?.provider === "PAGBANK" &&
     order.payment.externalId
   ) {
-    const { refundPayment } = await import("@/lib/mercadopago");
+    const { refundPayment } = await import("@/lib/pagbank");
     await refundPayment(order.payment.externalId);
   }
 
