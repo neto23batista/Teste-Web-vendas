@@ -4,6 +4,7 @@ import { getAdminOrders } from "@/lib/admin";
 import { formatBRL, cn } from "@/lib/utils";
 import { StatusBadge, STATUS_META } from "@/components/store/order-status";
 import { Pagination } from "@/components/admin/pagination";
+import { AutoRefresh } from "@/components/auto-refresh";
 import type { OrderStatus } from "@prisma/client";
 
 type SP = Record<string, string | string[] | undefined>;
@@ -42,6 +43,8 @@ export default async function AdminOrdersPage({
 
   return (
     <div className="space-y-6">
+      {/* Pedidos novos entram na lista sem recarregar (preserva a busca). */}
+      <AutoRefresh intervalMs={30_000} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold">Pedidos</h1>

@@ -22,6 +22,7 @@ import {
 } from "@/components/store/order-status";
 import { SimulatePaymentButton } from "@/components/store/simulate-payment-button";
 import { PixPayment } from "@/components/store/pix-payment";
+import { OrderLiveStatus } from "@/components/store/order-live-status";
 import { readPixRaw } from "@/lib/mercadopago";
 import { PrescriptionResubmit } from "@/components/store/prescription-resubmit";
 import { CancelOrderButton } from "@/components/store/cancel-order-button";
@@ -77,8 +78,21 @@ export default async function OrderPage({
     !rxApproved &&
     (!rxLatest || rxLatest.status === "REJECTED");
 
+  // Acompanhamento ao vivo: enquanto o pedido está "vivo" (e o PIX não está
+  // com o próprio poller na tela), a página se atualiza sozinha quando o
+  // admin avança o status ou valida a receita — sem o cliente recarregar.
+  const live =
+    order.status !== "DELIVERED" && order.status !== "CANCELED" && !showPix;
+
   return (
     <div className="container-page max-w-4xl py-6 md:py-10">
+      {live && (
+        <OrderLiveStatus
+          orderNumber={order.number}
+          initialStatus={order.status}
+          initialRxStatus={rxLatest?.status ?? null}
+        />
+      )}
       {/* Cabeçalho */}
       <div className="rounded-3xl border border-border bg-card p-6 text-center md:p-8">
         <span

@@ -3,6 +3,7 @@ import { FileText, Inbox } from "lucide-react";
 import type { PrescriptionStatus } from "@prisma/client";
 import { getPrescriptionsByStatus } from "@/lib/admin";
 import { PrescriptionReview } from "@/components/admin/prescription-review";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Receitas" };
@@ -26,6 +27,8 @@ export default async function AdminPrescriptionsPage({
 
   return (
     <div className="space-y-6">
+      {/* Fila viva: receitas novas aparecem sem o farmacêutico recarregar. */}
+      <AutoRefresh intervalMs={30_000} />
       <div>
         <h1 className="text-2xl font-extrabold">Receitas</h1>
         <p className="text-sm text-muted-foreground">

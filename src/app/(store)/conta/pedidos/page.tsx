@@ -4,6 +4,7 @@ import { Package } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { getUserOrders } from "@/lib/account";
 import { OrderCard } from "@/components/account/order-card";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Meus pedidos" };
@@ -14,6 +15,8 @@ export default async function OrdersPage() {
 
   return (
     <div className="space-y-5">
+      {/* Status dos pedidos se atualiza sozinho (admin avança → cliente vê). */}
+      <AutoRefresh intervalMs={30_000} />
       <h2 className="text-lg font-bold">Meus pedidos</h2>
       {orders.length === 0 ? (
         <div className="grid place-items-center gap-3 rounded-2xl border border-dashed border-border bg-card py-16 text-center">

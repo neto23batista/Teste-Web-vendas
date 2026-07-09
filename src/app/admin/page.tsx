@@ -22,6 +22,7 @@ import { formatBRL } from "@/lib/utils";
 import { StatusBadge } from "@/components/store/order-status";
 import { SalesAreaChart, TopProductsBar, StatusDonut } from "@/components/admin/charts";
 import { PrintButton } from "@/components/admin/print-button";
+import { AutoRefresh } from "@/components/auto-refresh";
 
 type SP = Record<string, string | string[] | undefined>;
 
@@ -50,6 +51,8 @@ export default async function AdminDashboard({
 
   return (
     <div className="space-y-6">
+      {/* Números do dia sempre frescos sem F5 (60s: são 5 queries + gráficos). */}
+      <AutoRefresh intervalMs={60_000} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold">
