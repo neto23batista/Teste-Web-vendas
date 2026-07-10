@@ -7,6 +7,7 @@ import { listPharmaciesSafe } from "@/lib/pharmacy";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminUnitSwitcher } from "@/components/admin/admin-unit-switcher";
 import { AdminUserMenu } from "@/components/admin/admin-user-menu";
+import { OrderChime } from "@/components/admin/order-chime";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = {
@@ -59,6 +60,9 @@ export default async function AdminLayout({
                 Unidade: {ownUnit.name}
               </span>
             ) : null}
+            <Suspense fallback={null}>
+              <OrderChime />
+            </Suspense>
             <ThemeToggle />
             <AdminUserMenu name={user.name ?? "Administrador"} />
           </div>
