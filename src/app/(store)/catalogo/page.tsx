@@ -83,6 +83,19 @@ export default async function CatalogPage({
     return `/catalogo${s ? `?${s}` : ""}`;
   };
 
+  // Paginação compacta: primeira, última e vizinhas da atual, com reticências.
+  const wanted = new Set([1, result.pages]);
+  for (let n = page - 1; n <= page + 1; n++) {
+    if (n >= 1 && n <= result.pages) wanted.add(n);
+  }
+  const pageItems: (number | "…")[] = [];
+  let prevPage = 0;
+  for (const n of [...wanted].sort((a, b) => a - b)) {
+    if (prevPage && n - prevPage > 1) pageItems.push("…");
+    pageItems.push(n);
+    prevPage = n;
+  }
+
   return (
     <div className="aurora">
       <div className="container-page space-y-6 py-6 md:py-8">
@@ -171,23 +184,31 @@ export default async function CatalogPage({
               <ChevronLeft className="size-5" />
             </Link>
           )}
-          {Array.from({ length: result.pages }).map((_, i) => {
-            const n = i + 1;
-            return (
+          {pageItems.map((item, i) =>
+            item === "…" ? (
+              <span
+                key={`gap-${i}`}
+                className="grid size-10 place-items-center text-sm font-semibold text-muted-foreground"
+                aria-hidden
+              >
+                …
+              </span>
+            ) : (
               <Link
-                key={n}
-                href={pageHref(n)}
+                key={item}
+                href={pageHref(item)}
+                aria-current={item === page ? "page" : undefined}
                 className={cn(
                   "grid size-10 place-items-center rounded-xl border text-sm font-semibold transition",
-                  n === page
+                  item === page
                     ? "border-brand-600 bg-brand-600 text-white"
                     : "border-border bg-card hover:border-brand-300"
                 )}
               >
-                {n}
+                {item}
               </Link>
-            );
-          })}
+            )
+          )}
           {page < result.pages && (
             <Link
               href={pageHref(page + 1)}
