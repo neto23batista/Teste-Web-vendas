@@ -56,7 +56,14 @@ export async function getAdminStats(selectedUnitId?: string | null) {
     prisma.user.count({ where: { role: "CUSTOMER" } }),
     prisma.product.count({ where: { active: true } }),
     prisma.inventory.count({
-      where: { stock: { lte: 5 }, product: { active: true }, ...(unit ? { pharmacyId: unit } : {}) },
+      // "Baixo" = abaixo do mínimo configurado no item (igual à página de
+      // Estoque); unidades desativadas não contam.
+      where: {
+        stock: { lte: prisma.inventory.fields.minStock },
+        product: { active: true },
+        pharmacy: { active: true },
+        ...(unit ? { pharmacyId: unit } : {}),
+      },
     }),
     prisma.order.findMany({
       where: {
@@ -424,7 +431,12 @@ export async function getAdminBadges(selectedUnitId?: string | null) {
       prisma.prescription.count({ where: { status: "PENDING" } }),
       prisma.order.count({ where: { status: { in: ["PAID", "PREPARING"] }, ...orderUnit } }),
       prisma.inventory.count({
-        where: { stock: { lte: 5 }, product: { active: true }, ...(unit ? { pharmacyId: unit } : {}) },
+        where: {
+          stock: { lte: prisma.inventory.fields.minStock },
+          product: { active: true },
+          pharmacy: { active: true },
+          ...(unit ? { pharmacyId: unit } : {}),
+        },
       }),
       prisma.review.count({ where: { approved: false } }),
     ]);
