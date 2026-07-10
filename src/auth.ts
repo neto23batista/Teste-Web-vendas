@@ -54,6 +54,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           role: user.role,
           pharmacyId: user.pharmacyId,
           pharmacyType: user.pharmacy?.type ?? null,
+          staffProfile: user.staffProfile,
         };
       },
     }),

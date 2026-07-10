@@ -1,4 +1,4 @@
-import type { PharmacyType, Role } from "@prisma/client";
+import type { PharmacyType, Role, StaffProfile } from "@prisma/client";
 import type { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
@@ -7,6 +7,8 @@ declare module "next-auth" {
     // Unidade do admin (null em clientes). MATRIZ = escopo global.
     pharmacyId?: string | null;
     pharmacyType?: PharmacyType | null;
+    // Perfil operacional do staff (null = OWNER, acesso total).
+    staffProfile?: StaffProfile | null;
   }
   interface Session {
     user: {
@@ -14,6 +16,7 @@ declare module "next-auth" {
       role: Role;
       pharmacyId: string | null;
       pharmacyType: PharmacyType | null;
+      staffProfile: StaffProfile | null;
     } & DefaultSession["user"];
   }
 }
@@ -24,5 +27,6 @@ declare module "next-auth/jwt" {
     role: Role;
     pharmacyId: string | null;
     pharmacyType: PharmacyType | null;
+    staffProfile: StaffProfile | null;
   }
 }

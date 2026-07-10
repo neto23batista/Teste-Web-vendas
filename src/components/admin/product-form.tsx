@@ -13,6 +13,7 @@ type Product = {
   sku: string | null;
   price: number;
   promoPrice: number | null;
+  costPrice: number | null;
   stock: number;
   minStock: number;
   categoryId: string;
@@ -114,6 +115,13 @@ export function ProductForm({
               </Field>
               <Field label="Preço promocional (R$)" htmlFor="promoPrice">
                 <Input id="promoPrice" name="promoPrice" inputMode="decimal" defaultValue={p?.promoPrice ?? ""} />
+              </Field>
+              <Field
+                label="Custo de aquisição (R$)"
+                htmlFor="costPrice"
+                hint="Base do CMV e da margem no Financeiro. Não aparece para o cliente."
+              >
+                <Input id="costPrice" name="costPrice" inputMode="decimal" defaultValue={p?.costPrice ?? ""} />
               </Field>
               <Field label="Estoque (matriz)" htmlFor="stock">
                 <Input id="stock" name="stock" inputMode="numeric" defaultValue={p?.stock ?? 0} />

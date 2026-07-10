@@ -1,8 +1,34 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "@/auth.config";
+import { canAccess, type Area } from "@/lib/permissions";
 
 const { auth } = NextAuth(authConfig);
+
+/**
+ * Área do painel por prefixo de rota — fonte única do controle de acesso por
+ * perfil (cobre subrotas como /admin/pedidos/123). `/admin` exato é o
+ * dashboard, visível a todo staff. Server actions repetem a checagem com
+ * `assertArea` (defesa em profundidade).
+ */
+const ADMIN_AREAS: [prefix: string, area: Area][] = [
+  ["/admin/pedidos", "pedidos"],
+  ["/admin/entregas", "entregas"],
+  ["/admin/receitas", "receitas"],
+  ["/admin/clientes", "clientes"],
+  ["/admin/avaliacoes", "avaliacoes"],
+  ["/admin/produtos", "produtos"],
+  ["/admin/estoque", "estoque"],
+  ["/admin/compras", "compras"],
+  ["/admin/cupons", "cupons"],
+  ["/admin/assinaturas", "assinaturas"],
+  ["/admin/relatorios", "relatorios"],
+  ["/admin/financeiro", "financeiro"],
+  ["/admin/integracao", "integracao"],
+  ["/admin/equipe", "equipe"],
+  ["/admin/auditoria", "auditoria"],
+  ["/admin/configuracoes", "configuracoes"],
+];
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -76,6 +102,14 @@ export default auth((req) => {
   if (pathname.startsWith("/admin") && user?.role !== "ADMIN") {
     // Logado, mas sem permissão de admin: manda para a loja (não vaza o painel).
     return NextResponse.redirect(new URL("/", nextUrl.origin));
+  }
+  // Staff logado: o PERFIL decide quais áreas do painel ele abre.
+  if (pathname.startsWith("/admin")) {
+    const match = ADMIN_AREAS.find(([prefix]) => pathname.startsWith(prefix));
+    if (match && !canAccess(user?.staffProfile, match[1])) {
+      // Sem permissão para a área: volta ao dashboard (que todo staff vê).
+      return NextResponse.redirect(new URL("/admin", nextUrl.origin));
+    }
   }
 
   const nonce = makeNonce();

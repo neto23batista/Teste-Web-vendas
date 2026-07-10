@@ -10,6 +10,7 @@ import {
   FileText,
   XCircle,
   MessageSquareText,
+  Truck,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
@@ -46,6 +47,7 @@ export default async function OrderPage({
       address: true,
       payment: true,
       prescriptions: { orderBy: { createdAt: "desc" } },
+      courier: { select: { name: true } },
     },
   });
   if (!order) notFound();
@@ -190,6 +192,15 @@ export default async function OrderPage({
       {/* Timeline */}
       <div className="mt-6 rounded-2xl border border-border bg-card p-6">
         <OrderTimeline status={order.status} />
+        {order.status === "SHIPPED" && order.courier && (
+          <p className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700 dark:bg-brand-600/15 dark:text-brand-300">
+            <Truck className="size-4" />
+            Saiu para entrega com {order.courier.name}
+            {order.dispatchedAt
+              ? ` às ${order.dispatchedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+              : ""}
+          </p>
+        )}
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-[1fr_18rem]">

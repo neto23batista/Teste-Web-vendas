@@ -18,34 +18,59 @@ import {
   Star,
   ScrollText,
   Plug,
+  Truck,
+  ShoppingBasket,
+  Wallet,
+  BarChart3,
+  IdCard,
 } from "lucide-react";
+import type { StaffProfile } from "@prisma/client";
 import { cn } from "@/lib/utils";
+import { canAccess, type Area } from "@/lib/permissions";
 import { logout } from "@/actions/auth";
 
-const items = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { href: "/admin/pedidos", label: "Pedidos", icon: ShoppingCart },
-  { href: "/admin/clientes", label: "Clientes", icon: Users },
-  { href: "/admin/receitas", label: "Receitas", icon: FileText },
-  { href: "/admin/avaliacoes", label: "Avaliações", icon: Star },
-  { href: "/admin/produtos", label: "Produtos", icon: Boxes },
-  { href: "/admin/estoque", label: "Estoque", icon: PackageSearch },
-  { href: "/admin/cupons", label: "Cupons", icon: TicketPercent },
-  { href: "/admin/assinaturas", label: "Assinaturas", icon: Repeat, globalOnly: true },
-  { href: "/admin/integracao", label: "Integração", icon: Plug },
-  { href: "/admin/auditoria", label: "Auditoria", icon: ScrollText, globalOnly: true },
-  { href: "/admin/configuracoes", label: "Configurações", icon: Settings },
+const items: {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  area: Area;
+  exact?: boolean;
+  globalOnly?: boolean;
+}[] = [
+  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, area: "dashboard", exact: true },
+  { href: "/admin/pedidos", label: "Pedidos", icon: ShoppingCart, area: "pedidos" },
+  { href: "/admin/entregas", label: "Entregas", icon: Truck, area: "entregas" },
+  { href: "/admin/clientes", label: "Clientes", icon: Users, area: "clientes" },
+  { href: "/admin/receitas", label: "Receitas", icon: FileText, area: "receitas" },
+  { href: "/admin/avaliacoes", label: "Avaliações", icon: Star, area: "avaliacoes" },
+  { href: "/admin/produtos", label: "Produtos", icon: Boxes, area: "produtos" },
+  { href: "/admin/estoque", label: "Estoque", icon: PackageSearch, area: "estoque" },
+  { href: "/admin/compras", label: "Compras", icon: ShoppingBasket, area: "compras" },
+  { href: "/admin/cupons", label: "Cupons", icon: TicketPercent, area: "cupons" },
+  { href: "/admin/assinaturas", label: "Assinaturas", icon: Repeat, area: "assinaturas", globalOnly: true },
+  { href: "/admin/relatorios", label: "Relatórios", icon: BarChart3, area: "relatorios" },
+  { href: "/admin/financeiro", label: "Financeiro", icon: Wallet, area: "financeiro" },
+  { href: "/admin/integracao", label: "Integração", icon: Plug, area: "integracao" },
+  { href: "/admin/equipe", label: "Equipe", icon: IdCard, area: "equipe", globalOnly: true },
+  { href: "/admin/auditoria", label: "Auditoria", icon: ScrollText, area: "auditoria", globalOnly: true },
+  { href: "/admin/configuracoes", label: "Configurações", icon: Settings, area: "configuracoes" },
 ];
 
 export function AdminSidebar({
   badges,
   isGlobal = false,
+  staffProfile = null,
 }: {
   badges?: Record<string, number>;
   isGlobal?: boolean;
+  /** null = OWNER (conta legada) — vê tudo. */
+  staffProfile?: StaffProfile | null;
 }) {
   const pathname = usePathname();
-  const visibleItems = items.filter((it) => !it.globalOnly || isGlobal);
+  // O menu só mostra o que o perfil pode abrir (o middleware bloqueia o resto).
+  const visibleItems = items.filter(
+    (it) => (!it.globalOnly || isGlobal) && canAccess(staffProfile, it.area)
+  );
 
   return (
     <aside className="lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:border-r lg:border-border lg:bg-card print:hidden">

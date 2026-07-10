@@ -18,6 +18,15 @@ enum Role {
   ADMIN
 }
 
+/// Perfil operacional do staff (só faz sentido quando role = ADMIN).
+/// null = OWNER (dono/gerente, acesso total) — mantém as contas antigas intactas.
+enum StaffProfile {
+  OWNER
+  PHARMACIST
+  STOCKIST
+  ATTENDANT
+}
+
 enum OrderStatus {
   PENDING
   PAID
@@ -64,18 +73,20 @@ enum SubscriptionStatus {
 
 // ─────────────────────────── Usuário ───────────────────────────
 model User {
-  id           String   @id @default(cuid())
+  id           String        @id @default(cuid())
   name         String
-  email        String   @unique
+  email        String        @unique
   passwordHash String
-  role         Role     @default(CUSTOMER)
+  role         Role          @default(CUSTOMER)
+  /// Perfil operacional do staff. null (contas antigas) = OWNER, acesso total.
+  staffProfile StaffProfile?
   cpf          String?
   phone        String?
   // Unidade à qual um admin pertence. Null em clientes. Admin cuja unidade é
   // MATRIZ tem escopo "global" (vê/gere todas as unidades).
   pharmacyId   String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   addresses     Address[]
   orders        Order[]
@@ -87,7 +98,7 @@ model User {
   favorites     Favorite[]
   auditLogs     AuditLog[]
   subscriptions Subscription[]
-  pharmacy      Pharmacy? @relation(fields: [pharmacyId], references: [id])
+  pharmacy      Pharmacy?            @relation(fields: [pharmacyId], references: [id])
 
   @@index([role])
   @@index([pharmacyId])
@@ -155,6 +166,8 @@ model Product {
   sku                  String?  @unique
   ean                  String?
   price                Float
+  /// Custo de aquisição — base do CMV, da margem e da curva ABC por valor.
+  costPrice            Float?
   promoPrice           Float?
   requiresPrescription Boolean  @default(false)
   isGeneric            Boolean  @default(false)
@@ -168,14 +181,14 @@ model Product {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  category  Category       @relation(fields: [categoryId], references: [id])
-  brand     Brand?         @relation(fields: [brandId], references: [id])
-  images    ProductImage[]
-  cartItems CartItem[]
-  orderItems OrderItem[]
-  reviews   Review[]
-  favoritedBy Favorite[]
-  inventory Inventory[]
+  category      Category       @relation(fields: [categoryId], references: [id])
+  brand         Brand?         @relation(fields: [brandId], references: [id])
+  images        ProductImage[]
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+  reviews       Review[]
+  favoritedBy   Favorite[]
+  inventory     Inventory[]
   subscriptions Subscription[]
 
   @@index([categoryId])
@@ -229,33 +242,39 @@ model CartItem {
 
 // ─────────────────────────── Pedidos ───────────────────────────
 model Order {
-  id            String      @id @default(cuid())
-  number        String      @unique
-  userId        String
-  status        OrderStatus @default(PENDING)
-  requiresPrescription Boolean @default(false)
-  subtotal      Float
-  discount      Float       @default(0)
-  shipping      Float       @default(0)
-  total         Float
-  paymentMethod String?
-  couponCode    String?
-  addressId     String?
+  id                   String      @id @default(cuid())
+  number               String      @unique
+  userId               String
+  status               OrderStatus @default(PENDING)
+  requiresPrescription Boolean     @default(false)
+  subtotal             Float
+  discount             Float       @default(0)
+  shipping             Float       @default(0)
+  total                Float
+  paymentMethod        String?
+  couponCode           String?
+  addressId            String?
   // Unidade que atende o pedido (roteada por CEP, matriz como fallback).
   // Nullable só por compatibilidade com a migração; sempre populada na criação.
-  pharmacyId    String?
-  notes         String?     @db.Text
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  pharmacyId           String?
+  notes                String?     @db.Text
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
 
-  user          User                 @relation(fields: [userId], references: [id])
-  address       Address?             @relation(fields: [addressId], references: [id])
-  pharmacy      Pharmacy?            @relation(fields: [pharmacyId], references: [id])
+  user         User      @relation(fields: [userId], references: [id])
+  address      Address?  @relation(fields: [addressId], references: [id])
+  pharmacy     Pharmacy? @relation(fields: [pharmacyId], references: [id])
+  // Entrega: entregador designado e marcos de saída/entrega.
+  courierId    String?
+  dispatchedAt DateTime?
+  deliveredAt  DateTime?
+
   items         OrderItem[]
   payment       Payment?
   prescriptions Prescription[]
   loyaltyTx     LoyaltyTransaction[]
   orderExport   OrderExport?
+  courier       Courier?             @relation(fields: [courierId], references: [id])
 
   @@index([userId])
   @@index([status])
@@ -287,7 +306,8 @@ model Payment {
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order  Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  bankTx BankTransaction?
 }
 
 // ─────────────────────────── Receitas ───────────────────────────
@@ -382,42 +402,110 @@ model Setting {
 // Catálogo e preços são compartilhados (globais no Product). O que é por unidade:
 // estoque (Inventory), pedidos (Order.pharmacyId) e escopo do admin (User.pharmacyId).
 model Pharmacy {
-  id        String       @id @default(cuid())
-  name      String
-  slug      String       @unique
-  type      PharmacyType @default(FILIAL)
-  active    Boolean      @default(true)
-  zip       String?
-  street    String?
-  number    String?
-  district  String?
-  city      String?
-  state     String?
-  phone     String?
-  whatsapp  String?
-  hours     String?
+  id                   String       @id @default(cuid())
+  name                 String
+  slug                 String       @unique
+  type                 PharmacyType @default(FILIAL)
+  active               Boolean      @default(true)
+  zip                  String?
+  street               String?
+  number               String?
+  district             String?
+  city                 String?
+  state                String?
+  phone                String?
+  whatsapp             String?
+  hours                String?
   // Frete por unidade: override do frete global (Setting). null = usa o global.
-  shippingFlat    Float?
-  shippingFreeMin Float?
+  shippingFlat         Float?
+  shippingFreeMin      Float?
   // Dados regulatórios (ANVISA) por unidade: override do global. null = global.
-  cnpj           String?
-  pharmacistName String?
-  pharmacistCrf  String?
+  cnpj                 String?
+  pharmacistName       String?
+  pharmacistCrf        String?
   // Integração InovaFarma: hash SHA-256 do token do conector desta unidade.
   // O token em claro só é exibido uma vez, ao ser gerado no admin.
   integrationTokenHash String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
 
-  inventory Inventory[]
-  cepRanges PharmacyCepRange[]
-  orders    Order[]
-  users     User[]
-  carts     Cart[]
+  inventory    Inventory[]
+  cepRanges    PharmacyCepRange[]
+  orders       Order[]
+  users        User[]
+  carts        Cart[]
   orderExports OrderExport[]
   syncRuns     SyncRun[]
+  couriers     Courier[]
+  expenses     Expense[]
+  bankTx       BankTransaction[]
 
   @@index([type])
+}
+
+// ─────────────────────── Entregas ───────────────────────
+/// Entregador da unidade. O pedido recebe um entregador ao sair para entrega;
+/// o cliente acompanha pelo próprio número do pedido.
+model Courier {
+  id         String   @id @default(cuid())
+  name       String
+  phone      String?
+  active     Boolean  @default(true)
+  pharmacyId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  pharmacy Pharmacy? @relation(fields: [pharmacyId], references: [id])
+  orders   Order[]
+
+  @@index([pharmacyId, active])
+}
+
+// ─────────────────── Financeiro gerencial ───────────────────
+enum ExpenseCategory {
+  RENT
+  PAYROLL
+  SUPPLIER
+  MARKETING
+  TAX
+  UTILITIES
+  OTHER
+}
+
+/// Despesa da operação — entra no DRE (resultado) e no DFC (saída de caixa).
+model Expense {
+  id          String          @id @default(cuid())
+  pharmacyId  String?
+  category    ExpenseCategory @default(OTHER)
+  description String
+  amount      Float
+  paidAt      DateTime
+  createdAt   DateTime        @default(now())
+
+  pharmacy Pharmacy? @relation(fields: [pharmacyId], references: [id])
+
+  @@index([paidAt])
+  @@index([pharmacyId])
+}
+
+/// Lançamento do extrato bancário (importado por OFX/CSV). Quando casado com um
+/// Payment, a linha está CONCILIADA (paymentId preenchido).
+model BankTransaction {
+  id          String   @id @default(cuid())
+  pharmacyId  String?
+  date        DateTime
+  description String
+  amount      Float
+  /// Identificador do lançamento no extrato (FITID no OFX) — evita reimportar.
+  externalId  String?  @unique
+  paymentId   String?  @unique
+  createdAt   DateTime @default(now())
+
+  pharmacy Pharmacy? @relation(fields: [pharmacyId], references: [id])
+  payment  Payment?  @relation(fields: [paymentId], references: [id])
+
+  @@index([date])
+  @@index([pharmacyId])
 }
 
 // ─────────────────── Integração InovaFarma (PDV on-premise) ───────────────────
@@ -490,6 +578,9 @@ model Inventory {
   pharmacyId String
   stock      Int    @default(0)
   minStock   Int    @default(5)
+  /// Estoque máximo (nível de reposição). Base da sugestão de compra:
+  /// quando stock <= minStock, sugere comprar (maxStock - stock).
+  maxStock   Int?
 
   product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
