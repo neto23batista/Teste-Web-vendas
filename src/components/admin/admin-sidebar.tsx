@@ -87,7 +87,9 @@ export function AdminSidebar({
           </div>
         </div>
 
-        <nav className="no-scrollbar flex gap-2 overflow-x-auto p-3 lg:flex-1 lg:flex-col lg:overflow-visible lg:px-3 lg:py-2">
+        {/* No desktop a sidebar é fixa: o menu rola por conta própria (min-h-0
+            libera o flex-1 para encolher) e o rodapé Ver loja/Sair fica visível. */}
+        <nav className="no-scrollbar flex gap-2 overflow-x-auto p-3 lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:px-3 lg:py-2">
           {visibleItems.map(({ href, label, icon: Icon, exact }) => {
             const active = exact ? pathname === href : pathname.startsWith(href);
             const count = badges?.[href] ?? 0;
