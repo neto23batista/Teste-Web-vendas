@@ -83,12 +83,14 @@ export function OrderChime() {
       osc.type = "sine";
       osc.frequency.value = freq;
       const t = now + at;
+      // 0.9 de pico (balcão barulhento); os tons quase não se sobrepõem na
+      // decaída exponencial, então a soma fica < 1 e não distorce.
       gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+      gain.gain.exponentialRampToValueAtTime(0.9, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
       osc.connect(gain).connect(ctx.destination);
       osc.start(t);
-      osc.stop(t + 0.38);
+      osc.stop(t + 0.65);
     });
   }, [ensureAudio]);
 
