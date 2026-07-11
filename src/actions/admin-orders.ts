@@ -8,7 +8,7 @@ import { notifyUnit } from "@/lib/notifications";
 import { orderStatusEmail, orderIncomingTransferEmail } from "@/lib/email-templates";
 import { cancelOrder, transferOrder } from "@/lib/orders";
 import { logAudit } from "@/lib/audit";
-import type { OrderStatus } from "@prisma/client";
+import { Prisma, type OrderStatus } from "@prisma/client";
 
 // Status que representam o pedido seguindo para preparo/entrega. Itens com
 // receita só podem chegar aqui após a validação farmacêutica.
@@ -16,6 +16,9 @@ const RX_BLOCKED: OrderStatus[] = ["PREPARING", "SHIPPED", "DELIVERED"];
 
 // Estados em que ainda faz sentido reatribuir o pedido a outra unidade.
 const TRANSFERABLE: OrderStatus[] = ["PENDING", "PAID", "PREPARING"];
+
+// Só pedidos ENCERRADOS podem ser excluídos definitivamente (ver deleteOrder).
+const DELETABLE: OrderStatus[] = ["CANCELED", "DELIVERED"];
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
   PENDING: "Aguardando pagamento",
@@ -150,20 +153,58 @@ export async function transferOrderToUnit(orderId: string, targetPharmacyId: str
 
 /**
  * Exclui um pedido PERMANENTEMENTE. A remoção cascateia para itens, pagamento e
- * exportação; receitas, pontos de fidelidade e lançamento bancário ficam com o
- * vínculo nulo (histórico preservado). NÃO estorna pagamento nem devolve estoque
- * — é remoção de registro, não cancelamento (para isso use "Cancelar").
- * Restrito ao DONO/GERENTE.
+ * exportação; receitas e pontos de fidelidade ficam com o vínculo nulo (histórico
+ * preservado). NÃO estorna pagamento nem devolve estoque — é remoção de registro,
+ * não cancelamento (para isso use "Cancelar"). Restrito ao DONO/GERENTE e apenas
+ * para pedidos JÁ ENCERRADOS e sem pagamento conciliado no extrato.
  */
 export async function deleteOrder(id: string) {
   await assertOwner();
   const order = await prisma.order.findUnique({
     where: { id },
-    select: { number: true, pharmacyId: true },
+    select: {
+      number: true,
+      pharmacyId: true,
+      status: true,
+      payment: { select: { bankTx: { select: { id: true } } } },
+    },
   });
   if (!order) return { ok: false as const, error: "Pedido não encontrado." };
 
-  await prisma.order.delete({ where: { id } });
+  // OWNER de filial só apaga pedido da própria unidade; matriz apaga qualquer um.
+  if (order.pharmacyId) await requireAdminAtPharmacy(order.pharmacyId);
+
+  // Só pedidos encerrados. Bloqueia excluir um PENDING cujo PIX ainda é pagável
+  // (o webhook não teria pedido para casar → pagamento entraria sem registro) e
+  // pedidos com dinheiro/estoque em jogo — para esses, o caminho é "Cancelar",
+  // que estorna e devolve o estoque.
+  if (!DELETABLE.includes(order.status)) {
+    return {
+      ok: false as const,
+      error:
+        "Só é possível excluir pedidos cancelados ou entregues. Cancele o pedido antes de excluir.",
+    };
+  }
+
+  // Pagamento já conciliado no extrato: apagar desfaria a conciliação
+  // (BankTransaction.paymentId → null) e distorceria o financeiro.
+  if (order.payment?.bankTx) {
+    return {
+      ok: false as const,
+      error:
+        "Este pedido tem pagamento conciliado no extrato. Desfaça a conciliação em Financeiro antes de excluir.",
+    };
+  }
+
+  try {
+    await prisma.order.delete({ where: { id } });
+  } catch (e) {
+    // Corrida: outro admin/aba já apagou (P2025) — trata como já-excluído.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
+      return { ok: false as const, error: "Pedido não encontrado." };
+    }
+    throw e;
+  }
 
   await logAudit({
     action: "order.delete",

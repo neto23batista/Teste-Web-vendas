@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronRight, Download, Search } from "lucide-react";
 import { getAdminOrders } from "@/lib/admin";
 import { getCurrentUser } from "@/lib/session";
-import { effectiveProfile } from "@/lib/permissions";
+import { isOwnerProfile } from "@/lib/permissions";
 import { formatBRL, cn } from "@/lib/utils";
 import { StatusBadge, STATUS_META } from "@/components/store/order-status";
 import { Pagination } from "@/components/admin/pagination";
@@ -31,7 +31,7 @@ export default async function AdminOrdersPage({
     getCurrentUser(),
   ]);
   // Só o dono/gerente vê o atalho de excluir pedidos direto na lista.
-  const isOwner = effectiveProfile(user?.staffProfile) === "OWNER";
+  const isOwner = isOwnerProfile(user?.staffProfile);
 
   // Links das abas de status preservam busca e período.
   const statusHref = (f: OrderStatus | "ALL") => {

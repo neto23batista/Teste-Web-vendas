@@ -309,27 +309,22 @@ export async function getAdminOrders(
     if (!Number.isNaN(d.getTime())) createdAt.lte = d;
   }
   if (createdAt.gte || createdAt.lte) where.createdAt = createdAt;
-  const current = Math.max(1, page);
-  const [items, total] = await Promise.all([
-    prisma.order.findMany({
-      where,
-      include: {
-        user: { select: { name: true, email: true } },
-        pharmacy: { select: { name: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      skip: (current - 1) * ADMIN_PER_PAGE,
-      take: ADMIN_PER_PAGE,
-    }),
-    prisma.order.count({ where }),
-  ]);
-  return {
-    items,
-    total,
-    page: current,
-    perPage: ADMIN_PER_PAGE,
-    pages: Math.max(1, Math.ceil(total / ADMIN_PER_PAGE)),
-  };
+  // Conta primeiro para clampar a página ao teto real: excluir o último pedido
+  // de uma página deixaria o admin numa ?page fora de faixa (tabela vazia).
+  const total = await prisma.order.count({ where });
+  const pages = Math.max(1, Math.ceil(total / ADMIN_PER_PAGE));
+  const current = Math.min(Math.max(1, page), pages);
+  const items = await prisma.order.findMany({
+    where,
+    include: {
+      user: { select: { name: true, email: true } },
+      pharmacy: { select: { name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    skip: (current - 1) * ADMIN_PER_PAGE,
+    take: ADMIN_PER_PAGE,
+  });
+  return { items, total, page: current, perPage: ADMIN_PER_PAGE, pages };
 }
 
 export async function getAdminCustomers(q?: string, page = 1) {

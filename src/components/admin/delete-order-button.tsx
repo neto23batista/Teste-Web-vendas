@@ -3,8 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Trash2 } from "lucide-react";
-import { toast } from "sonner";
 import { deleteOrder } from "@/actions/admin-orders";
+import { useConfirmAction } from "@/components/use-confirm-action";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -28,38 +28,28 @@ export function DeleteOrderButton({
   className?: string;
 }) {
   const router = useRouter();
-  const [pending, start] = React.useTransition();
+  const { pending, trigger } = useConfirmAction({
+    confirmMessage:
+      `Excluir o pedido ${orderNumber} permanentemente?\n\n` +
+      "O registro será apagado e não poderá ser recuperado. Isto NÃO estorna " +
+      "pagamento nem devolve estoque — para isso, cancele o pedido.",
+    action: () => deleteOrder(orderId),
+    successMessage: `Pedido ${orderNumber} excluído.`,
+    onSuccess: () => (redirectToList ? router.push("/admin/pedidos") : router.refresh()),
+    errorFallback: "Não foi possível excluir o pedido.",
+  });
 
-  function handleDelete(e: React.MouseEvent) {
-    // Nas linhas da lista o botão pode estar sobre áreas clicáveis — não propaga.
-    e.preventDefault();
-    e.stopPropagation();
-    if (
-      !window.confirm(
-        `Excluir o pedido ${orderNumber} permanentemente?\n\n` +
-          "O registro será apagado e não poderá ser recuperado. Isto NÃO " +
-          "estorna pagamento nem devolve estoque — para isso, cancele o pedido."
-      )
-    ) {
-      return;
-    }
-    start(async () => {
-      const res = await deleteOrder(orderId);
-      if (res.ok) {
-        toast.success(`Pedido ${orderNumber} excluído.`);
-        if (redirectToList) router.push("/admin/pedidos");
-        else router.refresh();
-      } else {
-        toast.error(res.error ?? "Não foi possível excluir o pedido.");
-      }
-    });
-  }
+  const icon = pending ? (
+    <Loader2 className={cn(compact ? "size-4" : "size-5", "animate-spin")} />
+  ) : (
+    <Trash2 className={compact ? "size-4" : "size-5"} />
+  );
 
   if (compact) {
     return (
       <button
         type="button"
-        onClick={handleDelete}
+        onClick={trigger}
         disabled={pending}
         aria-label={`Excluir pedido ${orderNumber}`}
         title="Excluir pedido"
@@ -68,28 +58,20 @@ export function DeleteOrderButton({
           className
         )}
       >
-        {pending ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          <Trash2 className="size-4" />
-        )}
+        {icon}
       </button>
     );
   }
 
   return (
     <Button
-      onClick={handleDelete}
+      onClick={trigger}
       variant="outline"
       size="lg"
       disabled={pending}
       className={cn("w-full text-danger-500 hover:bg-danger-500/10", className)}
     >
-      {pending ? (
-        <Loader2 className="size-5 animate-spin" />
-      ) : (
-        <Trash2 className="size-5" />
-      )}
+      {icon}
       Excluir pedido
     </Button>
   );

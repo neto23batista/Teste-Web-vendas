@@ -32,6 +32,11 @@ import { ReorderButton } from "@/components/store/reorder-button";
 
 export const metadata: Metadata = { title: "Pedido" };
 
+// Fora do componente: Date.now() é impuro para a regra de pureza do compiler.
+function isExpired(iso: string | null): boolean {
+  return !!iso && new Date(iso).getTime() < Date.now();
+}
+
 export default async function OrderPage({
   params,
 }: {
@@ -64,12 +69,17 @@ export default async function OrderPage({
     order.status === "PENDING" && order.paymentMethod !== "cash";
   // PIX nativo: QR + copia-e-cola gerados no checkout e persistidos no pagamento.
   const pixData = readPixRaw(order.payment?.raw);
-  const showPix = awaitingPayment && order.paymentMethod === "pix" && !!pixData;
+  // O QR do PagBank expira em ~24h; passado isso não adianta exibir (o banco
+  // recusa "QR expirado") — cai no aviso de "aguardando confirmação".
+  const pixExpired = isExpired(pixData?.expiresAt ?? null);
+  const pix =
+    awaitingPayment && order.paymentMethod === "pix" && !pixExpired
+      ? pixData
+      : null;
   // Garante o QR mesmo em pedidos antigos sem imagem salva: gera do copia-e-cola.
-  const pixQrBase64 =
-    showPix && pixData
-      ? pixData.qrCodeBase64 || (await qrPngBase64(pixData.qrCode))
-      : "";
+  const pixQrBase64 = pix
+    ? pix.qrCodeBase64 || (await qrPngBase64(pix.qrCode))
+    : "";
   // O cliente ainda pode cancelar enquanto o pedido não saiu para entrega.
   const canCancel =
     order.status === "PENDING" ||
@@ -90,7 +100,7 @@ export default async function OrderPage({
   // com o próprio poller na tela), a página se atualiza sozinha quando o
   // admin avança o status ou valida a receita — sem o cliente recarregar.
   const live =
-    order.status !== "DELIVERED" && order.status !== "CANCELED" && !showPix;
+    order.status !== "DELIVERED" && order.status !== "CANCELED" && !pix;
 
   return (
     <div className="container-page max-w-4xl py-6 md:py-10">
@@ -125,11 +135,11 @@ export default async function OrderPage({
       </div>
 
       {/* Pagamento pendente */}
-      {showPix && pixData ? (
+      {pix ? (
         <PixPayment
           orderNumber={order.number}
           amount={order.total}
-          qrCode={pixData.qrCode}
+          qrCode={pix.qrCode}
           qrCodeBase64={pixQrBase64}
         />
       ) : awaitingPayment ? (

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { canAccess, effectiveProfile, type Area } from "@/lib/permissions";
+import { canAccess, isOwnerProfile, type Area } from "@/lib/permissions";
 
 export async function getCurrentUser() {
   const session = await auth();
@@ -46,7 +46,7 @@ export async function assertArea(area: Area) {
  */
 export async function assertOwner() {
   const user = await requireAdmin();
-  if (effectiveProfile(user.staffProfile) !== "OWNER") {
+  if (!isOwnerProfile(user.staffProfile)) {
     throw new Error("Apenas o dono/gerente pode executar esta ação.");
   }
   return user;

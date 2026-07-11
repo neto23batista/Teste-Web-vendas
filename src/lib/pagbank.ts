@@ -72,7 +72,6 @@ type PagbankQrCode = {
   id?: string;
   text?: string;
   expiration_date?: string;
-  links?: { rel?: string; href?: string; media?: string }[];
 };
 
 type PagbankCharge = {
@@ -89,8 +88,9 @@ type PagbankOrder = {
 };
 
 /**
- * Cria um pedido PagBank com QR Code PIX. A imagem PNG do QR é baixada aqui
- * (server-side) e persistida em base64 — o front não fala com o PagBank.
+ * Cria um pedido PagBank com QR Code PIX. O copia-e-cola (EMV) vem da API e o
+ * PNG do QR é gerado localmente a partir dele (ver `qrPngBase64`) e persistido
+ * em base64 — o front não fala com o PagBank.
  * Retorna null se não configurado ou se a API recusar (ex.: cliente sem CPF).
  */
 export async function createPixPayment(opts: {

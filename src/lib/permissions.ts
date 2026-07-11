@@ -31,6 +31,11 @@ export function effectiveProfile(p: StaffProfile | null | undefined): StaffProfi
   return p ?? "OWNER";
 }
 
+/** Dono/gerente? `staffProfile = null` (legado) conta como OWNER. */
+export function isOwnerProfile(p: StaffProfile | null | undefined): boolean {
+  return effectiveProfile(p) === "OWNER";
+}
+
 /**
  * Áreas por perfil. OWNER não aparece aqui: tem acesso a tudo.
  * - PHARMACIST: cuida da validação farmacêutica e do atendimento clínico.

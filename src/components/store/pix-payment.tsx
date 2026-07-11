@@ -41,6 +41,13 @@ export function PixPayment({
         const res = await fetch(`/api/orders/${orderNumber}/status`, {
           cache: "no-store",
         });
+        // Pedido sumiu (ex.: admin excluiu): para o poll e recarrega — a página
+        // cai no notFound em vez de ficar presa em "aguardando pagamento".
+        if (res.status === 404) {
+          clearInterval(id);
+          router.refresh();
+          return;
+        }
         if (!res.ok) return;
         const data = (await res.json()) as { status?: string };
         if (active && data.status && data.status !== "PENDING") {

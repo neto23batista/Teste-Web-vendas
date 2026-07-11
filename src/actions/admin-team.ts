@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import type { StaffProfile } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { assertArea } from "@/lib/session";
+import { isOwnerProfile } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 
 const PROFILES: StaffProfile[] = ["OWNER", "PHARMACIST", "STOCKIST", "ATTENDANT"];
@@ -79,8 +80,7 @@ export async function updateStaffProfile(
     const owners = await prisma.user.count({
       where: { role: "ADMIN", OR: [{ staffProfile: "OWNER" }, { staffProfile: null }] },
     });
-    const targetIsOwner = target.staffProfile === "OWNER" || target.staffProfile === null;
-    if (targetIsOwner && owners <= 1) {
+    if (isOwnerProfile(target.staffProfile) && owners <= 1) {
       return { ok: false, error: "É preciso manter ao menos um Dono / Gerente." };
     }
   }
@@ -115,8 +115,7 @@ export async function revokeStaff(
   const owners = await prisma.user.count({
     where: { role: "ADMIN", OR: [{ staffProfile: "OWNER" }, { staffProfile: null }] },
   });
-  const targetIsOwner = target.staffProfile === "OWNER" || target.staffProfile === null;
-  if (targetIsOwner && owners <= 1) {
+  if (isOwnerProfile(target.staffProfile) && owners <= 1) {
     return { ok: false, error: "É preciso manter ao menos um Dono / Gerente." };
   }
 

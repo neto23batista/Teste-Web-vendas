@@ -15,13 +15,8 @@ import QRCode from "qrcode";
 export async function qrPngBase64(text: string): Promise<string> {
   if (!text) return "";
   try {
-    const buf = await QRCode.toBuffer(text, {
-      type: "png",
-      errorCorrectionLevel: "M",
-      margin: 1,
-      width: 512,
-      color: { dark: "#000000", light: "#ffffff" },
-    });
+    // Só margin e width divergem dos defaults da lib (PNG, nível M, preto/branco).
+    const buf = await QRCode.toBuffer(text, { margin: 1, width: 512 });
     return buf.toString("base64");
   } catch {
     // sem QR, o copia-e-cola continua funcionando

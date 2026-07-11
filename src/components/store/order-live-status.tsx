@@ -33,6 +33,12 @@ export function OrderLiveStatus({
         const res = await fetch(`/api/orders/${orderNumber}/status`, {
           cache: "no-store",
         });
+        // Pedido removido (ex.: admin excluiu) → para o poll e recarrega.
+        if (res.status === 404) {
+          stop();
+          router.refresh();
+          return;
+        }
         if (!res.ok) return;
         const data = (await res.json()) as {
           status?: string;

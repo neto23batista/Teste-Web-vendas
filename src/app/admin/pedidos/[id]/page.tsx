@@ -5,7 +5,7 @@ import { getAdminOrder } from "@/lib/admin";
 import { getStoreSettings } from "@/lib/settings";
 import { listPharmaciesSafe } from "@/lib/pharmacy";
 import { getCurrentUser } from "@/lib/session";
-import { effectiveProfile } from "@/lib/permissions";
+import { isOwnerProfile } from "@/lib/permissions";
 import { formatBRL } from "@/lib/utils";
 import { StatusBadge } from "@/components/store/order-status";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
@@ -32,7 +32,7 @@ export default async function AdminOrderDetail({
   ]);
   if (!order) notFound();
   // Excluir definitivamente é ação do dono/gerente (OWNER).
-  const isOwner = effectiveProfile(user?.staffProfile) === "OWNER";
+  const isOwner = isOwnerProfile(user?.staffProfile);
 
   // Transferência: só faz sentido enquanto a unidade ainda trata o pedido.
   const canTransfer =
