@@ -32,6 +32,19 @@ function setEnabledPersist(on: boolean) {
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
+// Curva de saturação suave (tanh) p/ o soft-clipper: deixa o som ALTO
+// "empurrando" o sinal, mas os picos saturam de forma macia — nunca passam de
+// ±1 (sem o clipping áspero de um ganho simples). drive maior = mais alto/grave.
+function makeSoftClipCurve(drive: number): Float32Array<ArrayBuffer> {
+  const n = 1024;
+  const curve = new Float32Array(new ArrayBuffer(n * 4));
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 2 - 1;
+    curve[i] = Math.tanh(drive * x);
+  }
+  return curve;
+}
+
 /**
  * Som de "pedido novo" no painel (estilo iFood): sino no cabeçalho que, quando
  * ligado, consulta a cada 15s quantos pedidos há a processar e — se chegou um
@@ -51,11 +64,12 @@ export function OrderChime() {
   const [ringing, setRinging] = React.useState(false);
 
   const audioRef = React.useRef<AudioContext | null>(null);
+  const busRef = React.useRef<AudioNode | null>(null);
   const prevSignal = React.useRef<OrderSignal | null>(null);
   const ringingRef = React.useRef(false);
   const ringStartCount = React.useRef(0);
 
-  // ── Áudio: dois tons (ding-dong) com envelope p/ não estalar ──────────
+  // ── Áudio: jingle "novo pedido" estilo iFood, em VOLUME ALTO ──────────
   const ensureAudio = React.useCallback((): AudioContext | null => {
     if (typeof window === "undefined") return null;
     if (!audioRef.current) {
@@ -64,34 +78,59 @@ export function OrderChime() {
         (window as unknown as { webkitAudioContext?: typeof AudioContext })
           .webkitAudioContext;
       if (!Ctx) return null;
-      audioRef.current = new Ctx();
+      const ctx = new Ctx();
+      // Barramento p/ ficar ALTO sem estourar: notas → soft-clipper (tanh) →
+      // saída. O drive alto (3.0) deixa o alerta ~2× mais alto que o antigo,
+      // saturando os picos de forma macia (nunca ultrapassa ±1 = sem clipping).
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = makeSoftClipCurve(3);
+      shaper.oversample = "2x";
+      shaper.connect(ctx.destination);
+      audioRef.current = ctx;
+      busRef.current = shaper;
     }
     return audioRef.current;
   }, []);
 
   const playChime = React.useCallback(() => {
     const ctx = ensureAudio();
-    if (!ctx) return;
+    const bus = busRef.current;
+    if (!ctx || !bus) return;
     if (ctx.state === "suspended") void ctx.resume();
     const now = ctx.currentTime;
-    [
-      { freq: 987.77, at: 0 }, // B5
-      { freq: 1318.51, at: 0.18 }, // E6
-    ].forEach(({ freq, at }) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      const t = now + at;
-      // 0.9 de pico (balcão barulhento); os tons quase não se sobrepõem na
-      // decaída exponencial, então a soma fica < 1 e não distorce.
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.9, t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(t);
-      osc.stop(t + 0.65);
-    });
+
+    // Jingle no estilo iFood: arpejo maior brilhante subindo (C-E-G-C) com a
+    // batidinha dupla no fim. Notas percussivas (ataque rápido + decaída curta)
+    // dão o timbre alegre de marimba/sino, chamativo num balcão movimentado.
+    const NOTES = [
+      { f: 1046.5, t: 0.0 }, // C6
+      { f: 1318.51, t: 0.1 }, // E6
+      { f: 1567.98, t: 0.2 }, // G6
+      { f: 2093.0, t: 0.32 }, // C7
+      { f: 1567.98, t: 0.46 }, // G6
+      { f: 2093.0, t: 0.56 }, // C7 (resolve no agudo)
+    ];
+    const PEAK = 0.9;
+    for (const { f, t } of NOTES) {
+      const at = now + t;
+      // Fundamental (triangle) + 1 harmônico (sine) p/ o brilho de sino/marimba.
+      const partials: { freq: number; amp: number; type: OscillatorType }[] = [
+        { freq: f, amp: PEAK, type: "triangle" },
+        { freq: f * 2, amp: PEAK * 0.25, type: "sine" },
+      ];
+      for (const { freq, amp, type } of partials) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, at);
+        gain.gain.exponentialRampToValueAtTime(amp, at + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.3);
+        osc.connect(gain).connect(bus);
+        osc.start(at);
+        osc.stop(at + 0.34);
+      }
+    }
   }, [ensureAudio]);
 
   const stopRinging = React.useCallback(() => {
