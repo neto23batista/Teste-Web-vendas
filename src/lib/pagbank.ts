@@ -7,26 +7,39 @@
  *   PagBank (link "PAY"); o cliente volta pela `redirect_url`.
  * - Reembolso: POST /charges/{id}/cancel (total), no cancelamento de pedido pago.
  *
- * Tudo é best-effort: sem PAGBANK_TOKEN ou com falha na API, as funções
- * retornam null/false e o checkout cai no fluxo de "aguardando pagamento".
+ * Credenciais: o token salvo em /admin/configuracoes (tabela Setting) tem
+ * prioridade; sem ele, vale a env PAGBANK_TOKEN — ver getPaymentSettings().
+ * Tudo é best-effort: sem token ou com falha na API, as funções retornam
+ * null/false e o checkout cai no fluxo de "aguardando pagamento".
  * Valores monetários na API são em CENTAVOS (inteiro).
  */
 
+import { getPaymentSettings } from "@/lib/settings";
+
 const toCents = (v: number) => Math.round(v * 100);
 
-export function pagbankConfigured(): boolean {
-  return !!process.env.PAGBANK_TOKEN;
+type PagbankCfg = { token: string; sandbox: boolean };
+
+async function getCfg(): Promise<PagbankCfg | null> {
+  const { pagbankToken, pagbankSandbox } = await getPaymentSettings();
+  return pagbankToken
+    ? { token: pagbankToken, sandbox: pagbankSandbox }
+    : null;
 }
 
-function apiBase(): string {
-  return process.env.PAGBANK_SANDBOX === "1"
+export async function pagbankConfigured(): Promise<boolean> {
+  return !!(await getCfg());
+}
+
+function apiBase(cfg: PagbankCfg): string {
+  return cfg.sandbox
     ? "https://sandbox.api.pagseguro.com"
     : "https://api.pagseguro.com";
 }
 
-function authHeaders(): Record<string, string> {
+function authHeaders(cfg: PagbankCfg): Record<string, string> {
   return {
-    Authorization: `Bearer ${process.env.PAGBANK_TOKEN!}`,
+    Authorization: `Bearer ${cfg.token}`,
     "Content-Type": "application/json",
   };
 }
@@ -87,14 +100,15 @@ export async function createPixPayment(opts: {
   payerTaxId?: string | null; // CPF (o PagBank exige para PIX)
   description?: string;
 }): Promise<PixCharge | null> {
-  if (!pagbankConfigured() || opts.amount <= 0 || !opts.payerEmail) return null;
+  const cfg = await getCfg();
+  if (!cfg || opts.amount <= 0 || !opts.payerEmail) return null;
 
   try {
     // Sem expiração explícita: o QR segue a validade padrão do PagBank (24h).
-    const res = await fetch(`${apiBase()}/orders`, {
+    const res = await fetch(`${apiBase(cfg)}/orders`, {
       method: "POST",
       headers: {
-        ...authHeaders(),
+        ...authHeaders(cfg),
         // Idempotência: reenvio do mesmo pedido não gera cobrança duplicada.
         "x-idempotency-key": `pix-${opts.orderNumber}`,
       },
@@ -134,7 +148,7 @@ export async function createPixPayment(opts: {
     )?.href;
     if (pngLink) {
       try {
-        const png = await fetch(pngLink, { headers: authHeaders() });
+        const png = await fetch(pngLink, { headers: authHeaders(cfg) });
         if (png.ok) {
           qrCodeBase64 = Buffer.from(await png.arrayBuffer()).toString("base64");
         }
@@ -185,14 +199,15 @@ export async function createHostedCheckout(opts: {
   customerEmail?: string | null;
   customerName?: string | null;
 }): Promise<string | null> {
-  if (!pagbankConfigured()) return null;
+  const cfg = await getCfg();
+  if (!cfg) return null;
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
   try {
-    const res = await fetch(`${apiBase()}/checkouts`, {
+    const res = await fetch(`${apiBase(cfg)}/checkouts`, {
       method: "POST",
       headers: {
-        ...authHeaders(),
+        ...authHeaders(cfg),
         "x-idempotency-key": `checkout-${opts.orderNumber}`,
       },
       body: JSON.stringify({
@@ -259,11 +274,12 @@ export type PagbankOrderStatus = {
 export async function getPaymentStatus(
   pagbankId: string
 ): Promise<PagbankOrderStatus | null> {
-  if (!pagbankConfigured() || !pagbankId) return null;
+  const cfg = await getCfg();
+  if (!cfg || !pagbankId) return null;
   try {
     if (pagbankId.startsWith("CHAR_")) {
-      const res = await fetch(`${apiBase()}/charges/${pagbankId}`, {
-        headers: authHeaders(),
+      const res = await fetch(`${apiBase(cfg)}/charges/${pagbankId}`, {
+        headers: authHeaders(cfg),
       });
       if (!res.ok) return null;
       const charge = (await res.json()) as PagbankCharge & {
@@ -276,8 +292,8 @@ export async function getPaymentStatus(
         paidChargeId: paid && charge.id ? charge.id : null,
       };
     }
-    const res = await fetch(`${apiBase()}/orders/${pagbankId}`, {
-      headers: authHeaders(),
+    const res = await fetch(`${apiBase(cfg)}/orders/${pagbankId}`, {
+      headers: authHeaders(cfg),
     });
     if (!res.ok) return null;
     const order = (await res.json()) as PagbankOrder;
@@ -299,7 +315,8 @@ export async function getPaymentStatus(
  * Best-effort: nunca lança — falha aqui não bloqueia o cancelamento do pedido.
  */
 export async function refundPayment(externalId: string): Promise<boolean> {
-  if (!pagbankConfigured() || !externalId) return false;
+  const cfg = await getCfg();
+  if (!cfg || !externalId) return false;
 
   try {
     let chargeId = externalId;
@@ -311,8 +328,8 @@ export async function refundPayment(externalId: string): Promise<boolean> {
       chargeId = status.paidChargeId;
     }
     {
-      const res = await fetch(`${apiBase()}/charges/${chargeId}`, {
-        headers: authHeaders(),
+      const res = await fetch(`${apiBase(cfg)}/charges/${chargeId}`, {
+        headers: authHeaders(cfg),
       });
       if (!res.ok) return false;
       const charge = (await res.json()) as PagbankCharge;
@@ -320,10 +337,10 @@ export async function refundPayment(externalId: string): Promise<boolean> {
     }
     if (!amountCents) return false;
 
-    const res = await fetch(`${apiBase()}/charges/${chargeId}/cancel`, {
+    const res = await fetch(`${apiBase(cfg)}/charges/${chargeId}/cancel`, {
       method: "POST",
       headers: {
-        ...authHeaders(),
+        ...authHeaders(cfg),
         "x-idempotency-key": `refund-${chargeId}`,
       },
       body: JSON.stringify({ amount: { value: amountCents } }),

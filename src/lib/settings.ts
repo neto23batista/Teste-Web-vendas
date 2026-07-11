@@ -61,6 +61,31 @@ export async function getStoreSettings(): Promise<StoreSettings> {
   };
 }
 
+export type PaymentSettings = {
+  pagbankToken: string;
+  pagbankSandbox: boolean;
+};
+
+/**
+ * Credenciais de pagamento (PagBank). O token salvo em /admin/configuracoes
+ * tem prioridade; sem ele, cai na variável de ambiente PAGBANK_TOKEN.
+ * Propositalmente FORA de StoreSettings: só o servidor e a tela de
+ * configurações do admin podem ver o token.
+ */
+export async function getPaymentSettings(): Promise<PaymentSettings> {
+  const s = await getRawSettings().catch(
+    () => ({}) as Record<string, string>
+  );
+  const dbToken = (s["pagbank.token"] ?? "").trim();
+  return {
+    pagbankToken: dbToken || process.env.PAGBANK_TOKEN || "",
+    pagbankSandbox:
+      "pagbank.sandbox" in s
+        ? s["pagbank.sandbox"] === "1"
+        : process.env.PAGBANK_SANDBOX === "1",
+  };
+}
+
 export type RegulatoryInfo = {
   cnpj: string;
   pharmacistName: string;

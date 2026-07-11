@@ -34,6 +34,11 @@ export async function saveSettings(
     return { error: "Valor de frete grátis inválido. Use números, ex.: 150." };
   }
 
+  // Token PagBank: o campo enviar "•••" (máscara) significa "não mexer" — o
+  // valor real nunca chega ao cliente, então não sobrescrevemos com a máscara.
+  const pagbankTokenRaw = str(formData, "pagbankToken");
+  const keepPagbankToken = pagbankTokenRaw === "" || /^•+$/.test(pagbankTokenRaw);
+
   // Valor vazio remove a configuração (volta ao padrão do sistema).
   const entries: { key: string; value: string }[] = [
     { key: "shipping.flat", value: flat === null ? "" : String(flat) },
@@ -46,6 +51,11 @@ export async function saveSettings(
     { key: "store.hours", value: str(formData, "hours") },
     { key: "store.pharmacistName", value: str(formData, "pharmacistName") },
     { key: "store.pharmacistCrf", value: str(formData, "pharmacistCrf") },
+    { key: "pagbank.sandbox", value: formData.get("pagbankSandbox") ? "1" : "0" },
+    // Só entra na lista de upserts/deletes se o admin realmente digitou algo.
+    ...(keepPagbankToken
+      ? []
+      : [{ key: "pagbank.token", value: pagbankTokenRaw }]),
   ];
 
   await prisma.$transaction(

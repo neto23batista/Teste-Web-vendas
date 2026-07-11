@@ -288,7 +288,7 @@ export async function placeOrder(
     }
     redirect(`/pedido/${order.number}`);
   }
-  if (pagbankConfigured()) {
+  if (await pagbankConfigured()) {
     // PIX nativo: gera o QR/copia-e-cola e mostra na própria página do pedido
     // (sem sair do site). O webhook confirma a aprovação.
     if (paymentMethod === "pix") {

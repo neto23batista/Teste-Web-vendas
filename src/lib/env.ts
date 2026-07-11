@@ -23,7 +23,9 @@ export function assertEnv(): void {
       warn.push("NEXT_PUBLIC_BASE_URL deveria usar https://");
     }
     if (!process.env.PAGBANK_TOKEN) {
-      warn.push("PAGBANK_TOKEN ausente (pagamentos online desativados)");
+      warn.push(
+        "PAGBANK_TOKEN ausente no ambiente (ok se o token estiver salvo em /admin/configuracoes; senão, pagamentos online ficam desativados)"
+      );
     }
     if (!process.env.RESEND_API_KEY || !process.env.MAIL_FROM) {
       warn.push("RESEND_API_KEY/MAIL_FROM ausentes (e-mails transacionais desativados)");

@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: NextRequest) {
   try {
-    if (!pagbankConfigured()) return NextResponse.json({ received: true });
+    if (!(await pagbankConfigured())) return NextResponse.json({ received: true });
 
     const body = (await req.json().catch(() => null)) as Record<
       string,

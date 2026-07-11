@@ -1,4 +1,4 @@
-import { getStoreSettings } from "@/lib/settings";
+import { getStoreSettings, getPaymentSettings } from "@/lib/settings";
 import { getAdminScope, getCurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { SettingsForm } from "@/components/admin/settings-form";
@@ -7,11 +7,17 @@ import { PharmaciesManager } from "@/components/admin/pharmacies-manager";
 export const metadata = { title: "Configurações" };
 
 export default async function AdminSettingsPage() {
-  const [settings, scope, user] = await Promise.all([
+  const [settings, payment, scope, user] = await Promise.all([
     getStoreSettings(),
+    getPaymentSettings(),
     getAdminScope(),
     getCurrentUser(),
   ]);
+  // O token nunca vai para o cliente — só se existe e se está em sandbox.
+  const paymentView = {
+    hasToken: payment.pagbankToken.length > 0,
+    sandbox: payment.pagbankSandbox,
+  };
 
   // Gestão de unidades só para a matriz (escopo global).
   const [units, admins] = scope.isGlobal
@@ -56,7 +62,7 @@ export default async function AdminSettingsPage() {
           currentUserId={user?.id ?? ""}
         />
       )}
-      <SettingsForm settings={settings} />
+      <SettingsForm settings={settings} payment={paymentView} />
     </div>
   );
 }
