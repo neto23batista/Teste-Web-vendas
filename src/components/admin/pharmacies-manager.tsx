@@ -19,7 +19,7 @@ import {
 } from "@/actions/admin-pharmacies";
 import type { PharmacyType } from "@prisma/client";
 
-type RangeView = { id: string; start: number; end: number };
+type RangeView = { id: string; start: number; end: number; km: number | null };
 type UnitView = {
   id: string;
   name: string;
@@ -155,6 +155,9 @@ export function PharmaciesManager({
                     >
                       <MapPin className="size-3 text-brand-600 dark:text-brand-400" />
                       {fmtCep(r.start)} – {fmtCep(r.end)}
+                      {r.km != null && (
+                        <span className="text-muted-foreground">· {r.km} km</span>
+                      )}
                       <button
                         type="button"
                         disabled={pending}
@@ -267,15 +270,17 @@ function AddRangeForm({
 }) {
   const [from, setFrom] = React.useState("");
   const [to, setTo] = React.useState("");
+  const [km, setKm] = React.useState("");
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
         onAdd(
-          () => addCepRange(pharmacyId, from, to),
+          () => addCepRange(pharmacyId, from, to, km),
           () => {
             setFrom("");
             setTo("");
+            setKm("");
           }
         );
       }}
@@ -295,6 +300,14 @@ function AddRangeForm({
         value={to}
         onChange={(e) => setTo(e.target.value)}
         className="h-9 w-32 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
+      />
+      <input
+        inputMode="decimal"
+        placeholder="km"
+        value={km}
+        onChange={(e) => setKm(e.target.value)}
+        title="Distância (km) desta faixa até a unidade — base do frete por km"
+        className="h-9 w-20 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
       />
       <button
         type="submit"

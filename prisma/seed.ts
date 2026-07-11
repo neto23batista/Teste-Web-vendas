@@ -14,14 +14,15 @@ const imageFor = (name: string): string | undefined =>
 
 // ───────── Categorias ─────────
 const categories = [
-  { slug: "medicamentos", name: "Medicamentos", icon: "Pill", emoji: "💊", sort: 1 },
-  { slug: "saude", name: "Saúde", icon: "HeartPulse", emoji: "🩺", sort: 2 },
-  { slug: "dermo", name: "Dermocosméticos", icon: "Sparkles", emoji: "✨", sort: 3 },
-  { slug: "bebe", name: "Mamãe & Bebê", icon: "Baby", emoji: "👶", sort: 4 },
-  { slug: "vitaminas", name: "Vitaminas & Suplementos", icon: "Sun", emoji: "☀️", sort: 5 },
-  { slug: "cuidados", name: "Higiene & Cuidados", icon: "Stethoscope", emoji: "🧴", sort: 6 },
-  { slug: "beleza", name: "Beleza", icon: "Wand2", emoji: "💄", sort: 7 },
-  { slug: "equipamentos", name: "Equipamentos", icon: "Activity", emoji: "🩹", sort: 8 },
+  { slug: "perfumaria", name: "Perfumaria", icon: "SprayCan", emoji: "🌸", sort: 1 },
+  { slug: "protecao-solar", name: "Proteção Solar", icon: "Sun", emoji: "☀️", sort: 2 },
+  { slug: "medicamentos", name: "Medicamentos", icon: "Pill", emoji: "💊", sort: 3 },
+  { slug: "saude", name: "Saúde", icon: "HeartPulse", emoji: "🩺", sort: 4 },
+  { slug: "infantil", name: "Linha Infantil", icon: "Baby", emoji: "👶", sort: 5 },
+  { slug: "vitaminas", name: "Vitaminas e Suplementos", icon: "Dumbbell", emoji: "💪", sort: 6 },
+  { slug: "higiene", name: "Higiene e Cuidado", icon: "Droplets", emoji: "🧴", sort: 7 },
+  { slug: "cabelo", name: "Linha de Cabelo", icon: "Scissors", emoji: "💇", sort: 8 },
+  { slug: "equip-conv", name: "Equipamentos e Conveniência", icon: "ShoppingBasket", emoji: "🛒", sort: 9 },
 ];
 
 const brands = [
@@ -64,16 +65,16 @@ const products: Seed[] = [
   { name: "Oxímetro de Dedo Digital", cat: "saude", brand: "Cimed", price: 89.9, promo: 59.9, stock: 30, emoji: "🫀", short: "Mede saturação de oxigênio e pulso.", featured: true, rating: 4.6, ratingCount: 121 },
 
   // Dermocosméticos
-  { name: "Protetor Solar Anthelios FPS 70", cat: "dermo", brand: "La Roche-Posay", price: 89.9, promo: 69.9, stock: 60, emoji: "🧴", short: "Alta proteção UVA/UVB, toque seco.", featured: true, rating: 4.9, ratingCount: 512 },
-  { name: "Gel de Limpeza Facial Effaclar 150ml", cat: "dermo", brand: "La Roche-Posay", price: 79.9, stock: 55, emoji: "🧼", short: "Controle de oleosidade para pele acneica.", rating: 4.8, ratingCount: 327 },
-  { name: "Hidratante Facial CeraVe 52g", cat: "dermo", brand: "CeraVe", price: 64.9, promo: 49.9, stock: 70, emoji: "✨", short: "Hidratação 24h com ácido hialurônico.", featured: true, rating: 4.9, ratingCount: 489 },
-  { name: "Sérum Vitamina C 30ml", cat: "dermo", brand: "La Roche-Posay", price: 129.9, promo: 99.9, stock: 35, emoji: "🌟", short: "Antioxidante que ilumina e uniformiza.", rating: 4.7, ratingCount: 203 },
+  { name: "Protetor Solar Anthelios FPS 70", cat: "protecao-solar", brand: "La Roche-Posay", price: 89.9, promo: 69.9, stock: 60, emoji: "🧴", short: "Alta proteção UVA/UVB, toque seco.", featured: true, rating: 4.9, ratingCount: 512 },
+  { name: "Gel de Limpeza Facial Effaclar 150ml", cat: "higiene", brand: "La Roche-Posay", price: 79.9, stock: 55, emoji: "🧼", short: "Controle de oleosidade para pele acneica.", rating: 4.8, ratingCount: 327 },
+  { name: "Hidratante Facial CeraVe 52g", cat: "higiene", brand: "CeraVe", price: 64.9, promo: 49.9, stock: 70, emoji: "✨", short: "Hidratação 24h com ácido hialurônico.", featured: true, rating: 4.9, ratingCount: 489 },
+  { name: "Sérum Vitamina C 30ml", cat: "higiene", brand: "La Roche-Posay", price: 129.9, promo: 99.9, stock: 35, emoji: "🌟", short: "Antioxidante que ilumina e uniformiza.", rating: 4.7, ratingCount: 203 },
 
   // Mamãe & Bebê
-  { name: "Fralda Premium Tamanho M 64un", cat: "bebe", brand: "Nivea", price: 79.9, promo: 59.9, stock: 80, emoji: "👶", short: "Proteção de até 12h, antivazamento.", featured: true, rating: 4.8, ratingCount: 298 },
-  { name: "Lenço Umedecido 96un", cat: "bebe", brand: "Nivea", price: 18.9, promo: 12.9, stock: 140, emoji: "🧷", short: "Limpeza suave com aloe vera.", rating: 4.7, ratingCount: 176 },
-  { name: "Pomada para Assaduras 45g", cat: "bebe", brand: "Cimed", price: 22.9, stock: 90, emoji: "🍼", short: "Previne e trata assaduras.", rating: 4.6, ratingCount: 84 },
-  { name: "Shampoo Infantil Sem Lágrimas 200ml", cat: "bebe", brand: "Nivea", price: 16.9, stock: 100, emoji: "🧴", short: "Fórmula suave que não arde os olhos.", rating: 4.8, ratingCount: 132 },
+  { name: "Fralda Premium Tamanho M 64un", cat: "infantil", brand: "Nivea", price: 79.9, promo: 59.9, stock: 80, emoji: "👶", short: "Proteção de até 12h, antivazamento.", featured: true, rating: 4.8, ratingCount: 298 },
+  { name: "Lenço Umedecido 96un", cat: "infantil", brand: "Nivea", price: 18.9, promo: 12.9, stock: 140, emoji: "🧷", short: "Limpeza suave com aloe vera.", rating: 4.7, ratingCount: 176 },
+  { name: "Pomada para Assaduras 45g", cat: "infantil", brand: "Cimed", price: 22.9, stock: 90, emoji: "🍼", short: "Previne e trata assaduras.", rating: 4.6, ratingCount: 84 },
+  { name: "Shampoo Infantil Sem Lágrimas 200ml", cat: "infantil", brand: "Nivea", price: 16.9, stock: 100, emoji: "🧴", short: "Fórmula suave que não arde os olhos.", rating: 4.8, ratingCount: 132 },
 
   // Vitaminas
   { name: "Vitamina C 1g 30 comprimidos", cat: "vitaminas", brand: "Sundown", price: 39.9, promo: 27.9, stock: 110, emoji: "🍊", short: "Reforço da imunidade no dia a dia.", featured: true, rating: 4.8, ratingCount: 364 },
@@ -84,21 +85,21 @@ const products: Seed[] = [
   { name: "Colágeno Hidrolisado + Vit C 300g", cat: "vitaminas", brand: "Vitasay", price: 89.9, promo: 64.9, stock: 60, emoji: "💧", short: "Firmeza da pele e articulações.", rating: 4.5, ratingCount: 97 },
 
   // Higiene & Cuidados
-  { name: "Creme Dental Branqueador 90g", cat: "cuidados", brand: "Nivea", price: 9.9, stock: 180, emoji: "🪥", short: "Limpeza profunda e hálito fresco.", rating: 4.6, ratingCount: 73 },
-  { name: "Enxaguante Bucal Sem Álcool 500ml", cat: "cuidados", brand: "Cimed", price: 19.9, promo: 13.9, stock: 120, emoji: "🦷", short: "Proteção antibacteriana 12h.", rating: 4.7, ratingCount: 88 },
-  { name: "Desodorante Roll-on 48h 50ml", cat: "cuidados", brand: "Nivea", price: 14.9, stock: 160, emoji: "🧴", short: "Proteção prolongada sem manchas.", rating: 4.6, ratingCount: 64 },
-  { name: "Sabonete Líquido Antibacteriano 250ml", cat: "cuidados", brand: "Nivea", price: 17.9, promo: 12.9, stock: 140, emoji: "🧼", short: "Limpa e protege a pele.", rating: 4.5, ratingCount: 51 },
+  { name: "Creme Dental Branqueador 90g", cat: "higiene", brand: "Nivea", price: 9.9, stock: 180, emoji: "🪥", short: "Limpeza profunda e hálito fresco.", rating: 4.6, ratingCount: 73 },
+  { name: "Enxaguante Bucal Sem Álcool 500ml", cat: "higiene", brand: "Cimed", price: 19.9, promo: 13.9, stock: 120, emoji: "🦷", short: "Proteção antibacteriana 12h.", rating: 4.7, ratingCount: 88 },
+  { name: "Desodorante Roll-on 48h 50ml", cat: "higiene", brand: "Nivea", price: 14.9, stock: 160, emoji: "🧴", short: "Proteção prolongada sem manchas.", rating: 4.6, ratingCount: 64 },
+  { name: "Sabonete Líquido Antibacteriano 250ml", cat: "higiene", brand: "Nivea", price: 17.9, promo: 12.9, stock: 140, emoji: "🧼", short: "Limpa e protege a pele.", rating: 4.5, ratingCount: 51 },
 
   // Beleza
-  { name: "Batom Matte Longa Duração", cat: "beleza", brand: "Nivea", price: 34.9, promo: 24.9, stock: 75, emoji: "💄", short: "Cor intensa por até 8h.", rating: 4.6, ratingCount: 142 },
-  { name: "Base Líquida HD 30ml", cat: "beleza", brand: "Nivea", price: 59.9, stock: 50, emoji: "💋", short: "Cobertura natural e uniforme.", rating: 4.5, ratingCount: 96 },
-  { name: "Máscara de Cílios Volume", cat: "beleza", brand: "Nivea", price: 39.9, promo: 29.9, stock: 65, emoji: "👁️", short: "Volume e alongamento à prova d'água.", rating: 4.7, ratingCount: 118 },
+  { name: "Batom Matte Longa Duração", cat: "perfumaria", brand: "Nivea", price: 34.9, promo: 24.9, stock: 75, emoji: "💄", short: "Cor intensa por até 8h.", rating: 4.6, ratingCount: 142 },
+  { name: "Base Líquida HD 30ml", cat: "perfumaria", brand: "Nivea", price: 59.9, stock: 50, emoji: "💋", short: "Cobertura natural e uniforme.", rating: 4.5, ratingCount: 96 },
+  { name: "Máscara de Cílios Volume", cat: "perfumaria", brand: "Nivea", price: 39.9, promo: 29.9, stock: 65, emoji: "👁️", short: "Volume e alongamento à prova d'água.", rating: 4.7, ratingCount: 118 },
 
   // Equipamentos
-  { name: "Aparelho de Pressão Digital de Braço", cat: "equipamentos", brand: "Cimed", price: 199.9, promo: 149.9, stock: 25, emoji: "🩺", short: "Medição automática com memória.", featured: true, rating: 4.8, ratingCount: 187 },
-  { name: "Nebulizador Inalador Compacto", cat: "equipamentos", brand: "Cimed", price: 169.9, promo: 119.9, stock: 30, emoji: "💨", short: "Silencioso, ideal para toda a família.", rating: 4.7, ratingCount: 134 },
-  { name: "Glicosímetro + 50 tiras", cat: "equipamentos", brand: "Cimed", price: 129.9, promo: 89.9, stock: 40, emoji: "🩸", short: "Monitoramento de glicose rápido.", rating: 4.6, ratingCount: 112 },
-  { name: "Balança Digital Corporal", cat: "equipamentos", brand: "Cimed", price: 89.9, promo: 59.9, stock: 55, emoji: "⚖️", short: "Precisão de até 180kg, vidro temperado.", rating: 4.5, ratingCount: 78 },
+  { name: "Aparelho de Pressão Digital de Braço", cat: "equip-conv", brand: "Cimed", price: 199.9, promo: 149.9, stock: 25, emoji: "🩺", short: "Medição automática com memória.", featured: true, rating: 4.8, ratingCount: 187 },
+  { name: "Nebulizador Inalador Compacto", cat: "equip-conv", brand: "Cimed", price: 169.9, promo: 119.9, stock: 30, emoji: "💨", short: "Silencioso, ideal para toda a família.", rating: 4.7, ratingCount: 134 },
+  { name: "Glicosímetro + 50 tiras", cat: "equip-conv", brand: "Cimed", price: 129.9, promo: 89.9, stock: 40, emoji: "🩸", short: "Monitoramento de glicose rápido.", rating: 4.6, ratingCount: 112 },
+  { name: "Balança Digital Corporal", cat: "equip-conv", brand: "Cimed", price: 89.9, promo: 59.9, stock: 55, emoji: "⚖️", short: "Precisão de até 180kg, vidro temperado.", rating: 4.5, ratingCount: 78 },
 ];
 
 function descFor(p: Seed): string {

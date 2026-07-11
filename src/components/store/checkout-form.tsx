@@ -14,6 +14,8 @@ import {
   ShieldCheck,
   Gift,
   MessageSquareText,
+  Truck,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { placeOrder } from "@/actions/checkout";
@@ -21,9 +23,10 @@ import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 import { maxRedeemablePoints, pointsToBRL } from "@/lib/loyalty";
 import {
-  shippingFor,
+  deliveryOptions,
   DEFAULT_SHIPPING_CONFIG,
   type ShippingConfig,
+  type DeliveryMethod,
 } from "@/lib/shipping";
 import { lookupCep } from "@/lib/viacep";
 import { formatBRL, cn } from "@/lib/utils";
@@ -39,6 +42,8 @@ type Address = {
   city: string;
   state: string;
   zip: string;
+  /** Distância (km) resolvida pela faixa de CEP da unidade. */
+  km: number;
 };
 
 const methods = [
@@ -53,12 +58,14 @@ export function CheckoutForm({
   requiresPrescription,
   points,
   shippingConfig = DEFAULT_SHIPPING_CONFIG,
+  defaultKm = 0,
 }: {
   addresses: Address[];
   subtotal: number;
   requiresPrescription: boolean;
   points: number;
   shippingConfig?: ShippingConfig;
+  defaultKm?: number;
 }) {
   const formRef = React.useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState(placeOrder, undefined);
@@ -70,14 +77,18 @@ export function CheckoutForm({
   }, [state]);
   const [addressId, setAddressId] = React.useState(addresses[0]?.id ?? "new");
   const [method, setMethod] = React.useState("pix");
+  const [delivery, setDelivery] = React.useState<DeliveryMethod>("standard");
   const [newZip, setNewZip] = React.useState("");
   const [cepLoading, setCepLoading] = React.useState(false);
   const isNew = addressId === "new";
 
-  // Frete é calculado pelo CEP de destino (o servidor recalcula na confirmação).
+  // Frete pela distância (km) do endereço + modalidade. Endereço novo ainda não
+  // tem km resolvido, então usa o default (o servidor recalcula na confirmação).
   const selectedAddress = addresses.find((a) => a.id === addressId);
-  const currentZip = isNew ? newZip : selectedAddress?.zip ?? "";
-  const shipping = shippingFor(subtotal, currentZip, shippingConfig);
+  const currentKm = isNew ? defaultKm : selectedAddress?.km ?? defaultKm;
+  const options = deliveryOptions(subtotal, currentKm, shippingConfig);
+  const shipping =
+    options.find((o) => o.method === delivery)?.price ?? options[0].price;
 
   // Resgate de pontos (cálculo ao vivo; o servidor revalida o saldo na confirmação).
   const maxRedeem = maxRedeemablePoints(points, subtotal);
@@ -216,11 +227,67 @@ export function CheckoutForm({
           )}
         </section>
 
-        {/* Pagamento */}
+        {/* Modalidade de entrega */}
         <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
           <h2 className="flex items-center gap-2.5 font-bold">
             <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-extrabold text-white">
               2
+            </span>
+            <Truck className="size-5 text-brand-600 dark:text-brand-400" /> Como
+            quer receber
+          </h2>
+          <input type="hidden" name="deliveryMethod" value={delivery} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {options.map((o) => {
+              const Icon = o.method === "express" ? Zap : Truck;
+              return (
+                <label
+                  key={o.method}
+                  className={cn(
+                    "relative cursor-pointer rounded-xl border p-4 transition active:scale-[0.98]",
+                    delivery === o.method
+                      ? "border-brand-600 bg-brand-50 ring-2 ring-brand-500/25 dark:bg-brand-600/10"
+                      : "border-border hover:border-brand-300"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="deliveryChoice"
+                    value={o.method}
+                    checked={delivery === o.method}
+                    onChange={() => setDelivery(o.method)}
+                    className="sr-only"
+                  />
+                  <div className="flex items-center gap-2">
+                    <Icon
+                      className={cn(
+                        "size-5",
+                        delivery === o.method
+                          ? "text-brand-600 dark:text-brand-400"
+                          : "text-muted-foreground"
+                      )}
+                    />
+                    <span className="text-sm font-bold">{o.label}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{o.eta}</p>
+                  <p className="mt-1.5 text-sm font-extrabold">
+                    {o.price === 0 ? (
+                      <span className="text-success-600">Grátis</span>
+                    ) : (
+                      formatBRL(o.price)
+                    )}
+                  </p>
+                </label>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Pagamento */}
+        <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
+          <h2 className="flex items-center gap-2.5 font-bold">
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-extrabold text-white">
+              3
             </span>
             Forma de pagamento
           </h2>
@@ -309,7 +376,7 @@ export function CheckoutForm({
         <div className="space-y-4 rounded-2xl border border-border bg-card p-5">
           <h2 className="flex items-center gap-2.5 font-bold">
             <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-extrabold text-white">
-              3
+              4
             </span>
             Revisão do pedido
           </h2>
@@ -354,7 +421,9 @@ export function CheckoutForm({
               </div>
             )}
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">Frete</dt>
+              <dt className="text-muted-foreground">
+                Frete{delivery === "express" ? " · Entrega Rápida" : ""}
+              </dt>
               <dd className="font-semibold">
                 {shipping === 0 ? <span className="text-success-600">Grátis</span> : formatBRL(shipping)}
               </dd>

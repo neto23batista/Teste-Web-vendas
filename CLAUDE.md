@@ -1,14 +1,14 @@
 # FarmaVida Next — guia para o Claude Code
 
 E-commerce de farmácia (Next.js 16 + React 19 + TS + Prisma/**PostgreSQL Neon**) com visual
-**app premium** (teal-menta dark). Multi-unidade (matriz + filial), estoque por unidade,
+**app premium** (vermelho dark). Multi-unidade (matriz + filial), estoque por unidade,
 pedido roteado por CEP, admin escopado, Mercado Pago (Checkout Pro + PIX), assinaturas de
 reposição e CSP estrita por nonce (montada no middleware `src/proxy.ts`).
 
 ## Convenções
 
 - **Idioma:** UI e textos em **pt-BR**.
-- **Estilo:** Tailwind v4 + tokens em `src/app/globals.css`. Use os utilitários `gradient-brand`, `container-page`, cores `brand-*`/`accent-*` e tokens semânticos (`bg-card`, `text-muted-foreground`, `border-border`). Dark mode por classe (`next-themes`). Marca = teal-menta; coral só para ofertas; **nunca** vermelho como cor de marca.
+- **Estilo:** Tailwind v4 + tokens em `src/app/globals.css`. Use os utilitários `gradient-brand`, `container-page`, cores `brand-*`/`accent-*` e tokens semânticos (`bg-card`, `text-muted-foreground`, `border-border`). Dark mode por classe (`next-themes`). Marca = **vermelho** (`brand-*`, primary `#c81328`); azul-céu (`accent-*`) como apoio; **âmbar/dourado** (`promo-*`) só para ofertas. (Reversão em 10/07/2026 da marca teal-menta anterior, por decisão do dono.)
 - **UI kit:** componentes próprios em `src/components/ui` (sobre Radix). Helper `cn` em `src/lib/utils.ts`.
 - **Dados:** Prisma via singleton `src/lib/prisma.ts`. Server Components para ler, Server Actions para mutar.
 - **Dinheiro:** `formatBRL` em `src/lib/utils.ts`.

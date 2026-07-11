@@ -9,8 +9,8 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/",
     display: "standalone",
     // Fundo da splash do PWA acompanha o tema padrão (claro).
-    background_color: "#f3f8f6",
-    theme_color: "#079685",
+    background_color: "#faf6f6",
+    theme_color: "#c81328",
     lang: "pt-BR",
     categories: ["health", "medical", "shopping"],
     icons: [

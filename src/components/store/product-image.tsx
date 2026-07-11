@@ -4,12 +4,12 @@ import { cn } from "@/lib/utils";
 // Paleta de gradientes suaves — escolhidos deterministicamente pelo nome.
 // Tons frios/variados, alinhados à marca teal/menta (estilo app premium).
 const gradients = [
-  "from-teal-100 to-emerald-200 dark:from-teal-500/20 dark:to-emerald-500/10",
-  "from-sky-100 to-cyan-200 dark:from-sky-500/20 dark:to-cyan-500/10",
-  "from-violet-100 to-purple-200 dark:from-violet-500/20 dark:to-purple-500/10",
-  "from-emerald-100 to-teal-200 dark:from-emerald-500/20 dark:to-teal-500/10",
-  "from-cyan-100 to-sky-200 dark:from-cyan-500/20 dark:to-sky-500/10",
-  "from-amber-100 to-orange-200 dark:from-amber-500/20 dark:to-orange-500/10",
+  "from-rose-100 to-red-200 dark:from-rose-500/20 dark:to-red-500/10",
+  "from-orange-100 to-amber-200 dark:from-orange-500/20 dark:to-amber-500/10",
+  "from-pink-100 to-rose-200 dark:from-pink-500/20 dark:to-rose-500/10",
+  "from-red-100 to-orange-200 dark:from-red-500/20 dark:to-orange-500/10",
+  "from-sky-100 to-blue-200 dark:from-sky-500/20 dark:to-blue-500/10",
+  "from-amber-100 to-yellow-200 dark:from-amber-500/20 dark:to-yellow-500/10",
 ];
 
 function hash(str: string): number {

@@ -251,6 +251,9 @@ model Order {
   discount             Float       @default(0)
   shipping             Float       @default(0)
   total                Float
+  // Modalidade de entrega escolhida no checkout: "standard" (frete padrão) ou
+  // "express" (Entrega Rápida 30–40 min, taxa fixa + por km).
+  deliveryMethod       String      @default("standard")
   paymentMethod        String?
   couponCode           String?
   addressId            String?
@@ -564,6 +567,9 @@ model PharmacyCepRange {
   pharmacyId String
   start      Int
   end        Int
+  // Distância (km) da unidade até esta faixa de CEP — usada no frete por km.
+  // null = distância desconhecida (cai no default do frete).
+  km         Float?
 
   pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
 

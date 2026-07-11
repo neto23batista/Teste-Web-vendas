@@ -87,6 +87,7 @@ export async function SiteFooter() {
           <p className="font-semibold">Institucional</p>
           {[
             ["Sobre a farmácia", "/sobre"],
+            ["Trocas e devoluções", "/trocas-e-devolucoes"],
             ["Privacidade (LGPD)", "/privacidade"],
             ["Termos de uso", "/termos"],
             ["Painel administrativo", "/admin"],

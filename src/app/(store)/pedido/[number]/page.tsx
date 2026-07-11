@@ -244,7 +244,10 @@ export default async function OrderPage({
               </div>
             )}
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Frete</span>
+              <span className="text-muted-foreground">
+                Frete
+                {order.deliveryMethod === "express" ? " · Entrega Rápida" : ""}
+              </span>
               <span className="font-semibold">
                 {order.shipping === 0 ? "Grátis" : formatBRL(order.shipping)}
               </span>

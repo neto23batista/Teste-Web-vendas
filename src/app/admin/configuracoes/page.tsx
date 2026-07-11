@@ -36,7 +36,7 @@ export default async function AdminSettingsPage() {
             cnpj: true,
             pharmacistName: true,
             pharmacistCrf: true,
-            cepRanges: { orderBy: { start: "asc" }, select: { id: true, start: true, end: true } },
+            cepRanges: { orderBy: { start: "asc" }, select: { id: true, start: true, end: true, km: true } },
           },
         }),
         prisma.user.findMany({

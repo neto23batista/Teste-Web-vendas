@@ -16,8 +16,28 @@ const getRawSettings = unstable_cache(
   { tags: ["settings"], revalidate: 3600 }
 );
 
+/** Termos padrão de troca e devolução (CDC art. 49 — direito de arrependimento). */
+export const DEFAULT_RETURN_POLICY = `## Política de Troca e Devolução
+
+Esta política segue o Código de Defesa do Consumidor (Lei nº 8.078/1990).
+
+### Direito de arrependimento (compras online)
+Você pode desistir da compra em até **7 (sete) dias corridos** a partir do recebimento do produto, sem necessidade de justificativa (art. 49 do CDC). O valor pago, incluindo o frete, é devolvido integralmente.
+
+### Troca por defeito
+Produtos com defeito de fabricação podem ser trocados em até **30 dias** (não duráveis) ou **90 dias** (duráveis) após o recebimento.
+
+### Condições
+- O produto deve estar em sua embalagem original, sem indícios de uso e com o lacre intacto.
+- Medicamentos, produtos de higiene pessoal e itens termossensíveis só são aceitos para troca/devolução se **não violados**, por razões sanitárias (RDC Anvisa).
+- Guarde a nota fiscal — ela é necessária para a troca ou devolução.
+
+### Como solicitar
+Entre em contato pelo WhatsApp ou e-mail de atendimento informando o número do pedido. Nossa equipe orienta a coleta ou o envio do produto e processa o reembolso na mesma forma de pagamento em até 10 dias úteis após o recebimento do item.`;
+
 export type StoreSettings = {
   shipping: ShippingConfig;
+  returnPolicy: string;
   cnpj: string;
   phone: string;
   whatsapp: string;
@@ -41,9 +61,13 @@ export async function getStoreSettings(): Promise<StoreSettings> {
   );
   return {
     shipping: {
-      flat: num(s["shipping.flat"], DEFAULT_SHIPPING_CONFIG.flat),
       freeMin: num(s["shipping.freeMin"], DEFAULT_SHIPPING_CONFIG.freeMin),
+      freeRadiusKm: num(s["shipping.freeRadiusKm"], DEFAULT_SHIPPING_CONFIG.freeRadiusKm),
+      perKm: num(s["shipping.perKm"], DEFAULT_SHIPPING_CONFIG.perKm),
+      expressFlat: num(s["shipping.expressFlat"], DEFAULT_SHIPPING_CONFIG.expressFlat),
+      defaultKm: num(s["shipping.defaultKm"], DEFAULT_SHIPPING_CONFIG.defaultKm),
     },
+    returnPolicy: s["store.returnPolicy"] || DEFAULT_RETURN_POLICY,
     cnpj: s["store.cnpj"] || process.env.NEXT_PUBLIC_CNPJ || "",
     phone: s["store.phone"] || "",
     whatsapp: s["store.whatsapp"] || "",
@@ -132,14 +156,36 @@ export async function getShippingConfig(
 ): Promise<ShippingConfig> {
   const base = (await getStoreSettings()).shipping;
   if (!pharmacyId) return base;
+  // Override por unidade: só o mínimo p/ frete grátis (coluna shippingFreeMin).
   const ph = await prisma.pharmacy
     .findUnique({
       where: { id: pharmacyId },
-      select: { shippingFlat: true, shippingFreeMin: true },
+      select: { shippingFreeMin: true },
     })
     .catch(() => null);
-  return {
-    flat: ph?.shippingFlat ?? base.flat,
-    freeMin: ph?.shippingFreeMin ?? base.freeMin,
-  };
+  return { ...base, freeMin: ph?.shippingFreeMin ?? base.freeMin };
+}
+
+/**
+ * Distância (km) do destino a partir das faixas de CEP da unidade
+ * (PharmacyCepRange.km): acha a faixa que contém o CEP e devolve seu km.
+ * Sem faixa casada (ou km não cadastrado), cai no `defaultKm` da config.
+ * É a fonte da verdade da distância usada no frete (server-side).
+ */
+export async function resolveKm(
+  cep: string | null | undefined,
+  pharmacyId?: string | null
+): Promise<number> {
+  const cfg = await getShippingConfig(pharmacyId);
+  const digits = (cep ?? "").replace(/\D/g, "");
+  if (digits.length < 8 || !pharmacyId) return cfg.defaultKm;
+  const n = parseInt(digits.slice(0, 8), 10);
+  const range = await prisma.pharmacyCepRange
+    .findFirst({
+      where: { pharmacyId, start: { lte: n }, end: { gte: n }, km: { not: null } },
+      orderBy: { km: "asc" },
+      select: { km: true },
+    })
+    .catch(() => null);
+  return range?.km ?? cfg.defaultKm;
 }

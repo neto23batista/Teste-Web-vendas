@@ -37,7 +37,8 @@ export default async function CartPage() {
   }
 
   const shippingConfig = await getShippingConfig(cart.pharmacyId);
-  const shipping = shippingFor(cart.subtotal, undefined, shippingConfig);
+  // Sacola ainda não tem endereço → distância desconhecida (frete padrão).
+  const shipping = shippingFor(cart.subtotal, null, "standard", shippingConfig);
   const missing = missingForFreeShipping(cart.subtotal, shippingConfig);
   const total = cart.subtotal + shipping;
 

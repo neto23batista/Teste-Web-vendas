@@ -114,7 +114,8 @@ export async function deletePharmacy(id: string): Promise<PharmacyResult> {
 export async function addCepRange(
   pharmacyId: string,
   startCep: string,
-  endCep: string
+  endCep: string,
+  kmRaw?: string
 ): Promise<PharmacyResult> {
   if (!(await ensureMatriz())) return { ok: false, error: "Sem permissão." };
   const start = cepToInt(startCep);
@@ -125,7 +126,16 @@ export async function addCepRange(
   if (start > end) {
     return { ok: false, error: "O CEP inicial deve ser menor ou igual ao final." };
   }
-  await prisma.pharmacyCepRange.create({ data: { pharmacyId, start, end } });
+  // km opcional: distância desta faixa até a unidade (base do frete por km).
+  let km: number | null = null;
+  if (kmRaw && kmRaw.trim()) {
+    const n = Number(kmRaw.replace(",", "."));
+    if (!Number.isFinite(n) || n < 0) {
+      return { ok: false, error: "Distância (km) inválida. Ex.: 3 ou 5,5." };
+    }
+    km = n;
+  }
+  await prisma.pharmacyCepRange.create({ data: { pharmacyId, start, end, km } });
   revalidatePharmacies();
   return { ok: true };
 }

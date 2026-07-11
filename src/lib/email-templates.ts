@@ -14,7 +14,7 @@ function escapeHtml(s: string): string {
 function layout(title: string, body: string): string {
   return `<div style="font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#f1f5f9;padding:24px">
   <div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden">
-    <div style="background:linear-gradient(135deg,#0ea5e9,#10b981);padding:20px 24px;color:#fff;font-weight:800;font-size:18px">FarmaVida</div>
+    <div style="background:linear-gradient(135deg,#c81328,#f9603f);padding:20px 24px;color:#fff;font-weight:800;font-size:18px">FarmaVida</div>
     <div style="padding:24px;color:#0f172a;font-size:14px;line-height:1.6">
       <h1 style="font-size:18px;margin:0 0 12px">${title}</h1>
       ${body}

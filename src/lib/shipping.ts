@@ -1,46 +1,63 @@
-export const FREE_SHIPPING_MIN = 150;
-export const SHIPPING_FLAT = 14.9; // custo padrão quando o CEP é desconhecido
+// Preço padrão quando não há configuração (grátis local; ver ShippingConfig).
+export const FREE_SHIPPING_MIN = 10; // grátis a partir de R$ 10 (frete padrão)
+export const FREE_RADIUS_KM = 4; // até 4 km sem custo no frete padrão
+export const PER_KM = 1; // R$ 1,00 por km (excedente no padrão / por km na rápida)
+export const EXPRESS_FLAT = 5; // taxa fixa da Entrega Rápida (R$)
+
+export type DeliveryMethod = "standard" | "express";
 
 /** Parâmetros de frete configuráveis pelo dono em /admin/configuracoes.
  *  Este módulo roda também no client (checkout), então recebe a config por
- *  parâmetro — quem busca no banco é src/lib/settings.ts (server). */
-export type ShippingConfig = { flat: number; freeMin: number };
+ *  parâmetro — quem busca no banco é src/lib/settings.ts (server). A distância
+ *  (km) vem das faixas de CEP da unidade (PharmacyCepRange.km). */
+export type ShippingConfig = {
+  /** Frete padrão grátis a partir deste subtotal (R$). */
+  freeMin: number;
+  /** Raio (km) coberto sem custo no frete padrão, quando atinge o mínimo. */
+  freeRadiusKm: number;
+  /** R$ por km — excedente no frete padrão e por km na Entrega Rápida. */
+  perKm: number;
+  /** Taxa fixa da Entrega Rápida (R$), somada ao custo por km. */
+  expressFlat: number;
+  /** km assumido quando o CEP não casa nenhuma faixa cadastrada. */
+  defaultKm: number;
+};
 
 export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
-  flat: SHIPPING_FLAT,
   freeMin: FREE_SHIPPING_MIN,
+  freeRadiusKm: FREE_RADIUS_KM,
+  perKm: PER_KM,
+  expressFlat: EXPRESS_FLAT,
+  defaultKm: 0,
 };
 
-// Adicional por região do CEP (1º dígito) somado à taxa base — aproximação
-// geográfica do Brasil. Sem peso de produto no schema, usamos a região do
-// destino como proxy de frete.
-const REGION_EXTRA: Record<string, number> = {
-  "0": 0, // SP (capital e Grande SP)
-  "1": 0, // SP (interior/litoral)
-  "2": 3, // RJ, ES
-  "3": 3, // MG
-  "4": 7, // BA, SE
-  "5": 10, // PE, AL, PB, RN
-  "6": 13, // CE, PI, MA, PA, AM, AP, RR
-  "7": 7, // DF, GO, TO, MT, MS, RO, AC
-  "8": 3, // PR, SC
-  "9": 5, // RS
-};
+const round = (n: number) => Math.round(n * 100) / 100;
 
 /**
- * Frete: grátis acima do mínimo (ou carrinho vazio); senão taxa base + adicional
- * por região do CEP de destino. Sem CEP (ex.: sacola antes do endereço) usa só
- * a taxa base.
+ * Frete pela modalidade escolhida e distância (km) até o destino.
+ *
+ * - **Padrão**: grátis a partir de `freeMin` em entregas de até `freeRadiusKm`;
+ *   além do raio, `perKm` por km excedente. Abaixo do mínimo, cobra `perKm` por
+ *   km desde o km 0 (não há raio grátis).
+ * - **Rápida (30–40 min)**: `expressFlat` fixo + `perKm` por km percorrido
+ *   (sempre cobrada — é um serviço premium).
  */
 export function shippingFor(
   subtotal: number,
-  cep?: string | null,
+  km: number | null | undefined,
+  method: DeliveryMethod = "standard",
   config: ShippingConfig = DEFAULT_SHIPPING_CONFIG
 ): number {
-  if (subtotal <= 0 || subtotal >= config.freeMin) return 0;
-  const digit = (cep ?? "").replace(/\D/g, "")[0];
-  if (!digit) return config.flat;
-  return Math.round((config.flat + (REGION_EXTRA[digit] ?? 0)) * 100) / 100;
+  const dist = Math.max(0, km ?? config.defaultKm);
+
+  if (method === "express") {
+    return round(config.expressFlat + config.perKm * dist);
+  }
+
+  if (subtotal <= 0) return 0;
+  const freeKm = subtotal >= config.freeMin ? config.freeRadiusKm : 0;
+  const excess = Math.max(0, dist - freeKm);
+  return round(config.perKm * excess);
 }
 
 export function missingForFreeShipping(
@@ -48,4 +65,33 @@ export function missingForFreeShipping(
   config: ShippingConfig = DEFAULT_SHIPPING_CONFIG
 ): number {
   return Math.max(0, config.freeMin - subtotal);
+}
+
+export type DeliveryOption = {
+  method: DeliveryMethod;
+  label: string;
+  eta: string;
+  price: number;
+};
+
+/** As duas modalidades com preço já calculado, para o seletor do checkout. */
+export function deliveryOptions(
+  subtotal: number,
+  km: number | null | undefined,
+  config: ShippingConfig = DEFAULT_SHIPPING_CONFIG
+): DeliveryOption[] {
+  return [
+    {
+      method: "standard",
+      label: "Entrega padrão",
+      eta: "Chega hoje",
+      price: shippingFor(subtotal, km, "standard", config),
+    },
+    {
+      method: "express",
+      label: "Entrega Rápida",
+      eta: "30–40 min",
+      price: shippingFor(subtotal, km, "express", config),
+    },
+  ];
 }

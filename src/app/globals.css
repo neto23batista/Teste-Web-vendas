@@ -14,34 +14,34 @@
   --font-display: var(--font-space), "Space Grotesk", ui-sans-serif, system-ui,
     sans-serif;
 
-  /* Teal/menta vibrante (app premium) como marca; azul-céu como apoio. */
-  --color-brand-50: #e8fbf5;
-  --color-brand-100: #c6f5ea;
-  --color-brand-200: #95ecd9;
-  --color-brand-300: #58dcc3;
-  --color-brand-400: #2cc7ab;
-  --color-brand-500: #11b29c;
-  --color-brand-600: #079685;
-  --color-brand-700: #0a796c;
-  --color-brand-800: #0d6157;
-  --color-brand-900: #105049;
-  --color-brand-950: #022e29;
+  /* Vermelho vibrante como marca (identidade principal); azul-céu como apoio. */
+  --color-brand-50: #fef2f3;
+  --color-brand-100: #fde0e2;
+  --color-brand-200: #fbc7cb;
+  --color-brand-300: #f79aa2;
+  --color-brand-400: #ef5f6d;
+  --color-brand-500: #e11d33;
+  --color-brand-600: #c81328;
+  --color-brand-700: #a81022;
+  --color-brand-800: #8b111f;
+  --color-brand-900: #74131f;
+  --color-brand-950: #40060c;
 
   --color-accent-400: #38bdf8;
   --color-accent-500: #0ea5e9;
   --color-accent-600: #0284c7;
 
-  /* Coral "oferta/economia": selos de desconto (-25%), contador da sacola e
-     banner de frete grátis. Pop quente que destaca sobre a marca teal.
-     Texto branco legível a partir do 500. */
-  --color-promo-50: #fff2ef;
-  --color-promo-100: #ffe1da;
-  --color-promo-200: #ffc6b8;
-  --color-promo-300: #ffa088;
-  --color-promo-400: #fb7a5c;
-  --color-promo-500: #f15a3b;
-  --color-promo-600: #db4528;
-  --color-promo-700: #b5371f;
+  /* Âmbar/dourado "oferta/economia": selos de desconto (-25%), contador da
+     sacola e banner de frete grátis. Realocado do coral para NÃO colidir com o
+     vermelho da marca. Texto branco legível (bold/grande) a partir do 500. */
+  --color-promo-50: #fff8e8;
+  --color-promo-100: #fdecc2;
+  --color-promo-200: #fbd985;
+  --color-promo-300: #f5bf49;
+  --color-promo-400: #e69f16;
+  --color-promo-500: #cf8008;
+  --color-promo-600: #a86307;
+  --color-promo-700: #854e08;
 
   --color-success-500: #16a34a;
   --color-success-600: #15803d;
@@ -52,15 +52,15 @@
   --radius-2xl: 1.25rem;
   --radius-3xl: 1.75rem;
 
-  --shadow-soft: 0 1px 2px rgba(6, 28, 26, 0.05),
-    0 8px 24px -8px rgba(6, 28, 26, 0.14);
-  --shadow-card: 0 1px 3px rgba(6, 28, 26, 0.08),
-    0 18px 40px -16px rgba(7, 150, 133, 0.2);
-  --shadow-glow: 0 18px 52px -12px rgba(20, 184, 160, 0.42);
+  --shadow-soft: 0 1px 2px rgba(40, 8, 12, 0.05),
+    0 8px 24px -8px rgba(40, 8, 12, 0.14);
+  --shadow-card: 0 1px 3px rgba(40, 8, 12, 0.08),
+    0 18px 40px -16px rgba(200, 19, 40, 0.2);
+  --shadow-glow: 0 18px 52px -12px rgba(225, 29, 51, 0.42);
   /* Glow mais intenso para heros / cards de destaque. */
-  --shadow-glow-strong: 0 28px 80px -16px rgba(17, 178, 156, 0.55);
-  /* Glow para banners/CTAs de oferta (coral). */
-  --shadow-promo: 0 16px 44px -12px rgba(241, 90, 59, 0.4);
+  --shadow-glow-strong: 0 28px 80px -16px rgba(200, 19, 40, 0.55);
+  /* Glow para banners/CTAs de oferta (âmbar). */
+  --shadow-promo: 0 16px 44px -12px rgba(207, 128, 8, 0.4);
 
   --animate-fade-up: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-float: float 6s ease-in-out infinite;
@@ -74,35 +74,35 @@
    Tokens semânticos (trocam entre claro/escuro)
    ============================================================ */
 :root {
-  --background: #f3f8f6;
-  --foreground: #14211e;
+  --background: #faf6f6;
+  --foreground: #1c1516;
   --card: #ffffff;
-  --card-foreground: #14211e;
-  --muted: #e8f1ed;
-  --muted-foreground: #5b6b66;
-  --border: #dde9e4;
-  --input: #dde9e4;
-  --primary: #079685;
+  --card-foreground: #1c1516;
+  --muted: #f4eaea;
+  --muted-foreground: #6d5c5d;
+  --border: #eddfdf;
+  --input: #eddfdf;
+  --primary: #c81328;
   --primary-foreground: #ffffff;
   --accent: #0ea5e9;
   --accent-foreground: #082f49;
-  --ring: #079685;
+  --ring: #c81328;
 }
 
 .dark {
-  --background: #0c1513;
-  --foreground: #eef4f1;
-  --card: #141f1c;
-  --card-foreground: #eef4f1;
-  --muted: #1c2723;
-  --muted-foreground: #9bb0aa;
-  --border: #2a342f;
-  --input: #2a342f;
-  --primary: #2cc7ab;
-  --primary-foreground: #04302a;
+  --background: #130e0f;
+  --foreground: #f4eeee;
+  --card: #1e1717;
+  --card-foreground: #f4eeee;
+  --muted: #271d1e;
+  --muted-foreground: #b0a1a2;
+  --border: #362728;
+  --input: #362728;
+  --primary: #f4707c;
+  --primary-foreground: #3a0308;
   --accent: #38bdf8;
   --accent-foreground: #04263a;
-  --ring: #2cc7ab;
+  --ring: #f4707c;
 }
 
 @theme inline {
@@ -185,27 +185,27 @@
   .gradient-brand {
     background-image: linear-gradient(
       135deg,
-      #0a796c 0%,
-      #079685 45%,
-      #0ea5e9 100%
+      #8b111f 0%,
+      #c81328 45%,
+      #f9603f 100%
     );
   }
   /* Versão animada: o gradiente desliza suavemente (hero). */
   .gradient-brand-animated {
     background-image: linear-gradient(
       120deg,
-      #0a796c 0%,
-      #079685 28%,
-      #0ea5e9 52%,
-      #11b29c 78%,
-      #0a796c 100%
+      #8b111f 0%,
+      #c81328 28%,
+      #f9603f 52%,
+      #e11d33 78%,
+      #8b111f 100%
     );
     background-size: 220% 220%;
     animation: var(--animate-gradient);
   }
   /* Texto com preenchimento em gradiente da marca. */
   .text-gradient-brand {
-    background-image: linear-gradient(120deg, #079685, #0ea5e9);
+    background-image: linear-gradient(120deg, #c81328, #f9603f);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -217,14 +217,15 @@
       var(--card)
     );
   }
-  /* Gradiente de OFERTA/economia (teal, como o iFood usa em descontos). */
+  /* Gradiente de OFERTA/economia (âmbar/dourado, para destacar sobre o
+     vermelho da marca sem competir com ele). */
   .gradient-promo {
     background-image: linear-gradient(
       135deg,
-      #b5371f 0%,
-      #db4528 40%,
-      #f15a3b 70%,
-      #fb7a5c 100%
+      #854e08 0%,
+      #a86307 40%,
+      #cf8008 70%,
+      #e69f16 100%
     );
   }
   .glass {
@@ -245,22 +246,22 @@
   .aurora {
     background-image: radial-gradient(
         40rem 40rem at 8% -10%,
-        color-mix(in oklab, #2cc7ab 30%, transparent),
+        color-mix(in oklab, #ef5f6d 30%, transparent),
         transparent 60%
       ),
       radial-gradient(
         34rem 34rem at 95% 12%,
-        color-mix(in oklab, #38bdf8 26%, transparent),
+        color-mix(in oklab, #f9603f 26%, transparent),
         transparent 60%
       ),
       radial-gradient(
         32rem 32rem at 55% 108%,
-        color-mix(in oklab, #8b5cf6 22%, transparent),
+        color-mix(in oklab, #e69f16 22%, transparent),
         transparent 62%
       ),
       radial-gradient(
         26rem 26rem at 20% 70%,
-        color-mix(in oklab, #58dcc3 16%, transparent),
+        color-mix(in oklab, #f79aa2 16%, transparent),
         transparent 60%
       );
   }
@@ -399,11 +400,11 @@
   .text-gradient-vivid {
     background-image: linear-gradient(
       110deg,
-      #079685 0%,
-      #0ea5e9 32%,
-      #8b5cf6 58%,
-      #11b29c 85%,
-      #079685 100%
+      #c81328 0%,
+      #f9603f 32%,
+      #e69f16 58%,
+      #e11d33 85%,
+      #c81328 100%
     );
     background-size: 240% 240%;
     -webkit-background-clip: text;
@@ -411,14 +412,14 @@
     color: transparent;
     animation: var(--animate-gradient);
   }
-  /* Variante para uso SOBRE o hero teal (tons claros, contraste alto). */
+  /* Variante para uso SOBRE o hero vermelho (tons claros, contraste alto). */
   .text-gradient-hero {
     background-image: linear-gradient(
       105deg,
-      #c6f5ea 0%,
+      #fde0e2 0%,
       #ffffff 35%,
-      #bae6fd 60%,
-      #ddd6fe 90%
+      #fed7aa 60%,
+      #fbcfe8 90%
     );
     background-size: 220% 220%;
     -webkit-background-clip: text;

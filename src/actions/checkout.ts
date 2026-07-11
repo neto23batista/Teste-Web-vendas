@@ -6,8 +6,8 @@ import type { Prisma, OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getCart } from "@/lib/cart";
-import { shippingFor } from "@/lib/shipping";
-import { getShippingConfig } from "@/lib/settings";
+import { shippingFor, type DeliveryMethod } from "@/lib/shipping";
+import { getShippingConfig, resolveKm } from "@/lib/settings";
 import { validateCoupon } from "@/lib/coupons";
 import { maxRedeemablePoints, pointsToBRL } from "@/lib/loyalty";
 import { saveUpload } from "@/lib/uploads";
@@ -159,14 +159,21 @@ export async function placeOrder(
     }
   }
 
-  // Frete pelo CEP do endereço escolhido (fonte da verdade no servidor).
+  // Frete pelo CEP do endereço escolhido (fonte da verdade no servidor):
+  // resolve a distância (km) pela faixa de CEP da unidade e aplica a modalidade.
+  const deliveryMethod: DeliveryMethod =
+    str(formData, "deliveryMethod") === "express" ? "express" : "standard";
   const shipAddr = addressId
     ? await prisma.address.findUnique({
         where: { id: addressId },
         select: { zip: true },
       })
     : null;
-  const shipping = shippingFor(subtotal, shipAddr?.zip, await getShippingConfig(cart.pharmacyId));
+  const [shippingConfig, km] = await Promise.all([
+    getShippingConfig(cart.pharmacyId),
+    resolveKm(shipAddr?.zip, cart.pharmacyId),
+  ]);
+  const shipping = shippingFor(subtotal, km, deliveryMethod, shippingConfig);
   const total = Math.max(0, subtotal - discount) + shipping;
 
   // Reserva atômica dos pontos (antes do cupom): decrementa só se o saldo
@@ -213,6 +220,7 @@ export async function placeOrder(
     addressId,
     pharmacyId: cart.pharmacyId,
     paymentMethod,
+    deliveryMethod,
     subtotal,
     shipping,
     discount,

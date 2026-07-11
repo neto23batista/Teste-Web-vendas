@@ -36,6 +36,7 @@ type CreateInput = {
   addressId: string | null;
   pharmacyId: string | null;
   paymentMethod: string;
+  deliveryMethod?: string;
   subtotal: number;
   shipping: number;
   discount: number;
@@ -56,6 +57,7 @@ export async function createOrder(input: CreateInput) {
       status: "PENDING",
       requiresPrescription: input.requiresPrescription,
       paymentMethod: input.paymentMethod,
+      deliveryMethod: input.deliveryMethod ?? "standard",
       subtotal: input.subtotal,
       shipping: input.shipping,
       discount: input.discount,

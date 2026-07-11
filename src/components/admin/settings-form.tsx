@@ -10,6 +10,7 @@ import {
   Store,
   CreditCard,
   ShieldCheck,
+  RotateCcw,
 } from "lucide-react";
 import { saveSettings } from "@/actions/admin-settings";
 import { Button } from "@/components/ui/button";
@@ -49,31 +50,75 @@ export function SettingsForm({
         <h2 className="flex items-center gap-2 font-bold">
           <Truck className="size-5 text-brand-600 dark:text-brand-400" /> Entrega
         </h2>
+        <p className="text-sm text-muted-foreground">
+          Frete padrão: grátis a partir do valor abaixo dentro do raio; além
+          dele, cobra o custo por km excedente. A distância vem das faixas de CEP
+          de cada unidade (campo km).
+        </p>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            label="Taxa base de entrega (R$)"
-            htmlFor="shippingFlat"
-            hint="Regiões mais distantes somam um adicional automático"
-          >
-            <Input
-              id="shippingFlat"
-              name="shippingFlat"
-              inputMode="decimal"
-              defaultValue={money(settings.shipping.flat)}
-              placeholder="14,90"
-            />
-          </Field>
           <Field
             label="Frete grátis a partir de (R$)"
             htmlFor="freeShippingMin"
-            hint="Pedidos acima deste valor não pagam frete"
+            hint="Pedidos acima deste valor liberam o raio grátis"
           >
             <Input
               id="freeShippingMin"
               name="freeShippingMin"
               inputMode="decimal"
               defaultValue={money(settings.shipping.freeMin)}
-              placeholder="150,00"
+              placeholder="10,00"
+            />
+          </Field>
+          <Field
+            label="Raio grátis (km)"
+            htmlFor="freeRadiusKm"
+            hint="Distância coberta sem custo no frete padrão"
+          >
+            <Input
+              id="freeRadiusKm"
+              name="freeRadiusKm"
+              inputMode="decimal"
+              defaultValue={money(settings.shipping.freeRadiusKm)}
+              placeholder="4"
+            />
+          </Field>
+          <Field
+            label="Custo por km (R$)"
+            htmlFor="perKm"
+            hint="Cobrado por km excedente (padrão) e por km na Entrega Rápida"
+          >
+            <Input
+              id="perKm"
+              name="perKm"
+              inputMode="decimal"
+              defaultValue={money(settings.shipping.perKm)}
+              placeholder="1,00"
+            />
+          </Field>
+          <Field
+            label="Taxa da Entrega Rápida (R$)"
+            htmlFor="expressFlat"
+            hint="Fixo da entrega em 30–40 min, somado ao custo por km"
+          >
+            <Input
+              id="expressFlat"
+              name="expressFlat"
+              inputMode="decimal"
+              defaultValue={money(settings.shipping.expressFlat)}
+              placeholder="5,00"
+            />
+          </Field>
+          <Field
+            label="Distância padrão (km)"
+            htmlFor="defaultKm"
+            hint="Usada quando o CEP não casa nenhuma faixa cadastrada"
+          >
+            <Input
+              id="defaultKm"
+              name="defaultKm"
+              inputMode="decimal"
+              defaultValue={money(settings.shipping.defaultKm)}
+              placeholder="0"
             />
           </Field>
         </div>
@@ -209,6 +254,28 @@ export function SettingsForm({
             </span>
           </span>
         </label>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
+        <h2 className="flex items-center gap-2 font-bold">
+          <RotateCcw className="size-5 text-brand-600 dark:text-brand-400" />{" "}
+          Política de troca e devolução
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Exibida na página pública{" "}
+          <a href="/trocas-e-devolucoes" className="font-semibold text-brand-600 dark:text-brand-400" target="_blank" rel="noreferrer">
+            /trocas-e-devolucoes
+          </a>{" "}
+          e no rodapé. Aceita Markdown (títulos com <code>##</code>, listas com{" "}
+          <code>-</code>). Em branco, usa o texto padrão em conformidade com o CDC.
+        </p>
+        <textarea
+          name="returnPolicy"
+          rows={12}
+          defaultValue={settings.returnPolicy}
+          placeholder="## Política de Troca e Devolução…"
+          className="w-full resize-y rounded-xl border border-border bg-card px-4 py-3 font-mono text-xs leading-relaxed outline-none transition placeholder:text-muted-foreground focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
+        />
       </section>
 
       <Button type="submit" variant="primary" size="lg" disabled={pending}>

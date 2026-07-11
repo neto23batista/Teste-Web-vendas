@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getCart } from "@/lib/cart";
-import { getShippingConfig } from "@/lib/settings";
+import { getShippingConfig, resolveKm } from "@/lib/settings";
 import { CheckoutForm } from "@/components/store/checkout-form";
 
 export const metadata: Metadata = { title: "Checkout" };
@@ -13,7 +13,7 @@ export default async function CheckoutPage() {
   const cart = await getCart();
   if (!cart || cart.items.length === 0) redirect("/sacola");
 
-  const [addresses, loyalty, shippingConfig] = await Promise.all([
+  const [rawAddresses, loyalty, shippingConfig] = await Promise.all([
     prisma.address.findMany({
       where: { userId: user.id },
       orderBy: { isDefault: "desc" },
@@ -24,6 +24,15 @@ export default async function CheckoutPage() {
     }),
     getShippingConfig(cart.pharmacyId),
   ]);
+
+  // Resolve a distância (km) de cada endereço salvo pela faixa de CEP da unidade,
+  // para o resumo de frete recalcular ao trocar de endereço/modalidade no cliente.
+  const addresses = await Promise.all(
+    rawAddresses.map(async (a) => ({
+      ...a,
+      km: await resolveKm(a.zip, cart.pharmacyId),
+    }))
+  );
 
   return (
     <div className="aurora">
@@ -40,6 +49,7 @@ export default async function CheckoutPage() {
         requiresPrescription={cart.requiresPrescription}
         points={loyalty?.points ?? 0}
         shippingConfig={shippingConfig}
+        defaultKm={shippingConfig.defaultKm}
       />
       </div>
     </div>

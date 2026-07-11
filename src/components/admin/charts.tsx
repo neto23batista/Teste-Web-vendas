@@ -18,9 +18,9 @@ import { formatBRL } from "@/lib/utils";
 import { STATUS_META } from "@/components/store/order-status";
 import type { OrderStatus } from "@prisma/client";
 
-const BRAND = "#11b29c";
+const BRAND = "#e11d33";
 const ACCENT = "#0ea5e9";
-const PALETTE = ["#11b29c", "#0ea5e9", "#8b5cf6", "#f59e0b", "#f15a3b", "#a3e635"];
+const PALETTE = ["#e11d33", "#0ea5e9", "#8b5cf6", "#f59e0b", "#cf8008", "#a3e635"];
 
 export function SalesAreaChart({ data }: { data: { date: string; total: number }[] }) {
   return (

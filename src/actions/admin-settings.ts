@@ -23,15 +23,22 @@ export async function saveSettings(
 ): Promise<SettingsFormState> {
   await requireAdmin();
 
-  const flatRaw = str(formData, "shippingFlat");
-  const freeMinRaw = str(formData, "freeShippingMin");
-  const flat = parseMoney(flatRaw);
-  const freeMin = parseMoney(freeMinRaw);
-  if (flatRaw && flat === null) {
-    return { error: "Taxa de entrega inválida. Use números, ex.: 14,90." };
-  }
-  if (freeMinRaw && freeMin === null) {
-    return { error: "Valor de frete grátis inválido. Use números, ex.: 150." };
+  // Parâmetros de frete (todos numéricos; vazio = volta ao padrão do sistema).
+  const shipFields: { form: string; key: string; label: string }[] = [
+    { form: "freeShippingMin", key: "shipping.freeMin", label: "Frete grátis a partir de" },
+    { form: "freeRadiusKm", key: "shipping.freeRadiusKm", label: "Raio grátis (km)" },
+    { form: "perKm", key: "shipping.perKm", label: "Custo por km" },
+    { form: "expressFlat", key: "shipping.expressFlat", label: "Taxa da Entrega Rápida" },
+    { form: "defaultKm", key: "shipping.defaultKm", label: "Distância padrão (km)" },
+  ];
+  const shipEntries: { key: string; value: string }[] = [];
+  for (const f of shipFields) {
+    const raw = str(formData, f.form);
+    const n = parseMoney(raw);
+    if (raw && n === null) {
+      return { error: `${f.label} inválido. Use números, ex.: 4 ou 1,00.` };
+    }
+    shipEntries.push({ key: f.key, value: n === null ? "" : String(n) });
   }
 
   // Token PagBank: o campo enviar "•••" (máscara) significa "não mexer" — o
@@ -39,10 +46,13 @@ export async function saveSettings(
   const pagbankTokenRaw = str(formData, "pagbankToken");
   const keepPagbankToken = pagbankTokenRaw === "" || /^•+$/.test(pagbankTokenRaw);
 
+  // Política de troca/devolução: vazio = mantém o texto padrão (CDC).
+  const returnPolicyRaw = String(formData.get("returnPolicy") ?? "").trim();
+
   // Valor vazio remove a configuração (volta ao padrão do sistema).
   const entries: { key: string; value: string }[] = [
-    { key: "shipping.flat", value: flat === null ? "" : String(flat) },
-    { key: "shipping.freeMin", value: freeMin === null ? "" : String(freeMin) },
+    ...shipEntries,
+    { key: "store.returnPolicy", value: returnPolicyRaw },
     { key: "store.cnpj", value: str(formData, "cnpj") },
     { key: "store.phone", value: str(formData, "phone") },
     { key: "store.whatsapp", value: str(formData, "whatsapp") },
