@@ -15,6 +15,7 @@
  */
 
 import { getPaymentSettings } from "@/lib/settings";
+import { qrPngBase64 } from "@/lib/qrcode";
 
 const toCents = (v: number) => Math.round(v * 100);
 
@@ -141,21 +142,8 @@ export async function createPixPayment(opts: {
     const qr = order.qr_codes?.[0];
     if (!order.id || !qr?.text) return null;
 
-    // Baixa o PNG do QR e converte para base64 (mesmo shape do fluxo antigo).
-    let qrCodeBase64 = "";
-    const pngLink = qr.links?.find(
-      (l) => l.media === "image/png" || l.rel === "QRCODE.PNG"
-    )?.href;
-    if (pngLink) {
-      try {
-        const png = await fetch(pngLink, { headers: authHeaders(cfg) });
-        if (png.ok) {
-          qrCodeBase64 = Buffer.from(await png.arrayBuffer()).toString("base64");
-        }
-      } catch {
-        // sem imagem, o copia-e-cola continua funcionando
-      }
-    }
+    // Gera o QR a partir do copia-e-cola (não depende do PagBank devolver PNG).
+    const qrCodeBase64 = await qrPngBase64(qr.text);
 
     return {
       paymentId: order.id,

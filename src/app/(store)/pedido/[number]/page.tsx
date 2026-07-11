@@ -25,6 +25,7 @@ import { SimulatePaymentButton } from "@/components/store/simulate-payment-butto
 import { PixPayment } from "@/components/store/pix-payment";
 import { OrderLiveStatus } from "@/components/store/order-live-status";
 import { readPixRaw } from "@/lib/pagbank";
+import { qrPngBase64 } from "@/lib/qrcode";
 import { PrescriptionResubmit } from "@/components/store/prescription-resubmit";
 import { CancelOrderButton } from "@/components/store/cancel-order-button";
 import { ReorderButton } from "@/components/store/reorder-button";
@@ -64,6 +65,11 @@ export default async function OrderPage({
   // PIX nativo: QR + copia-e-cola gerados no checkout e persistidos no pagamento.
   const pixData = readPixRaw(order.payment?.raw);
   const showPix = awaitingPayment && order.paymentMethod === "pix" && !!pixData;
+  // Garante o QR mesmo em pedidos antigos sem imagem salva: gera do copia-e-cola.
+  const pixQrBase64 =
+    showPix && pixData
+      ? pixData.qrCodeBase64 || (await qrPngBase64(pixData.qrCode))
+      : "";
   // O cliente ainda pode cancelar enquanto o pedido não saiu para entrega.
   const canCancel =
     order.status === "PENDING" ||
@@ -124,7 +130,7 @@ export default async function OrderPage({
           orderNumber={order.number}
           amount={order.total}
           qrCode={pixData.qrCode}
-          qrCodeBase64={pixData.qrCodeBase64}
+          qrCodeBase64={pixQrBase64}
         />
       ) : awaitingPayment ? (
         <div className="mt-6 space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-500/30 dark:bg-amber-500/10">
