@@ -79,23 +79,25 @@ export function PixPayment({
         .
       </p>
 
-      <div className="mt-5 grid gap-6 sm:grid-cols-[auto_1fr] sm:items-center">
+      <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:items-center">
         {qrCodeBase64 ? (
-          <Image
-            src={`data:image/png;base64,${qrCodeBase64}`}
-            alt={`QR Code PIX do pedido ${orderNumber}`}
-            width={200}
-            height={200}
-            unoptimized
-            className="mx-auto size-48 rounded-xl border border-border bg-white p-2"
-          />
+          <div className="relative size-48 shrink-0 overflow-hidden rounded-xl border border-border bg-white">
+            <Image
+              src={`data:image/png;base64,${qrCodeBase64}`}
+              alt={`QR Code PIX do pedido ${orderNumber}`}
+              fill
+              unoptimized
+              sizes="192px"
+              className="object-contain p-2"
+            />
+          </div>
         ) : (
-          <div className="mx-auto grid size-48 place-items-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">
+          <div className="grid size-48 shrink-0 place-items-center rounded-xl border border-dashed border-border px-3 text-center text-xs text-muted-foreground">
             QR indisponível — use o código
           </div>
         )}
 
-        <div className="space-y-3">
+        <div className="w-full min-w-0 space-y-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Valor
@@ -110,7 +112,7 @@ export function PixPayment({
               PIX copia e cola
             </p>
             <div className="flex items-stretch gap-2">
-              <code className="block max-w-full flex-1 truncate rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
+              <code className="min-w-0 flex-1 truncate rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
                 {qrCode}
               </code>
               <button
