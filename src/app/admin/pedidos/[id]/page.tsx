@@ -4,6 +4,8 @@ import { ArrowLeft, User, MapPin, CreditCard, FileText } from "lucide-react";
 import { getAdminOrder } from "@/lib/admin";
 import { getStoreSettings } from "@/lib/settings";
 import { listPharmaciesSafe } from "@/lib/pharmacy";
+import { getCurrentUser } from "@/lib/session";
+import { effectiveProfile } from "@/lib/permissions";
 import { formatBRL } from "@/lib/utils";
 import { StatusBadge } from "@/components/store/order-status";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
@@ -12,6 +14,7 @@ import { PrescriptionReview } from "@/components/admin/prescription-review";
 import { ProductImage } from "@/components/store/product-image";
 import { PrintButton } from "@/components/admin/print-button";
 import { OrderNotes } from "@/components/admin/order-notes";
+import { DeleteOrderButton } from "@/components/admin/delete-order-button";
 
 export const metadata = { title: "Pedido" };
 
@@ -21,12 +24,15 @@ export default async function AdminOrderDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [order, store, pharmacies] = await Promise.all([
+  const [order, store, pharmacies, user] = await Promise.all([
     getAdminOrder(id),
     getStoreSettings(),
     listPharmaciesSafe(),
+    getCurrentUser(),
   ]);
   if (!order) notFound();
+  // Excluir definitivamente é ação do dono/gerente (OWNER).
+  const isOwner = effectiveProfile(user?.staffProfile) === "OWNER";
 
   // Transferência: só faz sentido enquanto a unidade ainda trata o pedido.
   const canTransfer =
@@ -200,6 +206,21 @@ export default async function AdminOrderDetail({
               <p className="text-xs text-muted-foreground">
                 O pedido só pode avançar para preparo/envio após a aprovação da receita.
               </p>
+            </div>
+          )}
+
+          {isOwner && (
+            <div className="space-y-3 rounded-2xl border border-danger-500/30 bg-danger-500/5 p-5 print:hidden">
+              <p className="text-sm font-bold text-danger-500">Zona de perigo</p>
+              <p className="text-xs text-muted-foreground">
+                Excluir apaga este pedido permanentemente. Não estorna pagamento
+                nem devolve estoque — para isso, use “Cancelar”.
+              </p>
+              <DeleteOrderButton
+                orderId={order.id}
+                orderNumber={order.number}
+                redirectToList
+              />
             </div>
           )}
         </aside>

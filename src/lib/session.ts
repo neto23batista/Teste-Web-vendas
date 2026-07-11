@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { canAccess, type Area } from "@/lib/permissions";
+import { canAccess, effectiveProfile, type Area } from "@/lib/permissions";
 
 export async function getCurrentUser() {
   const session = await auth();
@@ -35,6 +35,19 @@ export async function assertArea(area: Area) {
   const user = await requireAdmin();
   if (!canAccess(user.staffProfile, area)) {
     throw new Error("Seu perfil não permite esta ação.");
+  }
+  return user;
+}
+
+/**
+ * Guard de ações restritas ao DONO/GERENTE (OWNER) — ações destrutivas e
+ * irreversíveis, como excluir um pedido definitivamente. `staffProfile = null`
+ * (contas legadas) é tratado como OWNER.
+ */
+export async function assertOwner() {
+  const user = await requireAdmin();
+  if (effectiveProfile(user.staffProfile) !== "OWNER") {
+    throw new Error("Apenas o dono/gerente pode executar esta ação.");
   }
   return user;
 }

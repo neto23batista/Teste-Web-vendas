@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { ChevronRight, Download, Search } from "lucide-react";
 import { getAdminOrders } from "@/lib/admin";
+import { getCurrentUser } from "@/lib/session";
+import { effectiveProfile } from "@/lib/permissions";
 import { formatBRL, cn } from "@/lib/utils";
 import { StatusBadge, STATUS_META } from "@/components/store/order-status";
 import { Pagination } from "@/components/admin/pagination";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { DeleteOrderButton } from "@/components/admin/delete-order-button";
 import type { OrderStatus } from "@prisma/client";
 
 type SP = Record<string, string | string[] | undefined>;
@@ -23,11 +26,12 @@ export default async function AdminOrdersPage({
   const to = one(sp.to) || undefined;
   const page = Number(one(sp.page)) || 1;
   const unit = one(sp.unit) || undefined;
-  const { items: orders, total, pages, page: current } = await getAdminOrders(
-    { status, q, from, to },
-    page,
-    unit
-  );
+  const [{ items: orders, total, pages, page: current }, user] = await Promise.all([
+    getAdminOrders({ status, q, from, to }, page, unit),
+    getCurrentUser(),
+  ]);
+  // Só o dono/gerente vê o atalho de excluir pedidos direto na lista.
+  const isOwner = effectiveProfile(user?.staffProfile) === "OWNER";
 
   // Links das abas de status preservam busca e período.
   const statusHref = (f: OrderStatus | "ALL") => {
@@ -193,13 +197,23 @@ export default async function AdminOrdersPage({
                     <StatusBadge status={o.status} />
                   </td>
                   <td className="p-4 font-bold">{formatBRL(o.total)}</td>
-                  <td className="p-4 text-right">
-                    <Link
-                      href={`/admin/pedidos/${o.id}`}
-                      className="inline-grid size-8 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-brand-600"
-                    >
-                      <ChevronRight className="size-4" />
-                    </Link>
+                  <td className="p-4">
+                    <div className="flex items-center justify-end gap-1">
+                      {isOwner && (
+                        <DeleteOrderButton
+                          orderId={o.id}
+                          orderNumber={o.number}
+                          compact
+                        />
+                      )}
+                      <Link
+                        href={`/admin/pedidos/${o.id}`}
+                        aria-label={`Abrir pedido ${o.number}`}
+                        className="inline-grid size-8 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-brand-600"
+                      >
+                        <ChevronRight className="size-4" />
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}

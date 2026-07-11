@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireAdminAtPharmacy } from "@/lib/session";
+import { requireAdmin, requireAdminAtPharmacy, assertOwner } from "@/lib/session";
 import { sendMail, baseUrl } from "@/lib/mail";
 import { notifyUnit } from "@/lib/notifications";
 import { orderStatusEmail, orderIncomingTransferEmail } from "@/lib/email-templates";
@@ -143,6 +143,36 @@ export async function transferOrderToUnit(orderId: string, targetPharmacyId: str
   });
 
   revalidatePath(`/admin/pedidos/${orderId}`);
+  revalidatePath("/admin/pedidos");
+  revalidatePath("/admin");
+  return { ok: true as const };
+}
+
+/**
+ * Exclui um pedido PERMANENTEMENTE. A remoção cascateia para itens, pagamento e
+ * exportação; receitas, pontos de fidelidade e lançamento bancário ficam com o
+ * vínculo nulo (histórico preservado). NÃO estorna pagamento nem devolve estoque
+ * — é remoção de registro, não cancelamento (para isso use "Cancelar").
+ * Restrito ao DONO/GERENTE.
+ */
+export async function deleteOrder(id: string) {
+  await assertOwner();
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { number: true, pharmacyId: true },
+  });
+  if (!order) return { ok: false as const, error: "Pedido não encontrado." };
+
+  await prisma.order.delete({ where: { id } });
+
+  await logAudit({
+    action: "order.delete",
+    entity: "Order",
+    entityId: id,
+    detail: `Excluiu o pedido ${order.number}`,
+    pharmacyId: order.pharmacyId ?? undefined,
+  });
+
   revalidatePath("/admin/pedidos");
   revalidatePath("/admin");
   return { ok: true as const };
