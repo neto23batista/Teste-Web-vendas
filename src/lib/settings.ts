@@ -86,27 +86,32 @@ export async function getStoreSettings(): Promise<StoreSettings> {
 }
 
 export type PaymentSettings = {
-  pagbankToken: string;
-  pagbankSandbox: boolean;
+  stripeSecretKey: string;
+  stripeWebhookSecret: string;
+  /** true = chave de produção (sk_live_…); derivado da própria chave. */
+  stripeLive: boolean;
 };
 
 /**
- * Credenciais de pagamento (PagBank). O token salvo em /admin/configuracoes
- * tem prioridade; sem ele, cai na variável de ambiente PAGBANK_TOKEN.
+ * Credenciais de pagamento (Stripe). A secret key salva em /admin/configuracoes
+ * tem prioridade; sem ela, cai nas envs STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET.
  * Propositalmente FORA de StoreSettings: só o servidor e a tela de
- * configurações do admin podem ver o token.
+ * configurações do admin podem ver as chaves.
  */
 export async function getPaymentSettings(): Promise<PaymentSettings> {
   const s = await getRawSettings().catch(
     () => ({}) as Record<string, string>
   );
-  const dbToken = (s["pagbank.token"] ?? "").trim();
+  const secretKey =
+    (s["stripe.secretKey"] ?? "").trim() || process.env.STRIPE_SECRET_KEY || "";
+  const webhookSecret =
+    (s["stripe.webhookSecret"] ?? "").trim() ||
+    process.env.STRIPE_WEBHOOK_SECRET ||
+    "";
   return {
-    pagbankToken: dbToken || process.env.PAGBANK_TOKEN || "",
-    pagbankSandbox:
-      "pagbank.sandbox" in s
-        ? s["pagbank.sandbox"] === "1"
-        : process.env.PAGBANK_SANDBOX === "1",
+    stripeSecretKey: secretKey,
+    stripeWebhookSecret: webhookSecret,
+    stripeLive: secretKey.startsWith("sk_live_"),
   };
 }
 

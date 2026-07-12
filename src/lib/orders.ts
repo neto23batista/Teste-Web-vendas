@@ -291,10 +291,10 @@ export async function cancelOrder(orderId: string) {
   if (
     didCancel &&
     paymentWasApproved &&
-    order.payment?.provider === "PAGBANK" &&
-    order.payment.externalId
+    order.payment?.provider !== "CASH" &&
+    order.payment?.externalId
   ) {
-    const { refundPayment } = await import("@/lib/pagbank");
+    const { refundPayment } = await import("@/lib/stripe");
     await refundPayment(order.payment.externalId);
   }
 

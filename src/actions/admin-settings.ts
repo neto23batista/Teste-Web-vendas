@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
-import { pagbankPing } from "@/lib/pagbank";
+import { stripePing } from "@/lib/stripe";
 import { logAudit } from "@/lib/audit";
 
 export type SettingsFormState =
@@ -23,25 +23,25 @@ function parseMoney(raw: string): number | null {
  * uma mensagem legível dizendo se autentica e em qual ambiente — assim o dono
  * confirma a config antes de vender de verdade, em vez de descobrir no checkout.
  */
-export async function testPagbankConnection(): Promise<{
+export async function testStripeConnection(): Promise<{
   ok: boolean;
   message: string;
 }> {
   await requireAdmin();
-  const ping = await pagbankPing();
+  const ping = await stripePing();
   if (!ping.configured) {
     return {
       ok: false,
-      message: "Nenhum token do PagBank salvo. Cole o token e salve antes de testar.",
+      message: "Nenhuma secret key do Stripe salva. Cole a chave e salve antes de testar.",
     };
   }
-  const env = ping.sandbox ? "sandbox (homologação)" : "produção";
+  const env = ping.live ? "produção (live)" : "teste (test)";
   if (ping.ok) {
-    return { ok: true, message: `Conexão OK — token válido em ${env}.` };
+    return { ok: true, message: `Conexão OK — chave válida em ${env}.` };
   }
   return {
     ok: false,
-    message: `Token recusado (HTTP ${ping.status || "sem resposta"}) em ${env}. Confira o token e o ambiente (sandbox × produção).`,
+    message: `Chave recusada (HTTP ${ping.status || "sem resposta"}) em ${env}. Confira a secret key do Stripe.`,
   };
 }
 
@@ -69,10 +69,11 @@ export async function saveSettings(
     shipEntries.push({ key: f.key, value: n === null ? "" : String(n) });
   }
 
-  // Token PagBank: o campo enviar "•••" (máscara) significa "não mexer" — o
-  // valor real nunca chega ao cliente, então não sobrescrevemos com a máscara.
-  const pagbankTokenRaw = str(formData, "pagbankToken");
-  const keepPagbankToken = pagbankTokenRaw === "" || /^•+$/.test(pagbankTokenRaw);
+  // Chaves do Stripe: um campo com "•••" (máscara) ou vazio significa "não mexer"
+  // — o valor real nunca chega ao cliente, então não sobrescrevemos com a máscara.
+  const isMask = (v: string) => v === "" || /^•+$/.test(v);
+  const stripeSecretRaw = str(formData, "stripeSecretKey");
+  const stripeWebhookRaw = str(formData, "stripeWebhookSecret");
 
   // Política de troca/devolução: vazio = mantém o texto padrão (CDC).
   const returnPolicyRaw = String(formData.get("returnPolicy") ?? "").trim();
@@ -89,11 +90,13 @@ export async function saveSettings(
     { key: "store.hours", value: str(formData, "hours") },
     { key: "store.pharmacistName", value: str(formData, "pharmacistName") },
     { key: "store.pharmacistCrf", value: str(formData, "pharmacistCrf") },
-    { key: "pagbank.sandbox", value: formData.get("pagbankSandbox") ? "1" : "0" },
-    // Só entra na lista de upserts/deletes se o admin realmente digitou algo.
-    ...(keepPagbankToken
+    // Só entram na lista de upserts/deletes se o admin realmente digitou algo.
+    ...(isMask(stripeSecretRaw)
       ? []
-      : [{ key: "pagbank.token", value: pagbankTokenRaw }]),
+      : [{ key: "stripe.secretKey", value: stripeSecretRaw }]),
+    ...(isMask(stripeWebhookRaw)
+      ? []
+      : [{ key: "stripe.webhookSecret", value: stripeWebhookRaw }]),
   ];
 
   await prisma.$transaction(

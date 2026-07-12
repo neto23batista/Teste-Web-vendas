@@ -15,8 +15,8 @@ import { createOrder, fulfillOrder, cancelOrder } from "@/lib/orders";
 import {
   createHostedCheckout,
   createPixPayment,
-  pagbankConfigured,
-} from "@/lib/pagbank";
+  stripeConfigured,
+} from "@/lib/stripe";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { sendMail, baseUrl } from "@/lib/mail";
 import { notifyUnit } from "@/lib/notifications";
@@ -316,7 +316,7 @@ export async function placeOrder(
     }
     redirect(`/pedido/${order.number}`);
   }
-  if (await pagbankConfigured()) {
+  if (await stripeConfigured()) {
     // PIX nativo: gera o QR/copia-e-cola e mostra na própria página do pedido
     // (sem sair do site). O webhook confirma a aprovação.
     if (paymentMethod === "pix") {
@@ -347,7 +347,7 @@ export async function placeOrder(
       }
       redirect(`/pedido/${order.number}`);
     }
-    // Cartão (e demais): página de pagamento hospedada do PagBank.
+    // Cartão (e demais): Checkout Session hospedada do Stripe.
     const url = await createHostedCheckout({
       orderNumber: order.number,
       items: order.items.map((i) => ({ name: i.name, price: i.price, qty: i.qty })),

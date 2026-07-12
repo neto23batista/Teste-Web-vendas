@@ -13,10 +13,10 @@ export default async function AdminSettingsPage() {
     getAdminScope(),
     getCurrentUser(),
   ]);
-  // O token nunca vai para o cliente — só se existe e se está em sandbox.
+  // As chaves nunca vão para o cliente — só se existem.
   const paymentView = {
-    hasToken: payment.pagbankToken.length > 0,
-    sandbox: payment.pagbankSandbox,
+    hasSecretKey: payment.stripeSecretKey.length > 0,
+    hasWebhook: payment.stripeWebhookSecret.length > 0,
   };
 
   // Gestão de unidades só para a matriz (escopo global).

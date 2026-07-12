@@ -10,12 +10,11 @@ import {
   Truck,
   Store,
   CreditCard,
-  ShieldCheck,
   RotateCcw,
   Plug,
 } from "lucide-react";
 import { toast } from "sonner";
-import { saveSettings, testPagbankConnection } from "@/actions/admin-settings";
+import { saveSettings, testStripeConnection } from "@/actions/admin-settings";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 import type { StoreSettings } from "@/lib/settings";
@@ -24,7 +23,7 @@ function money(n: number): string {
   return n.toFixed(2).replace(".", ",");
 }
 
-export type PaymentView = { hasToken: boolean; sandbox: boolean };
+export type PaymentView = { hasSecretKey: boolean; hasWebhook: boolean };
 
 export function SettingsForm({
   settings,
@@ -36,9 +35,9 @@ export function SettingsForm({
   const [state, formAction, pending] = useActionState(saveSettings, undefined);
   const [testing, startTest] = React.useTransition();
 
-  function handleTestPagbank() {
+  function handleTestStripe() {
     startTest(async () => {
-      const res = await testPagbankConnection();
+      const res = await testStripeConnection();
       if (res.ok) toast.success(res.message);
       else toast.error(res.message);
     });
@@ -223,53 +222,56 @@ export function SettingsForm({
       <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
         <h2 className="flex items-center gap-2 font-bold">
           <CreditCard className="size-5 text-brand-600 dark:text-brand-400" />{" "}
-          Pagamento online (PagBank)
+          Pagamento online (Stripe)
         </h2>
         <p className="text-sm text-muted-foreground">
-          Cole aqui o <strong>token de produção</strong> do PagBank (Painel
-          PagBank → Venda online → Integrações → Chave/Token). Com o token
-          salvo, a loja passa a gerar PIX e checkout de cartão automaticamente.
+          Cole a <strong>secret key</strong> do Stripe (Dashboard → Developers →
+          API keys) e o <strong>webhook secret</strong> (Developers → Webhooks →
+          seu endpoint <code>/api/webhooks/stripe</code> → Signing secret).
+          Chave <code>sk_test_…</code> = ambiente de teste; <code>sk_live_…</code>{" "}
+          = produção. Com as chaves salvas, a loja gera cartão e PIX
+          (PIX depende da habilitação do Stripe).
         </p>
         <Field
-          label="Token do PagBank"
-          htmlFor="pagbankToken"
+          label="Secret key"
+          htmlFor="stripeSecretKey"
           hint={
-            payment.hasToken
-              ? "Um token já está salvo. Deixe como está para mantê-lo; digite um novo para substituir."
-              : "Nenhum token salvo ainda — os pagamentos online estão desativados."
+            payment.hasSecretKey
+              ? "Uma chave já está salva. Deixe como está para mantê-la; cole uma nova para substituir."
+              : "Nenhuma chave salva ainda — os pagamentos online estão desativados."
           }
         >
           <Input
-            id="pagbankToken"
-            name="pagbankToken"
+            id="stripeSecretKey"
+            name="stripeSecretKey"
             type="password"
             autoComplete="off"
-            defaultValue={payment.hasToken ? "••••••••••••••••" : ""}
-            placeholder="Cole o token aqui"
+            defaultValue={payment.hasSecretKey ? "••••••••••••••••" : ""}
+            placeholder="sk_live_… ou sk_test_…"
           />
         </Field>
-        <label className="flex items-start gap-3 rounded-xl border border-border p-3">
-          <input
-            type="checkbox"
-            name="pagbankSandbox"
-            defaultChecked={payment.sandbox}
-            className="mt-0.5 size-4 accent-brand-600"
+        <Field
+          label="Webhook secret"
+          htmlFor="stripeWebhookSecret"
+          hint={
+            payment.hasWebhook
+              ? "Um webhook secret já está salvo. Deixe como está para mantê-lo; cole um novo para substituir."
+              : "Necessário para confirmar os pagamentos automaticamente (whsec_…)."
+          }
+        >
+          <Input
+            id="stripeWebhookSecret"
+            name="stripeWebhookSecret"
+            type="password"
+            autoComplete="off"
+            defaultValue={payment.hasWebhook ? "••••••••••••••••" : ""}
+            placeholder="whsec_…"
           />
-          <span className="text-sm">
-            <span className="flex items-center gap-1.5 font-semibold">
-              <ShieldCheck className="size-4 text-brand-600 dark:text-brand-400" />{" "}
-              Modo de testes (sandbox)
-            </span>
-            <span className="text-muted-foreground">
-              Use apenas para testar com um token de sandbox. Para receber de
-              verdade, deixe <strong>desmarcado</strong>.
-            </span>
-          </span>
-        </label>
+        </Field>
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            onClick={handleTestPagbank}
+            onClick={handleTestStripe}
             disabled={testing}
             className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-semibold transition hover:border-brand-300 hover:bg-muted disabled:opacity-50"
           >
@@ -281,8 +283,8 @@ export function SettingsForm({
             Testar conexão
           </button>
           <p className="text-xs text-muted-foreground">
-            Verifica se o token salvo autentica e em qual ambiente. Salve antes de
-            testar.
+            Verifica se a secret key salva autentica e em qual ambiente. Salve
+            antes de testar.
           </p>
         </div>
       </section>

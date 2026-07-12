@@ -2,7 +2,8 @@
 
 E-commerce de farmácia (Next.js 16 + React 19 + TS + Prisma/**PostgreSQL Neon**) com visual
 **app premium** (vermelho dark). Multi-unidade (matriz + filial), estoque por unidade,
-pedido roteado por CEP, admin escopado, Mercado Pago (Checkout Pro + PIX), assinaturas de
+pedido roteado por CEP, admin escopado, **Stripe** (Checkout de cartão + PIX; camada em
+`src/lib/stripe.ts`, webhook por assinatura em `src/app/api/webhooks/stripe`), assinaturas de
 reposição e CSP estrita por nonce (montada no middleware `src/proxy.ts`).
 
 ## Convenções
