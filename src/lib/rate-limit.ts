@@ -38,10 +38,22 @@ function rateLimitMemory(key: string, limit: number, windowMs: number): RateResu
 }
 
 // ───────────────────────── Upstash Redis (REST) ─────────────────────────
+/**
+ * As credenciais chegam com DOIS nomes possíveis, e aceitar só um faz o limite
+ * durável cair no fallback em memória sem avisar:
+ * - console do Upstash (colado à mão): UPSTASH_REDIS_REST_URL / _TOKEN
+ * - integração do Marketplace da Vercel: KV_REST_API_URL / KV_REST_API_TOKEN
+ */
 function upstashEnv(): { url: string; token: string } | null {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const url = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
+  const token =
+    process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
   return url && token ? { url: url.replace(/\/+$/, ""), token } : null;
+}
+
+/** Há rate-limit durável (Redis) configurado? Usado pelo verificador de setup. */
+export function rateLimitIsDurable(): boolean {
+  return upstashEnv() !== null;
 }
 
 /**
