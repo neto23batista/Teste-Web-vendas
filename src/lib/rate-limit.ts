@@ -1,14 +1,19 @@
 import { headers } from "next/headers";
+import Redis from "ioredis";
 
 /**
- * Rate limiting por janela fixa.
+ * Rate limiting por janela fixa. Contador DURÁVEL (compartilhado entre as
+ * instâncias serverless da Vercel) por dois caminhos, nesta ordem:
  *
- * - Com UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN definidos, usa o
- *   Upstash Redis via REST — durável e compartilhado entre as instâncias
- *   serverless (Vercel). É o modo recomendado em produção.
- * - Sem as variáveis (dev/VPS de instância única), cai no contador em memória.
- * - Se o Redis falhar/exceder o timeout, também cai no contador em memória
- *   (fail-open controlado: melhor limitar por instância do que derrubar login).
+ * 1. REST (Upstash): UPSTASH_REDIS_REST_URL + _TOKEN (ou KV_REST_API_*).
+ * 2. TCP: REDIS_URL — é o que a integração "Redis" do Marketplace da Vercel
+ *    injeta (só TCP, sem REST). Só é seguro usar porque `rateLimit` roda apenas
+ *    em Server Actions e rotas de API (runtime Node) — nunca no middleware/edge,
+ *    onde socket TCP não existe.
+ * 3. Sem nenhuma das duas (dev/VPS), cai no contador em memória.
+ *
+ * Se o Redis falhar/exceder o timeout, também cai em memória (fail-open
+ * controlado: melhor limitar por instância do que derrubar o login da loja).
  */
 export type RateResult = { ok: boolean; retryAfter: number };
 
@@ -51,9 +56,74 @@ function upstashEnv(): { url: string; token: string } | null {
   return url && token ? { url: url.replace(/\/+$/, ""), token } : null;
 }
 
+// ───────────────────────── Redis via TCP (REDIS_URL) ─────────────────────────
+/**
+ * INCR + PEXPIRE (só no 1º hit) + PTTL de forma ATÔMICA. Em Lua para valer em
+ * qualquer versão do Redis — `PEXPIRE ... NX` só existe do Redis 7 em diante.
+ */
+const WINDOW_SCRIPT = `
+local c = redis.call('INCR', KEYS[1])
+if c == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+return { c, redis.call('PTTL', KEYS[1]) }
+`;
+
+// Singleton: a instância serverless é reaproveitada entre requisições quentes,
+// então a conexão TCP é aberta uma vez, não a cada login.
+let redisClient: Redis | null | undefined;
+
+function getRedis(): Redis | null {
+  if (redisClient !== undefined) return redisClient;
+  const url = process.env.REDIS_URL;
+  if (!url) {
+    redisClient = null;
+    return null;
+  }
+  redisClient = new Redis(url, {
+    connectTimeout: 2000,
+    commandTimeout: 2000,
+    maxRetriesPerRequest: 1,
+    // Sem fila offline: se o Redis estiver fora, o comando falha na hora e o
+    // chamador cai no fallback em memória em vez de travar a requisição.
+    enableOfflineQueue: false,
+    lazyConnect: true,
+  });
+  // Sem listener de 'error' o ioredis derruba o processo com unhandled error.
+  redisClient.on("error", (err: Error) => {
+    console.error("[rate-limit] redis:", err.message);
+  });
+  return redisClient;
+}
+
+async function rateLimitRedis(
+  key: string,
+  limit: number,
+  windowMs: number
+): Promise<RateResult | null> {
+  const redis = getRedis();
+  if (!redis) return null;
+  try {
+    const res = (await redis.eval(
+      WINDOW_SCRIPT,
+      1,
+      `rl:${key}`,
+      String(windowMs)
+    )) as [number, number];
+    const count = Number(res?.[0]);
+    if (!Number.isFinite(count)) return null;
+    if (count > limit) {
+      const ttl = Number(res?.[1]);
+      const ms = Number.isFinite(ttl) && ttl > 0 ? ttl : windowMs;
+      return { ok: false, retryAfter: Math.max(1, Math.ceil(ms / 1000)) };
+    }
+    return { ok: true, retryAfter: 0 };
+  } catch {
+    return null; // fail-open: cai no contador em memória
+  }
+}
+
 /** Há rate-limit durável (Redis) configurado? Usado pelo verificador de setup. */
 export function rateLimitIsDurable(): boolean {
-  return upstashEnv() !== null;
+  return upstashEnv() !== null || !!process.env.REDIS_URL;
 }
 
 /**
@@ -103,7 +173,9 @@ export async function rateLimit(
   limit: number,
   windowMs: number
 ): Promise<RateResult> {
-  const durable = await rateLimitUpstash(key, limit, windowMs);
+  const durable =
+    (await rateLimitUpstash(key, limit, windowMs)) ??
+    (await rateLimitRedis(key, limit, windowMs));
   return durable ?? rateLimitMemory(key, limit, windowMs);
 }
 

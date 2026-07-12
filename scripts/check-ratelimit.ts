@@ -18,16 +18,18 @@ async function main() {
 
   const durable = rateLimitIsDurable();
   const via = process.env.UPSTASH_REDIS_REST_URL
-    ? "UPSTASH_REDIS_REST_* (console do Upstash)"
+    ? "UPSTASH_REDIS_REST_* (REST, console do Upstash)"
     : process.env.KV_REST_API_URL
-      ? "KV_REST_API_* (integração da Vercel)"
-      : null;
+      ? "KV_REST_API_* (REST, integração da Vercel)"
+      : process.env.REDIS_URL
+        ? "REDIS_URL (TCP, integração Redis da Vercel)"
+        : null;
 
   if (!durable) {
     bad("Nenhuma credencial de Redis encontrada.");
     info("O limite está em MEMÓRIA: na Vercel isso é por instância e some no");
     info("cold start — dá para tentar senha em massa trocando de instância.");
-    info("Defina UPSTASH_REDIS_REST_URL + _TOKEN (ou KV_REST_API_URL + _TOKEN).");
+    info("Defina REDIS_URL, ou UPSTASH_REDIS_REST_URL + _TOKEN.");
     process.exit(1);
   }
   ok(`Credenciais encontradas via ${via}.`);
@@ -62,6 +64,8 @@ async function main() {
   ok(`Contador persistido no Redis (bloqueio segue de pé, libera em ${again.retryAfter}s).`);
 
   console.log("\n\x1b[32mTudo certo:\x1b[0m o rate-limit durável está ativo.\n");
+  // A conexão TCP fica aberta (singleton) e seguraria o processo — encerra.
+  process.exit(0);
 }
 
 main().catch((err) => {

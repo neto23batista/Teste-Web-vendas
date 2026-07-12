@@ -61,3 +61,8 @@ next-env.d.ts
 
 # CLI da Vercel (contém o id do projeto e o .env.local puxado)
 .vercel
+
+# Reanexado pelo `vercel link`/`env pull`. A exceção precisa vir DEPOIS, senão
+# o arquivo de exemplo (que é versionado de propósito) volta a ser ignorado.
+.env*
+!.env.example
