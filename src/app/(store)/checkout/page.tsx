@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getCart } from "@/lib/cart";
-import { getShippingConfig, resolveKm } from "@/lib/settings";
+import { getShippingConfig, getPaymentSettings, resolveKm } from "@/lib/settings";
 import { CheckoutForm } from "@/components/store/checkout-form";
 
 export const metadata: Metadata = { title: "Checkout" };
@@ -13,7 +13,7 @@ export default async function CheckoutPage() {
   const cart = await getCart();
   if (!cart || cart.items.length === 0) redirect("/sacola");
 
-  const [rawAddresses, loyalty, shippingConfig, dbUser] = await Promise.all([
+  const [rawAddresses, loyalty, shippingConfig, dbUser, payment] = await Promise.all([
     prisma.address.findMany({
       where: { userId: user.id },
       orderBy: { isDefault: "desc" },
@@ -24,7 +24,16 @@ export default async function CheckoutPage() {
     }),
     getShippingConfig(cart.pharmacyId),
     prisma.user.findUnique({ where: { id: user.id }, select: { cpf: true } }),
+    getPaymentSettings(),
   ]);
+
+  // Só oferece o que dá para cobrar de verdade. As CHAVES não vão para o cliente —
+  // só dois booleanos. Sem Stripe, resta dinheiro na entrega; com Stripe mas sem
+  // Pix habilitado, resta cartão + dinheiro (o Pix do Stripe BR é por convite).
+  const availability = {
+    stripeConfigured: payment.stripeSecretKey.length > 0,
+    pixEnabled: payment.stripePixEnabled,
+  };
 
   // Resolve a distância (km) de cada endereço salvo pela faixa de CEP da unidade,
   // para o resumo de frete recalcular ao trocar de endereço/modalidade no cliente.
@@ -52,6 +61,7 @@ export default async function CheckoutPage() {
         shippingConfig={shippingConfig}
         defaultKm={shippingConfig.defaultKm}
         hasCpf={!!dbUser?.cpf}
+        availability={availability}
       />
       </div>
     </div>

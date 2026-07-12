@@ -28,6 +28,12 @@ import {
   type ShippingConfig,
   type DeliveryMethod,
 } from "@/lib/shipping";
+import {
+  availablePaymentMethods,
+  defaultPaymentMethod,
+  type PaymentAvailability,
+  type PaymentMethodId,
+} from "@/lib/payment-methods";
 import { lookupCep } from "@/lib/viacep";
 import { formatBRL, cn } from "@/lib/utils";
 
@@ -46,11 +52,14 @@ type Address = {
   km: number;
 };
 
-const methods = [
-  { id: "pix", label: "Pix", desc: "Aprovação imediata", icon: QrCode },
-  { id: "card", label: "Cartão de crédito", desc: "Em até 3x sem juros", icon: CreditCard },
-  { id: "cash", label: "Dinheiro na entrega", desc: "Pague ao receber", icon: Wallet },
-];
+const METHOD_INFO: Record<
+  PaymentMethodId,
+  { label: string; desc: string; icon: typeof QrCode }
+> = {
+  pix: { label: "Pix", desc: "Aprovação imediata", icon: QrCode },
+  card: { label: "Cartão de crédito", desc: "Em até 3x sem juros", icon: CreditCard },
+  cash: { label: "Dinheiro na entrega", desc: "Pague ao receber", icon: Wallet },
+};
 
 export function CheckoutForm({
   addresses,
@@ -60,6 +69,7 @@ export function CheckoutForm({
   shippingConfig = DEFAULT_SHIPPING_CONFIG,
   defaultKm = 0,
   hasCpf = false,
+  availability,
 }: {
   addresses: Address[];
   subtotal: number;
@@ -69,7 +79,14 @@ export function CheckoutForm({
   defaultKm?: number;
   /** Se o usuário já tem CPF salvo — o PIX exige CPF do pagador. */
   hasCpf?: boolean;
+  /** O que o provedor consegue cobrar agora (sem chave/sem Pix, não oferece). */
+  availability: PaymentAvailability;
 }) {
+  // Só mostra o que o servidor consegue processar — ver lib/payment-methods.
+  const methods = availablePaymentMethods(availability).map((id) => ({
+    id,
+    ...METHOD_INFO[id],
+  }));
   const formRef = React.useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState(placeOrder, undefined);
 
@@ -79,7 +96,9 @@ export function CheckoutForm({
     if (state?.error) toast.error(state.error);
   }, [state]);
   const [addressId, setAddressId] = React.useState(addresses[0]?.id ?? "new");
-  const [method, setMethod] = React.useState("pix");
+  const [method, setMethod] = React.useState<PaymentMethodId>(
+    defaultPaymentMethod(availability)
+  );
   const [delivery, setDelivery] = React.useState<DeliveryMethod>("standard");
   const [newZip, setNewZip] = React.useState("");
   const [cepLoading, setCepLoading] = React.useState(false);

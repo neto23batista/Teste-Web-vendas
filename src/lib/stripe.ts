@@ -47,21 +47,43 @@ export type StripePing = {
   ok: boolean;
   /** true = chave de produção (sk_live_…); false = teste (sk_test_…). */
   live: boolean;
+  /** true = a conta tem o Pix ATIVO (habilitação por convite no Stripe BR). */
+  pix: boolean;
   status: number;
 };
 
-/** Testa se a secret key salva autentica (retrieve do balance) e o ambiente. */
+/**
+ * O Pix do Stripe para empresas BR é liberado por CONVITE — a conta pode ter uma
+ * chave perfeitamente válida e ainda assim não conseguir cobrar por Pix. Quem diz
+ * é a capability `pix_payments` da conta. Best-effort: qualquer falha vira `false`,
+ * porque oferecer um meio de pagamento que não funciona deixa o pedido órfão
+ * (cliente sem QR, sem como pagar) — o custo do falso-positivo é alto demais.
+ */
+async function pixCapability(client: Stripe): Promise<boolean> {
+  try {
+    // retrieveCurrent = a conta da própria secret key (não é uma conta Connect).
+    const account = await client.accounts.retrieveCurrent();
+    return account.capabilities?.pix_payments === "active";
+  } catch {
+    return false;
+  }
+}
+
+/** Testa se a secret key salva autentica (retrieve do balance), o ambiente e o Pix. */
 export async function stripePing(): Promise<StripePing> {
   const { stripeSecretKey } = await getPaymentSettings();
-  if (!stripeSecretKey) return { configured: false, ok: false, live: false, status: 0 };
+  if (!stripeSecretKey) {
+    return { configured: false, ok: false, live: false, pix: false, status: 0 };
+  }
   const live = stripeSecretKey.startsWith("sk_live_");
+  const client = new Stripe(stripeSecretKey);
   try {
-    await new Stripe(stripeSecretKey).balance.retrieve();
-    return { configured: true, ok: true, live, status: 200 };
+    await client.balance.retrieve();
   } catch (err) {
     const status = (err as Stripe.errors.StripeError)?.statusCode ?? 0;
-    return { configured: true, ok: false, live, status };
+    return { configured: true, ok: false, live, pix: false, status };
   }
+  return { configured: true, ok: true, live, pix: await pixCapability(client), status: 200 };
 }
 
 export type PixCharge = {

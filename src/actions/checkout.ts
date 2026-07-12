@@ -7,16 +7,16 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getCart } from "@/lib/cart";
 import { shippingFor, type DeliveryMethod } from "@/lib/shipping";
-import { getShippingConfig, resolveKm } from "@/lib/settings";
+import { getShippingConfig, getPaymentSettings, resolveKm } from "@/lib/settings";
 import { validateCoupon } from "@/lib/coupons";
 import { maxRedeemablePoints, pointsToBRL } from "@/lib/loyalty";
 import { saveUpload } from "@/lib/uploads";
 import { createOrder, fulfillOrder, cancelOrder } from "@/lib/orders";
+import { createHostedCheckout, createPixPayment } from "@/lib/stripe";
 import {
-  createHostedCheckout,
-  createPixPayment,
-  stripeConfigured,
-} from "@/lib/stripe";
+  defaultPaymentMethod,
+  isPaymentMethodAvailable,
+} from "@/lib/payment-methods";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { sendMail, baseUrl } from "@/lib/mail";
 import { notifyUnit } from "@/lib/notifications";
@@ -82,10 +82,28 @@ export async function placeOrder(
     };
   }
 
-  const paymentMethod = str(formData, "paymentMethod") || "pix";
+  // O formulário já só exibe o que dá para cobrar, mas o método vem do CLIENTE:
+  // aceitar "pix" com o Pix desabilitado criaria o pedido e jogaria o cliente numa
+  // página sem QR e sem cobrança — pedido preso, sem como pagar. Valida aqui.
+  const payment = await getPaymentSettings();
+  const availability = {
+    stripeConfigured: payment.stripeSecretKey.length > 0,
+    pixEnabled: payment.stripePixEnabled,
+  };
+  const requested =
+    str(formData, "paymentMethod") || defaultPaymentMethod(availability);
+  if (!isPaymentMethodAvailable(requested, availability)) {
+    return {
+      error:
+        requested === "pix"
+          ? "Pix indisponível no momento. Escolha cartão ou dinheiro na entrega."
+          : "Forma de pagamento indisponível. Escolha outra opção.",
+    };
+  }
+  const paymentMethod = requested;
 
-  // PIX (PagBank) exige o CPF do pagador. Usa o do cadastro; se não houver, exige
-  // o informado no checkout (11 dígitos) e salva no cadastro p/ as próximas compras.
+  // O PIX exige o CPF do pagador. Usa o do cadastro; se não houver, exige o
+  // informado no checkout (11 dígitos) e salva no cadastro p/ as próximas compras.
   let payerCpf: string | null = null;
   if (paymentMethod === "pix") {
     const dbUser = await prisma.user.findUnique({
@@ -316,7 +334,7 @@ export async function placeOrder(
     }
     redirect(`/pedido/${order.number}`);
   }
-  if (await stripeConfigured()) {
+  if (availability.stripeConfigured) {
     // PIX nativo: gera o QR/copia-e-cola e mostra na própria página do pedido
     // (sem sair do site). O webhook confirma a aprovação.
     if (paymentMethod === "pix") {
@@ -329,22 +347,30 @@ export async function placeOrder(
         payerTaxId: payerCpf,
         description: `FarmaVida ${order.number}`,
       });
-      if (pix) {
-        await prisma.payment.updateMany({
-          where: { orderId: order.id },
-          data: {
-            externalId: pix.paymentId,
-            raw: {
-              pix: {
-                qrCode: pix.qrCode,
-                qrCodeBase64: pix.qrCodeBase64,
-                ticketUrl: pix.ticketUrl,
-                expiresAt: pix.expiresAt,
-              },
+      // Sem QR não há como pagar. Antes o pedido era criado assim mesmo e o cliente
+      // caía numa página vazia, com o pedido preso em "aguardando pagamento" para
+      // sempre. Desfaz o pedido (devolve cupom/pontos) e explica o que fazer.
+      if (!pix) {
+        await cancelOrder(order.id).catch(() => {});
+        return {
+          error:
+            "Não foi possível gerar o Pix agora. Escolha cartão ou dinheiro na entrega.",
+        };
+      }
+      await prisma.payment.updateMany({
+        where: { orderId: order.id },
+        data: {
+          externalId: pix.paymentId,
+          raw: {
+            pix: {
+              qrCode: pix.qrCode,
+              qrCodeBase64: pix.qrCodeBase64,
+              ticketUrl: pix.ticketUrl,
+              expiresAt: pix.expiresAt,
             },
           },
-        });
-      }
+        },
+      });
       redirect(`/pedido/${order.number}`);
     }
     // Cartão (e demais): Checkout Session hospedada do Stripe. O total do pedido
@@ -359,8 +385,15 @@ export async function placeOrder(
       customerName: user.name,
     });
     if (url) redirect(url);
+    // Mesma lógica do PIX: sem página de pagamento, não há como cobrar.
+    await cancelOrder(order.id).catch(() => {});
+    return {
+      error:
+        "Não foi possível iniciar o pagamento no cartão. Tente novamente ou escolha dinheiro na entrega.",
+    };
   }
-  // Fallback (sem token PagBank): página do pedido em "aguardando pagamento"
+  // Inalcançável na prática: sem Stripe configurado, o único método que passa na
+  // validação é "cash", que já saiu acima. Fica como rede de segurança.
   redirect(`/pedido/${order.number}`);
 }
 

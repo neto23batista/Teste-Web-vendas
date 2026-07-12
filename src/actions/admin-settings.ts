@@ -38,13 +38,28 @@ export async function testStripeConnection(): Promise<{
     };
   }
   const env = ping.live ? "produção (live)" : "teste (test)";
-  if (ping.ok) {
-    return { ok: true, message: `Conexão OK — chave válida em ${env}.` };
+  if (!ping.ok) {
+    return {
+      ok: false,
+      message: `Chave recusada (HTTP ${ping.status || "sem resposta"}) em ${env}. Confira a secret key do Stripe.`,
+    };
   }
-  return {
-    ok: false,
-    message: `Chave recusada (HTTP ${ping.status || "sem resposta"}) em ${env}. Confira a secret key do Stripe.`,
-  };
+
+  // Guarda o status do Pix: o checkout consulta isto (barato) em vez de bater na
+  // API do Stripe a cada renderização. É aqui que o PIX "reaparece" na loja assim
+  // que o Stripe aprova a habilitação — basta o dono clicar em Testar conexão.
+  await prisma.setting.upsert({
+    where: { key: "stripe.pixEnabled" },
+    update: { value: ping.pix ? "1" : "" },
+    create: { key: "stripe.pixEnabled", value: ping.pix ? "1" : "" },
+  });
+  revalidateTag("settings", "max");
+  revalidatePath("/checkout");
+
+  const pixMsg = ping.pix
+    ? "Pix ATIVO — já aparece no checkout."
+    : "Pix ainda NÃO habilitado pelo Stripe (é liberado por convite) — o checkout mostra só cartão e dinheiro.";
+  return { ok: true, message: `Conexão OK — chave válida em ${env}. ${pixMsg}` };
 }
 
 export async function saveSettings(

@@ -90,6 +90,14 @@ export type PaymentSettings = {
   stripeWebhookSecret: string;
   /** true = chave de produção (sk_live_…); derivado da própria chave. */
   stripeLive: boolean;
+  /**
+   * true = a conta Stripe tem o Pix ATIVO. Gravado pelo "Testar conexão"
+   * (`stripe.pixEnabled`), que consulta a capability na API. Fica em cache aqui
+   * porque o checkout precisa saber isso a cada renderização — não dá para bater
+   * na API do Stripe toda vez. Padrão FALSE: enquanto não houver confirmação, o
+   * PIX não é oferecido (melhor esconder do que dar um QR que nunca vem).
+   */
+  stripePixEnabled: boolean;
 };
 
 /**
@@ -112,6 +120,7 @@ export async function getPaymentSettings(): Promise<PaymentSettings> {
     stripeSecretKey: secretKey,
     stripeWebhookSecret: webhookSecret,
     stripeLive: secretKey.startsWith("sk_live_"),
+    stripePixEnabled: (s["stripe.pixEnabled"] ?? "") === "1",
   };
 }
 
