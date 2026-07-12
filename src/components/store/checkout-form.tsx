@@ -59,6 +59,7 @@ export function CheckoutForm({
   points,
   shippingConfig = DEFAULT_SHIPPING_CONFIG,
   defaultKm = 0,
+  hasCpf = false,
 }: {
   addresses: Address[];
   subtotal: number;
@@ -66,6 +67,8 @@ export function CheckoutForm({
   points: number;
   shippingConfig?: ShippingConfig;
   defaultKm?: number;
+  /** Se o usuário já tem CPF salvo — o PIX exige CPF do pagador. */
+  hasCpf?: boolean;
 }) {
   const formRef = React.useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState(placeOrder, undefined);
@@ -328,6 +331,24 @@ export function CheckoutForm({
               </label>
             ))}
           </div>
+
+          {/* PIX exige o CPF do pagador; só pede se o cadastro ainda não tem. */}
+          {method === "pix" && !hasCpf && (
+            <Field
+              label="CPF do pagador"
+              htmlFor="cpf"
+              hint="O PIX exige o CPF de quem paga. Fica salvo para as próximas compras."
+            >
+              <Input
+                id="cpf"
+                name="cpf"
+                inputMode="numeric"
+                placeholder="000.000.000-00"
+                required
+                aria-required="true"
+              />
+            </Field>
+          )}
         </section>
 
         {/* Observações */}

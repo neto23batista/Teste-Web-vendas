@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+import { pagbankPing } from "@/lib/pagbank";
 import { logAudit } from "@/lib/audit";
 
 export type SettingsFormState =
@@ -15,6 +16,33 @@ function parseMoney(raw: string): number | null {
   if (!raw) return null;
   const n = Number(raw.replace(/\./g, "").replace(",", "."));
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/**
+ * Testa a conexão com o PagBank usando o token JÁ SALVO (não cria nada). Retorna
+ * uma mensagem legível dizendo se autentica e em qual ambiente — assim o dono
+ * confirma a config antes de vender de verdade, em vez de descobrir no checkout.
+ */
+export async function testPagbankConnection(): Promise<{
+  ok: boolean;
+  message: string;
+}> {
+  await requireAdmin();
+  const ping = await pagbankPing();
+  if (!ping.configured) {
+    return {
+      ok: false,
+      message: "Nenhum token do PagBank salvo. Cole o token e salve antes de testar.",
+    };
+  }
+  const env = ping.sandbox ? "sandbox (homologação)" : "produção";
+  if (ping.ok) {
+    return { ok: true, message: `Conexão OK — token válido em ${env}.` };
+  }
+  return {
+    ok: false,
+    message: `Token recusado (HTTP ${ping.status || "sem resposta"}) em ${env}. Confira o token e o ambiente (sandbox × produção).`,
+  };
 }
 
 export async function saveSettings(

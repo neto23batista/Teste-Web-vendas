@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useActionState } from "react";
 import {
   AlertCircle,
@@ -11,8 +12,10 @@ import {
   CreditCard,
   ShieldCheck,
   RotateCcw,
+  Plug,
 } from "lucide-react";
-import { saveSettings } from "@/actions/admin-settings";
+import { toast } from "sonner";
+import { saveSettings, testPagbankConnection } from "@/actions/admin-settings";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 import type { StoreSettings } from "@/lib/settings";
@@ -31,6 +34,15 @@ export function SettingsForm({
   payment: PaymentView;
 }) {
   const [state, formAction, pending] = useActionState(saveSettings, undefined);
+  const [testing, startTest] = React.useTransition();
+
+  function handleTestPagbank() {
+    startTest(async () => {
+      const res = await testPagbankConnection();
+      if (res.ok) toast.success(res.message);
+      else toast.error(res.message);
+    });
+  }
 
   return (
     <form action={formAction} className="max-w-2xl space-y-6">
@@ -254,6 +266,25 @@ export function SettingsForm({
             </span>
           </span>
         </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleTestPagbank}
+            disabled={testing}
+            className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-semibold transition hover:border-brand-300 hover:bg-muted disabled:opacity-50"
+          >
+            {testing ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Plug className="size-4" />
+            )}
+            Testar conexão
+          </button>
+          <p className="text-xs text-muted-foreground">
+            Verifica se o token salvo autentica e em qual ambiente. Salve antes de
+            testar.
+          </p>
+        </div>
       </section>
 
       <section className="space-y-4 rounded-2xl border border-border bg-card p-5">

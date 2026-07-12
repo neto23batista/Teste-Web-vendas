@@ -45,6 +45,34 @@ function authHeaders(cfg: PagbankCfg): Record<string, string> {
   };
 }
 
+export type PagbankPing = {
+  configured: boolean;
+  /** true = o token autentica na API (não deu 401/403). */
+  ok: boolean;
+  sandbox: boolean;
+  /** status HTTP da checagem (diagnóstico). */
+  status: number;
+};
+
+/**
+ * Testa se o token salvo autentica na API do PagBank SEM criar nada: faz um GET
+ * numa referência inexistente. 401/403 = token recusado; qualquer outra resposta
+ * (400/404/200) = o token autentica. Informa também o ambiente (sandbox/produção).
+ */
+export async function pagbankPing(): Promise<PagbankPing> {
+  const cfg = await getCfg();
+  if (!cfg) return { configured: false, ok: false, sandbox: false, status: 0 };
+  try {
+    const res = await fetch(`${apiBase(cfg)}/orders/PING_INEXISTENTE`, {
+      headers: authHeaders(cfg),
+    });
+    const ok = res.status !== 401 && res.status !== 403;
+    return { configured: true, ok, sandbox: cfg.sandbox, status: res.status };
+  } catch {
+    return { configured: true, ok: false, sandbox: cfg.sandbox, status: 0 };
+  }
+}
+
 function notifyUrl(): string {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
   return `${baseUrl}/api/webhooks/pagbank`;

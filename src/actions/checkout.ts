@@ -84,6 +84,26 @@ export async function placeOrder(
 
   const paymentMethod = str(formData, "paymentMethod") || "pix";
 
+  // PIX (PagBank) exige o CPF do pagador. Usa o do cadastro; se não houver, exige
+  // o informado no checkout (11 dígitos) e salva no cadastro p/ as próximas compras.
+  let payerCpf: string | null = null;
+  if (paymentMethod === "pix") {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { cpf: true },
+    });
+    if (dbUser?.cpf) {
+      payerCpf = dbUser.cpf;
+    } else {
+      const informed = str(formData, "cpf").replace(/\D/g, "");
+      if (informed.length !== 11) {
+        return { error: "Para pagar com PIX, informe um CPF válido (11 dígitos)." };
+      }
+      payerCpf = informed;
+      await prisma.user.update({ where: { id: user.id }, data: { cpf: informed } });
+    }
+  }
+
   // Endereço: existente ou novo
   let addressId: string | null = str(formData, "addressId") || null;
   if (addressId) {
@@ -300,17 +320,13 @@ export async function placeOrder(
     // PIX nativo: gera o QR/copia-e-cola e mostra na própria página do pedido
     // (sem sair do site). O webhook confirma a aprovação.
     if (paymentMethod === "pix") {
-      // O PagBank pede o CPF do pagador no PIX — usa o do cadastro se houver.
-      const payer = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: { cpf: true },
-      });
+      // CPF do pagador já resolvido/validado acima (obrigatório para PIX).
       const pix = await createPixPayment({
         orderNumber: order.number,
         amount: order.total,
         payerEmail: user.email ?? "",
         payerName: user.name,
-        payerTaxId: payer?.cpf ?? null,
+        payerTaxId: payerCpf,
         description: `FarmaVida ${order.number}`,
       });
       if (pix) {

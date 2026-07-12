@@ -6,7 +6,7 @@ import { requireAdmin, requireAdminAtPharmacy, assertOwner } from "@/lib/session
 import { sendMail, baseUrl } from "@/lib/mail";
 import { notifyUnit } from "@/lib/notifications";
 import { orderStatusEmail, orderIncomingTransferEmail } from "@/lib/email-templates";
-import { cancelOrder, transferOrder } from "@/lib/orders";
+import { cancelOrder, transferOrder, fulfillOrder } from "@/lib/orders";
 import { logAudit } from "@/lib/audit";
 import { Prisma, type OrderStatus } from "@prisma/client";
 
@@ -33,7 +33,7 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
   // Filial só altera pedidos da própria unidade; matriz, de qualquer uma.
   const target = await prisma.order.findUnique({
     where: { id },
-    select: { pharmacyId: true },
+    select: { pharmacyId: true, status: true },
   });
   if (!target) return { ok: false as const, error: "Pedido não encontrado." };
   if (target.pharmacyId) await requireAdminAtPharmacy(target.pharmacyId);
@@ -60,6 +60,24 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
   if (status === "CANCELED") {
     await cancelOrder(id);
   } else {
+    // Confirmação manual de um pedido ainda PENDENTE (ex.: webhook do PagBank não
+    // chegou): roteia pelo fulfillOrder — baixa estoque, credita pontos e aprova
+    // o Payment — antes de aplicar o status escolhido. Sem isso, o "PAGO" na mão
+    // seria só um rótulo. fulfillOrder é idempotente e pode deixar em PAID/
+    // PREPARING; o update abaixo garante exatamente o status pedido.
+    if (target.status === "PENDING" && status !== "PENDING") {
+      try {
+        await fulfillOrder(id);
+      } catch (e) {
+        return {
+          ok: false as const,
+          error:
+            e instanceof Error
+              ? e.message
+              : "Não foi possível confirmar o pagamento (estoque insuficiente?).",
+        };
+      }
+    }
     await prisma.order.update({ where: { id }, data: { status } });
   }
 

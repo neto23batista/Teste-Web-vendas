@@ -13,7 +13,7 @@ export default async function CheckoutPage() {
   const cart = await getCart();
   if (!cart || cart.items.length === 0) redirect("/sacola");
 
-  const [rawAddresses, loyalty, shippingConfig] = await Promise.all([
+  const [rawAddresses, loyalty, shippingConfig, dbUser] = await Promise.all([
     prisma.address.findMany({
       where: { userId: user.id },
       orderBy: { isDefault: "desc" },
@@ -23,6 +23,7 @@ export default async function CheckoutPage() {
       select: { points: true },
     }),
     getShippingConfig(cart.pharmacyId),
+    prisma.user.findUnique({ where: { id: user.id }, select: { cpf: true } }),
   ]);
 
   // Resolve a distância (km) de cada endereço salvo pela faixa de CEP da unidade,
@@ -50,6 +51,7 @@ export default async function CheckoutPage() {
         points={loyalty?.points ?? 0}
         shippingConfig={shippingConfig}
         defaultKm={shippingConfig.defaultKm}
+        hasCpf={!!dbUser?.cpf}
       />
       </div>
     </div>
