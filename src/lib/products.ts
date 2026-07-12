@@ -10,7 +10,6 @@ const productCardBase = {
   emoji: true,
   price: true,
   promoPrice: true,
-  requiresPrescription: true,
   isGeneric: true,
   rating: true,
   ratingCount: true,
@@ -122,7 +121,6 @@ export type CatalogParams = {
   cat?: string;
   brand?: string;
   generic?: boolean;
-  rx?: boolean;
   promo?: boolean;
   priceMin?: number;
   priceMax?: number;
@@ -177,7 +175,6 @@ export async function searchProducts(params: CatalogParams): Promise<SearchResul
   if (params.cat) where.category = { slug: params.cat };
   if (params.brand) where.brand = { slug: params.brand };
   if (params.generic) where.isGeneric = true;
-  if (params.rx === false) where.requiresPrescription = false;
   if (params.promo) where.promoPrice = { not: null };
   // Faixa de preço sobre o valor efetivo (promoPrice quando houver, senão price).
   const priceConds: Prisma.ProductWhereInput[] = [];

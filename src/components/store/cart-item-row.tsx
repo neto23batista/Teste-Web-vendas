@@ -3,7 +3,7 @@
 import Link from "next/link";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Minus, Plus, Trash2, Loader2, FileText } from "lucide-react";
+import { Minus, Plus, Trash2, Loader2 } from "lucide-react";
 import { updateCartItem, removeCartItem } from "@/actions/cart";
 import { ProductImage } from "@/components/store/product-image";
 import { formatBRL } from "@/lib/utils";
@@ -46,11 +46,6 @@ export function CartItemRow({ item }: { item: CartItemView }) {
         >
           {item.product.name}
         </Link>
-        {item.product.requiresPrescription && (
-          <span className="inline-flex w-fit items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[0.65rem] font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
-            <FileText className="size-3" /> Receita
-          </span>
-        )}
         <p className="text-sm font-bold text-brand-700 dark:text-brand-400">
           {formatBRL(unit)}
         </p>

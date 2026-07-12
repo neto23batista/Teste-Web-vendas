@@ -21,7 +21,6 @@ function cartItemSelect(pharmacyId: string | null) {
         emoji: true,
         price: true,
         promoPrice: true,
-        requiresPrescription: true,
         inventory: {
           where: pharmacyId ? { pharmacyId } : undefined,
           select: { stock: true },
@@ -52,7 +51,6 @@ export type CartView = {
   items: CartItemView[];
   subtotal: number;
   count: number;
-  requiresPrescription: boolean;
 };
 
 function toItemView(row: CartItemRow): CartItemView {
@@ -76,8 +74,7 @@ function buildView(
     0
   );
   const count = items.reduce((sum, it) => sum + it.qty, 0);
-  const requiresPrescription = items.some((it) => it.product.requiresPrescription);
-  return { id, pharmacyId, items, subtotal, count, requiresPrescription };
+  return { id, pharmacyId, items, subtotal, count };
 }
 
 /**

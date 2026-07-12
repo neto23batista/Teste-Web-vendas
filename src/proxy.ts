@@ -14,7 +14,6 @@ const { auth } = NextAuth(authConfig);
 const ADMIN_AREAS: [prefix: string, area: Area][] = [
   ["/admin/pedidos", "pedidos"],
   ["/admin/entregas", "entregas"],
-  ["/admin/receitas", "receitas"],
   ["/admin/clientes", "clientes"],
   ["/admin/avaliacoes", "avaliacoes"],
   ["/admin/produtos", "produtos"],

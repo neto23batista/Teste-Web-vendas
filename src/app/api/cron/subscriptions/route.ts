@@ -53,7 +53,7 @@ export async function GET(request: Request) {
       take: 100,
       include: {
         user: { select: { email: true, name: true } },
-        product: { select: { name: true, active: true, requiresPrescription: true } },
+        product: { select: { name: true, active: true } },
       },
     })
     .catch(() => []); // tabela ainda não migrada → nada a fazer
@@ -61,13 +61,9 @@ export async function GET(request: Request) {
   const nextDue = (days: number) => new Date(now.getTime() + days * 86_400_000);
 
   async function processOne(sub: (typeof due)[number]): Promise<boolean> {
-    // Produto fora de linha, que passou a exigir receita, ou conta anonimizada
-    // (LGPD): pausa em vez de avisar (evita lembrete órfão).
-    if (
-      !sub.product.active ||
-      sub.product.requiresPrescription ||
-      sub.user.email.endsWith("@anon.invalid")
-    ) {
+    // Produto fora de linha ou conta anonimizada (LGPD): pausa em vez de avisar
+    // (evita lembrete órfão).
+    if (!sub.product.active || sub.user.email.endsWith("@anon.invalid")) {
       await prisma.subscription.update({
         where: { id: sub.id },
         data: { status: "PAUSED", nextDueAt: nextDue(sub.intervalDays) },

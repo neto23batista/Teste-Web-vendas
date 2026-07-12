@@ -20,7 +20,12 @@ export type CatalogItem = {
   preco: number;
   promo?: number | null;
   estoque: number;
-  /** true = exige receita (tarja). Só é aplicada quando informada. */
+  /**
+   * true = item de tarja (exige receita) segundo o PDV. A loja NÃO vende produto
+   * sob prescrição e não valida receita — o campo é apenas REGISTRADO, nunca
+   * aplicado. Serve de sinal para a curadoria: o produto importado entra
+   * `active: false` e o dono decide se publica.
+   */
   tarja?: boolean | null;
   categoria?: string | null;
 };

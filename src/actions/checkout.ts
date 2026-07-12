@@ -10,7 +10,6 @@ import { shippingFor, type DeliveryMethod } from "@/lib/shipping";
 import { getShippingConfig, getPaymentSettings, resolveKm } from "@/lib/settings";
 import { validateCoupon } from "@/lib/coupons";
 import { maxRedeemablePoints, pointsToBRL } from "@/lib/loyalty";
-import { saveUpload } from "@/lib/uploads";
 import { createOrder, fulfillOrder, cancelOrder } from "@/lib/orders";
 import { createHostedCheckout, createPixPayment } from "@/lib/stripe";
 import {
@@ -42,23 +41,6 @@ export async function placeOrder(
   if (!cart || cart.items.length === 0) return { error: "Sua sacola está vazia." };
   if (!cart.pharmacyId) {
     return { error: "Nenhuma unidade disponível para atender o pedido." };
-  }
-
-  // Valida a receita ANTES de criar o pedido (evita pedido órfão se o
-  // arquivo for inválido/grande).
-  const presFile = formData.get("prescription");
-  let prescriptionKey: string | null = null;
-  if (presFile instanceof File && presFile.size > 0) {
-    const up = await saveUpload(presFile, "prescriptions");
-    if (!up.ok) return { error: up.error };
-    prescriptionKey = up.key;
-  }
-
-  // Itens com tarja exigem receita anexada (validação farmacêutica obrigatória).
-  if (cart.requiresPrescription && !prescriptionKey) {
-    return {
-      error: "Envie a receita médica dos itens que exigem prescrição para continuar.",
-    };
   }
 
   // Re-valida estoque DA UNIDADE no momento do checkout (pode ter mudado desde
@@ -264,7 +246,6 @@ export async function placeOrder(
     discount,
     total,
     couponCode,
-    requiresPrescription: cart.requiresPrescription,
     notes: str(formData, "notes").slice(0, 500) || null,
     items: cart.items.map((i) => ({
       productId: i.product.id,
@@ -273,13 +254,6 @@ export async function placeOrder(
       qty: i.qty,
     })),
   });
-
-  // Receita (já validada e salva acima — só associa ao pedido)
-  if (prescriptionKey) {
-    await prisma.prescription.create({
-      data: { userId: user.id, orderId: order.id, fileUrl: prescriptionKey },
-    });
-  }
 
   // Registra o resgate de pontos no extrato (saldo já debitado acima).
   if (redeemPoints > 0 && loyaltyAccountId) {
@@ -395,34 +369,6 @@ export async function placeOrder(
   // Inalcançável na prática: sem Stripe configurado, o único método que passa na
   // validação é "cash", que já saiu acima. Fica como rede de segurança.
   redirect(`/pedido/${order.number}`);
-}
-
-export async function resubmitPrescription(
-  orderNumber: string,
-  formData: FormData
-): Promise<{ ok: boolean; error?: string }> {
-  const user = await requireUser();
-  const order = await prisma.order.findUnique({
-    where: { number: orderNumber },
-    select: { id: true, userId: true },
-  });
-  if (!order || order.userId !== user.id) {
-    return { ok: false, error: "Pedido não encontrado." };
-  }
-
-  const file = formData.get("prescription");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: "Selecione um arquivo de receita." };
-  }
-  const up = await saveUpload(file, "prescriptions");
-  if (!up.ok) return { ok: false, error: up.error };
-
-  await prisma.prescription.create({
-    data: { userId: user.id, orderId: order.id, fileUrl: up.key },
-  });
-  revalidatePath(`/pedido/${orderNumber}`);
-  revalidatePath("/conta/receitas");
-  return { ok: true };
 }
 
 // Status em que o próprio cliente ainda pode cancelar. Depois de SHIPPED/

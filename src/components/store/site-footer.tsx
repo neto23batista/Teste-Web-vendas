@@ -16,7 +16,7 @@ import {
 
 const trust = [
   { icon: ShieldCheck, label: "Compra segura" },
-  { icon: Stethoscope, label: "Receitas protegidas" },
+  { icon: Stethoscope, label: "Orientação farmacêutica" },
   { icon: CreditCard, label: "Pagamento criptografado" },
   { icon: Truck, label: "Entrega rápida" },
 ];
@@ -120,8 +120,8 @@ export async function SiteFooter() {
       <div className="border-t border-border">
         <div className="container-page flex flex-col items-center justify-between gap-2 py-5 text-xs text-muted-foreground md:flex-row">
           <span>
-            © {new Date().getFullYear()} FarmaVida — ambiente protegido para
-            dados pessoais e receitas.
+            © {new Date().getFullYear()} FarmaVida — ambiente protegido para os
+            seus dados pessoais.
           </span>
           <span className="inline-flex items-center gap-1.5 text-center">
             <Stethoscope className="size-3.5 text-brand-600 dark:text-brand-400" />

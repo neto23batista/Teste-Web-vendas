@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
  * Assinaturas de reposição recorrente — SEM cobrança automática.
  * No vencimento, o cron (/api/cron/subscriptions) lembra o cliente por e-mail;
  * o "Repor agora" coloca o item na sacola e o cliente conclui o pedido normal.
- * Produtos com receita ficam de fora (validação farmacêutica a cada compra).
  */
 export const SUBSCRIPTION_INTERVALS = [30, 60, 90] as const;
 

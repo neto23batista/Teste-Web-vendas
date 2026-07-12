@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getAdminScope } from "@/lib/session";
-import type { Prisma, OrderStatus, PrescriptionStatus } from "@prisma/client";
+import type { Prisma, OrderStatus } from "@prisma/client";
 
 const PAID_STATUSES = ["PAID", "PREPARING", "SHIPPED", "DELIVERED"] as const;
 
@@ -406,7 +406,6 @@ export async function getAdminOrder(id: string) {
       pharmacy: { select: { id: true, name: true, type: true } },
       items: { include: { product: { select: { emoji: true } } } },
       payment: true,
-      prescriptions: true,
     },
   });
   if (!order) return null;
@@ -421,9 +420,8 @@ export async function getAdminOrder(id: string) {
 export async function getAdminBadges(selectedUnitId?: string | null) {
   const unit = await resolveUnitFilter(selectedUnitId);
   const orderUnit: Prisma.OrderWhereInput = unit ? { pharmacyId: unit } : {};
-  const [pendingPrescriptions, ordersToProcess, lowStock, pendingReviews] =
+  const [ordersToProcess, lowStock, pendingReviews] =
     await Promise.all([
-      prisma.prescription.count({ where: { status: "PENDING" } }),
       prisma.order.count({ where: { status: { in: ["PAID", "PREPARING"] }, ...orderUnit } }),
       prisma.inventory.count({
         where: {
@@ -435,7 +433,7 @@ export async function getAdminBadges(selectedUnitId?: string | null) {
       }),
       prisma.review.count({ where: { approved: false } }),
     ]);
-  return { pendingPrescriptions, ordersToProcess, lowStock, pendingReviews };
+  return { ordersToProcess, lowStock, pendingReviews };
 }
 
 /** Avaliações para moderação: pendentes em fila (mais antiga primeiro);
@@ -452,26 +450,6 @@ export function getReviewsByApproval(approved: boolean) {
   });
 }
 
-/** Receitas por status: pendentes em fila (mais antiga primeiro); histórico
- *  de aprovadas/recusadas em ordem inversa, limitado às 100 mais recentes.
- *  Escopo de unidade: a filial só enxerga receitas de pedidos da PRÓPRIA unidade
- *  (receita é dado sensível/LGPD). Receita sem pedido fica visível só à matriz. */
-export async function getPrescriptionsByStatus(status: PrescriptionStatus) {
-  const pending = status === "PENDING";
-  const unit = await resolveUnitFilter(null);
-  return prisma.prescription.findMany({
-    where: {
-      status,
-      ...(unit ? { order: { pharmacyId: unit } } : {}),
-    },
-    include: {
-      user: { select: { name: true, email: true } },
-      order: { select: { id: true, number: true } },
-    },
-    orderBy: { createdAt: pending ? "asc" : "desc" },
-    ...(pending ? {} : { take: 100 }),
-  });
-}
 
 export function getCategoriesAndBrands() {
   return Promise.all([

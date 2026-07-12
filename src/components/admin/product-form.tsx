@@ -21,7 +21,6 @@ type Product = {
   shortDescription: string | null;
   activeIngredient: string | null;
   description: string;
-  requiresPrescription: boolean;
   isGeneric: boolean;
   featured: boolean;
   active: boolean;
@@ -169,7 +168,6 @@ export function ProductForm({
               ["active", "Ativo na loja", p ? p.active : true],
               ["featured", "Destaque", p?.featured ?? false],
               ["isGeneric", "Genérico", p?.isGeneric ?? false],
-              ["requiresPrescription", "Exige receita", p?.requiresPrescription ?? false],
             ].map(([name, label, checked]) => (
               <label key={name as string} className="flex items-center gap-2.5 text-sm font-medium">
                 <input

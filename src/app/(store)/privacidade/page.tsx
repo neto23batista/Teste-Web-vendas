@@ -12,11 +12,11 @@ const sections = [
   },
   {
     h: "2. Uso das informações",
-    p: "Utilizamos seus dados para confirmar e entregar pedidos, validar receitas, oferecer suporte e, com seu consentimento, enviar comunicações sobre ofertas.",
+    p: "Utilizamos seus dados para confirmar e entregar pedidos, oferecer suporte e, com seu consentimento, enviar comunicações sobre ofertas.",
   },
   {
     h: "3. Receitas médicas",
-    p: "Documentos enviados para validação farmacêutica são tratados de forma confidencial e utilizados exclusivamente para a dispensação de medicamentos.",
+    p: "A FarmaVida não comercializa medicamentos sob prescrição e não coleta receitas médicas. Documentos enviados antes da descontinuação desse serviço seguem protegidos, com acesso restrito, e podem ser baixados ou excluídos por você em Minha conta → Privacidade.",
   },
   {
     h: "4. Compartilhamento",

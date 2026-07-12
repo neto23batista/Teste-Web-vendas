@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { SlidersHorizontal, Leaf, Tag, FileX2, X } from "lucide-react";
+import { SlidersHorizontal, Leaf, Tag, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -25,7 +25,6 @@ export function FilterSheet({
   // Rascunho local — sincronizado com a URL quando o sheet abre.
   const [promo, setPromo] = React.useState(false);
   const [generic, setGeneric] = React.useState(false);
-  const [rxFree, setRxFree] = React.useState(false);
   const [marca, setMarca] = React.useState("");
   const [pmin, setPmin] = React.useState("");
   const [pmax, setPmax] = React.useState("");
@@ -33,7 +32,6 @@ export function FilterSheet({
   function syncFromUrl() {
     setPromo(!!params.get("promo"));
     setGeneric(!!params.get("generic"));
-    setRxFree(params.get("rx") === "0");
     setMarca(params.get("marca") ?? "");
     setPmin(params.get("pmin") ?? "");
     setPmax(params.get("pmax") ?? "");
@@ -42,7 +40,6 @@ export function FilterSheet({
   const activeCount =
     (params.get("promo") ? 1 : 0) +
     (params.get("generic") ? 1 : 0) +
-    (params.get("rx") === "0" ? 1 : 0) +
     (params.get("marca") ? 1 : 0) +
     (params.get("pmin") || params.get("pmax") ? 1 : 0);
 
@@ -54,7 +51,6 @@ export function FilterSheet({
     };
     setOrDel("promo", promo ? "1" : null);
     setOrDel("generic", generic ? "1" : null);
-    setOrDel("rx", rxFree ? "0" : null);
     setOrDel("marca", marca || null);
     setOrDel("pmin", pmin || null);
     setOrDel("pmax", pmax || null);
@@ -66,7 +62,6 @@ export function FilterSheet({
   function clearAll() {
     setPromo(false);
     setGeneric(false);
-    setRxFree(false);
     setMarca("");
     setPmin("");
     setPmax("");
@@ -133,9 +128,6 @@ export function FilterSheet({
               </button>
               <button type="button" onClick={() => setGeneric(!generic)} className={toggleCls(generic)}>
                 <Leaf className="size-4" /> Genéricos
-              </button>
-              <button type="button" onClick={() => setRxFree(!rxFree)} className={toggleCls(rxFree)}>
-                <FileX2 className="size-4" /> Sem receita
               </button>
             </div>
 

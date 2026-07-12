@@ -56,7 +56,6 @@ export default async function CheckoutPage() {
       <CheckoutForm
         addresses={addresses}
         subtotal={cart.subtotal}
-        requiresPrescription={cart.requiresPrescription}
         points={loyalty?.points ?? 0}
         shippingConfig={shippingConfig}
         defaultKm={shippingConfig.defaultKm}

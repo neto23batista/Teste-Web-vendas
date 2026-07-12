@@ -9,7 +9,6 @@ import {
   MapPin,
   Gift,
   Repeat,
-  FileText,
   UserCog,
   ShieldCheck,
   LogOut,
@@ -24,7 +23,6 @@ const items = [
   { href: "/conta/enderecos", label: "Endereços", icon: MapPin },
   { href: "/conta/fidelidade", label: "Fidelidade", icon: Gift },
   { href: "/conta/assinaturas", label: "Assinaturas", icon: Repeat },
-  { href: "/conta/receitas", label: "Receitas", icon: FileText },
   { href: "/conta/perfil", label: "Meus dados", icon: UserCog },
   { href: "/conta/privacidade", label: "Privacidade", icon: ShieldCheck },
 ];

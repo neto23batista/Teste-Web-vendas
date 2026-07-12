@@ -36,7 +36,6 @@ const pendingOrder = {
   userId: "u1",
   total: 80,
   paymentMethod: "card",
-  requiresPrescription: false,
   items: [{ productId: "p1", name: "Dipirona", qty: 2 }],
 };
 

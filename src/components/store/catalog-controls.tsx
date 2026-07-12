@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { ArrowUpDown, Leaf, Tag, FileX2 } from "lucide-react";
+import { ArrowUpDown, Leaf, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FilterSheet } from "@/components/store/filter-sheet";
 
@@ -48,7 +48,6 @@ export function CatalogControls({
 
   const promo = !!params.get("promo");
   const generic = !!params.get("generic");
-  const rxFree = params.get("rx") === "0";
 
   // Faixa de preço: aplica no Enter/blur (evita navegação a cada tecla).
   const [pmin, setPmin] = React.useState(params.get("pmin") ?? "");
@@ -109,13 +108,6 @@ export function CatalogControls({
           className={chipCls(generic)}
         >
           <Leaf className="size-4" /> Genéricos
-        </button>
-        <button
-          onClick={() => toggle("rx", "0")}
-          className={chipCls(rxFree)}
-          title="Somente produtos que não exigem receita médica"
-        >
-          <FileX2 className="size-4" /> Sem receita
         </button>
 
         {brands.length > 0 && (

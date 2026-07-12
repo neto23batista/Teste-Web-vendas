@@ -77,7 +77,6 @@ function parse(formData: FormData) {
       .map((s) => s.trim())
       .filter((s) => /^https:\/\/.+/i.test(s))
       .slice(0, 8),
-    requiresPrescription: formData.get("requiresPrescription") === "on",
     isGeneric: formData.get("isGeneric") === "on",
     featured: formData.get("featured") === "on",
     active: formData.get("active") === "on",
@@ -120,7 +119,6 @@ export async function createProduct(
       costPrice: d.costPrice,
       categoryId: d.categoryId,
       brandId: d.brandId,
-      requiresPrescription: d.requiresPrescription,
       isGeneric: d.isGeneric,
       featured: d.featured,
       active: d.active,
@@ -171,7 +169,6 @@ export async function updateProduct(
       costPrice: d.costPrice,
       categoryId: d.categoryId,
       brandId: d.brandId,
-      requiresPrescription: d.requiresPrescription,
       isGeneric: d.isGeneric,
       featured: d.featured,
       active: d.active,
@@ -364,7 +361,6 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
       promoPrice: csvNum(r.promo ?? ""),
       categoryId,
       brandId,
-      requiresPrescription: csvBool(r.exige_receita ?? ""),
       isGeneric: csvBool(r.generico ?? ""),
     };
 

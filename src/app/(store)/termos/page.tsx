@@ -9,7 +9,7 @@ const sections = [
   { h: "1. Aceitação", p: "Ao utilizar a FarmaVida, você concorda com estes Termos de Uso e com a nossa Política de Privacidade." },
   { h: "2. Cadastro", p: "Você é responsável pela veracidade dos dados informados e pela guarda das suas credenciais de acesso." },
   { h: "3. Pedidos e pagamentos", p: "Os preços e a disponibilidade podem mudar sem aviso prévio. O pedido é confirmado após a aprovação do pagamento." },
-  { h: "4. Medicamentos sob prescrição", p: "A venda de medicamentos que exigem receita está condicionada ao envio e à validação do documento por farmacêutico." },
+  { h: "4. Medicamentos sob prescrição", p: "A FarmaVida não comercializa medicamentos que exigem receita médica. Nosso catálogo é composto exclusivamente por produtos de venda livre." },
   { h: "5. Entregas e trocas", p: "Prazos de entrega são estimados. Trocas e devoluções seguem o Código de Defesa do Consumidor e a legislação sanitária." },
   { h: "6. Limitação de responsabilidade", p: "A FarmaVida não se responsabiliza pelo uso inadequado de produtos. Sempre leia a bula e siga a orientação profissional." },
 ];

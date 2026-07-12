@@ -42,7 +42,6 @@ type CreateInput = {
   discount: number;
   total: number;
   couponCode: string | null;
-  requiresPrescription: boolean;
   notes?: string | null;
   items: { productId: string; name: string; price: number; qty: number }[];
 };
@@ -55,7 +54,6 @@ export async function createOrder(input: CreateInput) {
       addressId: input.addressId,
       pharmacyId: input.pharmacyId,
       status: "PENDING",
-      requiresPrescription: input.requiresPrescription,
       paymentMethod: input.paymentMethod,
       deliveryMethod: input.deliveryMethod ?? "standard",
       subtotal: input.subtotal,
@@ -96,9 +94,6 @@ export async function fulfillOrder(orderId: string) {
   if (!order || order.status !== "PENDING") return order;
 
   const isCash = order.paymentMethod === "cash";
-  // Pedidos com receita ficam RETIDOS em PAID após o pagamento, aguardando
-  // validação farmacêutica — não avançam para PREPARING automaticamente.
-  const isRx = order.requiresPrescription;
   const points = Math.floor(order.total);
   // Unidade que atende o pedido (matriz como fallback de pedidos legados).
   const pharmacyId = order.pharmacyId ?? (await fallbackPharmacyId());
@@ -114,7 +109,7 @@ export async function fulfillOrder(orderId: string) {
   await prisma.$transaction(async (tx) => {
     const claimed = await tx.order.updateMany({
       where: { id: order.id, status: "PENDING" },
-      data: { status: isCash && !isRx ? "PREPARING" : "PAID" },
+      data: { status: isCash ? "PREPARING" : "PAID" },
     });
     if (claimed.count === 0) return; // já confirmado por uma chamada concorrente
     didFulfill = true;

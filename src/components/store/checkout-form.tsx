@@ -10,7 +10,6 @@ import {
   QrCode,
   CreditCard,
   Wallet,
-  FileText,
   ShieldCheck,
   Gift,
   MessageSquareText,
@@ -64,7 +63,6 @@ const METHOD_INFO: Record<
 export function CheckoutForm({
   addresses,
   subtotal,
-  requiresPrescription,
   points,
   shippingConfig = DEFAULT_SHIPPING_CONFIG,
   defaultKm = 0,
@@ -73,7 +71,6 @@ export function CheckoutForm({
 }: {
   addresses: Address[];
   subtotal: number;
-  requiresPrescription: boolean;
   points: number;
   shippingConfig?: ShippingConfig;
   defaultKm?: number;
@@ -385,30 +382,6 @@ export function CheckoutForm({
           />
         </section>
 
-        {/* Receita */}
-        {requiresPrescription && (
-          <section className="space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-500/30 dark:bg-amber-500/10">
-            <h2 className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-200">
-              <FileText className="size-5" /> Receita médica
-            </h2>
-            <p className="text-sm text-amber-800/90 dark:text-amber-200/90">
-              Sua sacola tem itens que exigem receita. Envie o arquivo (foto ou
-              PDF) para validação farmacêutica.
-            </p>
-            <input
-              type="file"
-              name="prescription"
-              accept="image/jpeg,image/png,image/webp,application/pdf"
-              required
-              aria-required="true"
-              className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-4 file:py-2 file:font-semibold file:text-white"
-            />
-            <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
-              Formatos aceitos: JPG, PNG, WEBP ou PDF (até 5 MB). O envio é
-              obrigatório para finalizar o pedido.
-            </p>
-          </section>
-        )}
       </div>
 
       {/* Resumo */}

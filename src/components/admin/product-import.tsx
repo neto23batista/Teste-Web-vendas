@@ -8,7 +8,7 @@ import { importProducts, type ImportResult } from "@/actions/admin-products";
 import { Button } from "@/components/ui/button";
 
 const TEMPLATE_HEADER =
-  "nome,sku,ean,preco,promo,estoque,categoria,marca,principio_ativo,descricao,exige_receita,generico";
+  "nome,sku,ean,preco,promo,estoque,categoria,marca,principio_ativo,descricao,generico";
 const TEMPLATE_ROWS = [
   'Dipirona 500mg 10 comprimidos,DIP500,7891234567890,9.90,7.90,50,Medicamentos,EMS,Dipirona sódica,"Analgésico e antitérmico",nao,sim',
   "Protetor Solar FPS 50,PROT50,7890000000001,49.90,,30,Dermocosméticos,Nivea,,Proteção UVA/UVB,nao,nao",

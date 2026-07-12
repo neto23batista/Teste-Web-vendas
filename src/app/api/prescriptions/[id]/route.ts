@@ -2,13 +2,17 @@ import { NextResponse } from "next/server";
 import path from "path";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
-import { canAccess } from "@/lib/permissions";
+import { isOwnerProfile } from "@/lib/permissions";
 import { getObject } from "@/lib/storage";
 import { CONTENT_TYPE_BY_EXT } from "@/lib/uploads";
 
-// Serve uma receita (dado sensível/LGPD) apenas para o próprio paciente ou para
-// o staff que tem a área "receitas" NA UNIDADE do pedido. O arquivo fica em
-// storage privado — nunca em /public.
+/**
+ * A loja NÃO trabalha mais com receita: nada envia arquivo novo por aqui. A rota
+ * continua de pé só para o HISTÓRICO — as receitas enviadas antes da remoção
+ * seguem no banco e precisam ser acessíveis (LGPD: o titular tem direito aos
+ * próprios dados). Acesso: o próprio paciente, ou o DONO da loja. O arquivo fica
+ * em storage privado — nunca em /public.
+ */
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -22,29 +26,16 @@ export async function GET(
 
   const prescription = await prisma.prescription.findUnique({
     where: { id },
-    select: {
-      userId: true,
-      fileUrl: true,
-      order: { select: { pharmacyId: true } },
-    },
+    select: { userId: true, fileUrl: true },
   });
   if (!prescription) {
     return new NextResponse("Não encontrado", { status: 404 });
   }
 
-  if (prescription.userId !== user.id) {
-    // Não é o paciente: só passa staff com a área "receitas" (farmacêutico/dono).
-    // Antes bastava `role === "ADMIN"` — qualquer perfil (até estoquista) baixava
-    // a receita de qualquer cliente, de qualquer unidade.
-    if (user.role !== "ADMIN" || !canAccess(user.staffProfile, "receitas")) {
-      return new NextResponse("Acesso negado", { status: 403 });
-    }
-    // Escopo de unidade: filial só lê receita de pedido da PRÓPRIA unidade.
-    const unit = prescription.order?.pharmacyId;
-    const isGlobal = user.pharmacyType === "MATRIZ";
-    if (!isGlobal && unit && user.pharmacyId !== unit) {
-      return new NextResponse("Acesso negado", { status: 403 });
-    }
+  const isPatient = prescription.userId === user.id;
+  const isStoreOwner = user.role === "ADMIN" && isOwnerProfile(user.staffProfile);
+  if (!isPatient && !isStoreOwner) {
+    return new NextResponse("Acesso negado", { status: 403 });
   }
 
   let data: Buffer;

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, User, MapPin, CreditCard, FileText } from "lucide-react";
+import { ArrowLeft, User, MapPin, CreditCard } from "lucide-react";
 import { getAdminOrder } from "@/lib/admin";
 import { getStoreSettings } from "@/lib/settings";
 import { listPharmaciesSafe } from "@/lib/pharmacy";
@@ -10,7 +10,6 @@ import { formatBRL } from "@/lib/utils";
 import { StatusBadge } from "@/components/store/order-status";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { OrderTransfer } from "@/components/admin/order-transfer";
-import { PrescriptionReview } from "@/components/admin/prescription-review";
 import { ProductImage } from "@/components/store/product-image";
 import { PrintButton } from "@/components/admin/print-button";
 import { OrderNotes } from "@/components/admin/order-notes";
@@ -178,36 +177,6 @@ export default async function AdminOrderDetail({
               Status: {order.payment?.status ?? "—"}
             </p>
           </div>
-
-          {order.requiresPrescription && (
-            <div className="space-y-3 rounded-2xl border border-border bg-card p-5 text-sm print:hidden">
-              <p className="flex items-center gap-2 font-bold">
-                <FileText className="size-4 text-brand-600 dark:text-brand-400" /> Receitas
-              </p>
-              {order.prescriptions.length === 0 ? (
-                <p className="text-muted-foreground">
-                  Pedido exige receita, mas nenhuma foi anexada.
-                </p>
-              ) : (
-                order.prescriptions.map((p) => (
-                  <div key={p.id} className="space-y-2 border-t border-border pt-3 first:border-0 first:pt-0">
-                    <Link
-                      href={`/api/prescriptions/${p.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block font-semibold text-brand-600 hover:underline dark:text-brand-400"
-                    >
-                      Ver receita enviada
-                    </Link>
-                    <PrescriptionReview id={p.id} status={p.status} />
-                  </div>
-                ))
-              )}
-              <p className="text-xs text-muted-foreground">
-                O pedido só pode avançar para preparo/envio após a aprovação da receita.
-              </p>
-            </div>
-          )}
 
           {isOwner && (
             <div className="space-y-3 rounded-2xl border border-danger-500/30 bg-danger-500/5 p-5 print:hidden">

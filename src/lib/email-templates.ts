@@ -71,35 +71,6 @@ export function orderReceivedEmail(
   };
 }
 
-export function prescriptionStatusEmail(
-  name: string,
-  orderNumber: string | null,
-  approved: boolean,
-  reason: string | undefined,
-  url: string
-) {
-  const context = orderNumber
-    ? `do pedido <strong>${escapeHtml(orderNumber)}</strong>`
-    : "enviada";
-  return {
-    subject: approved
-      ? "Sua receita foi aprovada ✅"
-      : "Sua receita precisa de atenção",
-    html: layout(
-      approved ? "Receita aprovada!" : "Receita recusada",
-      approved
-        ? `<p>Olá, ${escapeHtml(name)}.</p>
-           <p>A receita ${context} foi <strong style="color:#10b981">aprovada</strong> pela nossa equipe farmacêutica. Seu pedido já pode seguir para preparo e envio.</p>
-           ${button(url, "Acompanhar pedido")}`
-        : `<p>Olá, ${escapeHtml(name)}.</p>
-           <p>A receita ${context} foi <strong style="color:#ef4444">recusada</strong> na validação farmacêutica.</p>
-           ${reason ? `<p><strong>Motivo:</strong> ${escapeHtml(reason)}</p>` : ""}
-           <p>Você pode enviar uma nova foto ou PDF da receita pelo link abaixo.</p>
-           ${button(url, "Reenviar receita")}`
-    ),
-  };
-}
-
 // --- Avisos operacionais para a equipe da unidade ---
 
 export function newOrderForUnitEmail(

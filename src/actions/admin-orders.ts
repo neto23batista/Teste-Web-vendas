@@ -10,10 +10,6 @@ import { cancelOrder, transferOrder, fulfillOrder } from "@/lib/orders";
 import { logAudit } from "@/lib/audit";
 import { Prisma, type OrderStatus } from "@prisma/client";
 
-// Status que representam o pedido seguindo para preparo/entrega. Itens com
-// receita só podem chegar aqui após a validação farmacêutica.
-const RX_BLOCKED: OrderStatus[] = ["PREPARING", "SHIPPED", "DELIVERED"];
-
 // Estados em que ainda faz sentido reatribuir o pedido a outra unidade.
 const TRANSFERABLE: OrderStatus[] = ["PENDING", "PAID", "PREPARING"];
 
@@ -38,22 +34,6 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
   });
   if (!target) return { ok: false as const, error: "Pedido não encontrado." };
   if (target.pharmacyId) await requireAdminAtPharmacy(target.pharmacyId);
-
-  if (RX_BLOCKED.includes(status)) {
-    const order = await prisma.order.findUnique({
-      where: { id },
-      select: {
-        requiresPrescription: true,
-        prescriptions: { where: { status: "APPROVED" }, select: { id: true }, take: 1 },
-      },
-    });
-    if (order?.requiresPrescription && order.prescriptions.length === 0) {
-      return {
-        ok: false as const,
-        error: "Receita ainda não validada. Aprove a receita antes de preparar/enviar.",
-      };
-    }
-  }
 
   // Cancelar é um caminho especial: além do status, precisa devolver estoque,
   // estornar pontos/cupom e reembolsar o pagamento. Delega para cancelOrder.

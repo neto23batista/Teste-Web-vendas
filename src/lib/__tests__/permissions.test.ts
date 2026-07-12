@@ -15,20 +15,19 @@ describe("permissions", () => {
     expect(canAccess("OWNER", "equipe")).toBe(true);
   });
 
-  it("farmacêutico: receitas sim; estoque, financeiro e equipe não", () => {
-    expect(canAccess("PHARMACIST", "receitas")).toBe(true);
+  it("farmacêutico: pedidos/clientes sim; estoque, financeiro e equipe não", () => {
     expect(canAccess("PHARMACIST", "pedidos")).toBe(true);
+    expect(canAccess("PHARMACIST", "clientes")).toBe(true);
     expect(canAccess("PHARMACIST", "estoque")).toBe(false);
     expect(canAccess("PHARMACIST", "financeiro")).toBe(false);
     expect(canAccess("PHARMACIST", "equipe")).toBe(false);
   });
 
-  it("estoquista: produtos/estoque/compras/integração sim; pedidos e receitas não", () => {
+  it("estoquista: produtos/estoque/compras/integração sim; pedidos não", () => {
     expect(canAccess("STOCKIST", "estoque")).toBe(true);
     expect(canAccess("STOCKIST", "compras")).toBe(true);
     expect(canAccess("STOCKIST", "integracao")).toBe(true);
     expect(canAccess("STOCKIST", "pedidos")).toBe(false);
-    expect(canAccess("STOCKIST", "receitas")).toBe(false);
   });
 
   it("atendente: pedidos/entregas/clientes sim; produtos e financeiro não", () => {

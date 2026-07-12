@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     template: `%s | ${APP_NAME}`,
   },
   description:
-    "Farmácia online com compra segura, receitas protegidas, entrega rápida e atendimento farmacêutico.",
+    "Farmácia online com compra segura, dados protegidos, entrega rápida e atendimento farmacêutico.",
   applicationName: APP_NAME,
   icons: { icon: "/icon.svg", apple: "/icon-192.png" },
   openGraph: {

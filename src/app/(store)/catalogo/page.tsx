@@ -26,8 +26,6 @@ export default async function CatalogPage({
   const sort = (one(sp.sort) as CatalogParams["sort"]) || "relevancia";
   const promo = !!one(sp.promo);
   const generic = !!one(sp.generic);
-  // rx=0 → só produtos de venda livre (sem receita).
-  const rx = one(sp.rx) === "0" ? false : undefined;
   const num = (v?: string) => {
     const n = Number((v ?? "").replace(",", "."));
     return Number.isFinite(n) && n > 0 ? n : undefined;
@@ -40,7 +38,7 @@ export default async function CatalogPage({
   const [categories, brands, result] = await Promise.all([
     getCategories(),
     getBrands(),
-    searchProducts({ q, cat, brand, sort, promo, generic, rx, priceMin, priceMax, page, pharmacyId }),
+    searchProducts({ q, cat, brand, sort, promo, generic, priceMin, priceMax, page, pharmacyId }),
   ]);
 
   const activeCat = categories.find((c) => c.slug === cat);
@@ -61,7 +59,6 @@ export default async function CatalogPage({
     if (brand) p.set("marca", brand);
     if (promo) p.set("promo", "1");
     if (generic) p.set("generic", "1");
-    if (rx === false) p.set("rx", "0");
     if (priceMin != null) p.set("pmin", String(priceMin));
     if (priceMax != null) p.set("pmax", String(priceMax));
     if (sort !== "relevancia") p.set("sort", sort);

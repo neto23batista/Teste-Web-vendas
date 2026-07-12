@@ -3,8 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 
 // Status do pedido para os pollers da página do pedido (PIX + acompanhamento
-// ao vivo). Só o dono lê. `rxStatus` = status da receita mais recente — a
-// aprovação/recusa pelo admin também deve refletir na tela sem F5.
+// ao vivo). Só o dono do pedido lê.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -20,22 +19,14 @@ export async function GET(
 
   const order = await prisma.order.findUnique({
     where: { number },
-    select: {
-      userId: true,
-      status: true,
-      prescriptions: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { status: true },
-      },
-    },
+    select: { userId: true, status: true },
   });
   if (!order || order.userId !== user.id) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
   return NextResponse.json(
-    { status: order.status, rxStatus: order.prescriptions[0]?.status ?? null },
+    { status: order.status },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

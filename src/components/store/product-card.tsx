@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText, Leaf } from "lucide-react";
+import { Leaf } from "lucide-react";
 import { formatBRL, discountPercent, cn } from "@/lib/utils";
 import { ProductImage } from "@/components/store/product-image";
 import { StarRating } from "@/components/store/star-rating";
@@ -34,11 +34,6 @@ export function ProductCard({
         {off > 0 && (
           <span className="rounded-full bg-promo-500 px-2.5 py-1 text-xs font-bold text-white shadow">
             -{off}%
-          </span>
-        )}
-        {product.requiresPrescription && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
-            <FileText className="size-3" /> Receita
           </span>
         )}
         {product.isGeneric && (

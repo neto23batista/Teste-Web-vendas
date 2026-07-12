@@ -36,16 +36,10 @@ export async function subscribeToProduct(
 
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    select: { active: true, requiresPrescription: true },
+    select: { active: true },
   });
   if (!product || !product.active) {
     return { ok: false, error: "Produto indisponível." };
-  }
-  if (product.requiresPrescription) {
-    return {
-      ok: false,
-      error: "Produtos com receita exigem validação a cada compra e não podem ser assinados.",
-    };
   }
 
   const nextDueAt = new Date(Date.now() + intervalDays * 86_400_000);
@@ -85,8 +79,8 @@ async function ownSubscription(id: string) {
         qty: true,
         intervalDays: true,
         status: true,
-        // Necessário para revalidar disponibilidade/receita antes de reativar/repor.
-        product: { select: { active: true, requiresPrescription: true } },
+        // Necessário para revalidar a disponibilidade antes de reativar/repor.
+        product: { select: { active: true } },
       },
     });
   } catch (err) {
@@ -106,13 +100,10 @@ export async function pauseSubscription(id: string): Promise<SubscriptionActionR
 export async function resumeSubscription(id: string): Promise<SubscriptionActionResult> {
   const sub = await ownSubscription(id);
   if (!sub) return { ok: false, error: "Assinatura não encontrada." };
-  // Não reativar assinatura de produto que saiu de linha ou passou a exigir
-  // receita (evita lembrete/refill de item que não pode ser reposto em 1 clique).
+  // Não reativar assinatura de produto que saiu de linha (evita lembrete/refill
+  // de item que não pode ser reposto em 1 clique).
   if (!sub.product.active) {
     return { ok: false, error: "Este produto não está mais disponível." };
-  }
-  if (sub.product.requiresPrescription) {
-    return { ok: false, error: "Este produto passou a exigir receita e não pode mais ser assinado." };
   }
   // Retomar reinicia o ciclo a partir de hoje.
   await prisma.subscription.update({
@@ -158,14 +149,6 @@ export async function updateSubscriptionInterval(
 export async function refillNow(id: string): Promise<SubscriptionActionResult> {
   const sub = await ownSubscription(id);
   if (!sub) return { ok: false, error: "Assinatura não encontrada." };
-
-  // Produto que passou a exigir receita não entra na sacola em 1 clique — pausa
-  // a assinatura (encerra lembretes órfãos) e avisa.
-  if (sub.product.requiresPrescription) {
-    await prisma.subscription.update({ where: { id: sub.id }, data: { status: "PAUSED" } });
-    revalidatePath("/conta/assinaturas");
-    return { ok: false, error: "Este produto passou a exigir receita; a assinatura foi pausada." };
-  }
 
   const added = await addToCart(sub.productId, sub.qty);
   if (!added.ok) {

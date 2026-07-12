@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import {
   ChevronRight,
-  FileText,
   Leaf,
   Truck,
   ShieldCheck,
@@ -67,11 +66,9 @@ export default async function ProductPage({
         select: { rating: true, comment: true },
       })
     : null;
-  // Assinatura de reposição: só para produtos sem receita.
-  const mySubscription =
-    user && !product.requiresPrescription
-      ? await getUserSubscriptionFor(user.id, product.id)
-      : null;
+  const mySubscription = user
+    ? await getUserSubscriptionFor(user.id, product.id)
+    : null;
 
   // Ficha técnica: só as linhas com valor preenchido no cadastro.
   const specs: [string, string][] = [];
@@ -81,7 +78,6 @@ export default async function ProductPage({
   if (product.ean) specs.push(["Código de barras (EAN)", product.ean]);
   if (product.sku) specs.push(["Código interno (SKU)", product.sku]);
   if (product.isGeneric) specs.push(["Medicamento genérico", "Sim"]);
-  if (product.requiresPrescription) specs.push(["Venda sob prescrição", "Sim"]);
 
   // Rich snippet de produto (Google Shopping/busca orgânica).
   const jsonLd = {
@@ -180,11 +176,6 @@ export default async function ProductPage({
                 {product.brand.name}
               </span>
             )}
-            {product.requiresPrescription && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
-                <FileText className="size-3" /> Exige receita
-              </span>
-            )}
             {product.isGeneric && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
                 <Leaf className="size-3" /> Genérico
@@ -251,21 +242,19 @@ export default async function ProductPage({
             </div>
           </div>
 
-          {/* Assinatura de reposição (uso contínuo, sem receita) */}
-          {!product.requiresPrescription && (
-            <SubscribeBox
-              productId={product.id}
-              loggedIn={!!user}
-              existing={
-                mySubscription
-                  ? {
-                      intervalDays: mySubscription.intervalDays,
-                      status: mySubscription.status,
-                    }
-                  : null
-              }
-            />
-          )}
+          {/* Assinatura de reposição (uso contínuo) */}
+          <SubscribeBox
+            productId={product.id}
+            loggedIn={!!user}
+            existing={
+              mySubscription
+                ? {
+                    intervalDays: mySubscription.intervalDays,
+                    status: mySubscription.status,
+                  }
+                : null
+            }
+          />
 
           {/* Garantias */}
           <div className="grid grid-cols-3 gap-3">
@@ -309,16 +298,6 @@ export default async function ProductPage({
             </dl>
           </div>
 
-          {product.requiresPrescription && (
-            <div className="flex gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-              <FileText className="size-5 shrink-0" />
-              <p>
-                Este medicamento exige <strong>receita médica</strong>. Você
-                poderá enviar o documento no checkout para validação
-                farmacêutica antes do envio.
-              </p>
-            </div>
-          )}
         </Reveal>
       </div>
 

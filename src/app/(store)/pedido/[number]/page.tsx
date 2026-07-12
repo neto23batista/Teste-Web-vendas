@@ -7,8 +7,6 @@ import {
   MapPin,
   Package,
   ArrowRight,
-  FileText,
-  XCircle,
   MessageSquareText,
   Truck,
 } from "lucide-react";
@@ -26,7 +24,6 @@ import { PixPayment } from "@/components/store/pix-payment";
 import { OrderLiveStatus } from "@/components/store/order-live-status";
 import { readPixRaw } from "@/lib/stripe";
 import { qrPngBase64 } from "@/lib/qrcode";
-import { PrescriptionResubmit } from "@/components/store/prescription-resubmit";
 import { CancelOrderButton } from "@/components/store/cancel-order-button";
 import { ReorderButton } from "@/components/store/reorder-button";
 
@@ -52,7 +49,6 @@ export default async function OrderPage({
       items: { include: { product: { select: { slug: true, emoji: true } } } },
       address: true,
       payment: true,
-      prescriptions: { orderBy: { createdAt: "desc" } },
       courier: { select: { name: true } },
     },
   });
@@ -88,17 +84,9 @@ export default async function OrderPage({
   // O atalho de "simular pagamento" é só para demonstração local — nunca em produção.
   const allowSimulate = process.env.NODE_ENV !== "production";
 
-  // Estado da validação farmacêutica (para itens com receita).
-  const rxApproved = order.prescriptions.some((p) => p.status === "APPROVED");
-  const rxLatest = order.prescriptions[0];
-  const rxNeedsAction =
-    order.requiresPrescription &&
-    !rxApproved &&
-    (!rxLatest || rxLatest.status === "REJECTED");
-
   // Acompanhamento ao vivo: enquanto o pedido está "vivo" (e o PIX não está
   // com o próprio poller na tela), a página se atualiza sozinha quando o
-  // admin avança o status ou valida a receita — sem o cliente recarregar.
+  // admin avança o status — sem o cliente recarregar.
   const live =
     order.status !== "DELIVERED" && order.status !== "CANCELED" && !pix;
 
@@ -108,7 +96,6 @@ export default async function OrderPage({
         <OrderLiveStatus
           orderNumber={order.number}
           initialStatus={order.status}
-          initialRxStatus={rxLatest?.status ?? null}
         />
       )}
       {/* Cabeçalho */}
@@ -162,48 +149,6 @@ export default async function OrderPage({
           )}
         </div>
       ) : null}
-
-      {/* Validação farmacêutica da receita */}
-      {order.requiresPrescription && (
-        <div
-          className={
-            rxApproved
-              ? "mt-6 flex flex-col gap-2 rounded-2xl border border-success-500/30 bg-success-500/10 p-5"
-              : rxLatest?.status === "REJECTED" || !rxLatest
-                ? "mt-6 flex flex-col gap-3 rounded-2xl border border-danger-500/30 bg-danger-500/10 p-5"
-                : "mt-6 flex flex-col gap-2 rounded-2xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-500/30 dark:bg-amber-500/10"
-          }
-        >
-          <p className="flex items-center gap-2 text-sm font-bold">
-            {rxApproved ? (
-              <>
-                <CheckCircle2 className="size-5 text-success-600" /> Receita aprovada
-              </>
-            ) : rxLatest?.status === "REJECTED" || !rxLatest ? (
-              <>
-                <XCircle className="size-5 text-danger-500" />{" "}
-                {rxLatest?.status === "REJECTED"
-                  ? "Receita recusada"
-                  : "Receita pendente"}
-              </>
-            ) : (
-              <>
-                <FileText className="size-5 text-amber-600" /> Receita em análise
-              </>
-            )}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {rxApproved
-              ? "Sua receita foi validada pela equipe farmacêutica. O pedido seguirá para preparo."
-              : rxLatest?.status === "REJECTED"
-                ? "A receita enviada não pôde ser validada. Envie um novo documento legível para liberar o envio."
-                : rxLatest
-                  ? "Nossa equipe farmacêutica está validando sua receita. O envio é liberado após a aprovação."
-                  : "Este pedido exige receita médica. Envie o documento para liberar o preparo."}
-          </p>
-          {rxNeedsAction && <PrescriptionResubmit orderNumber={order.number} />}
-        </div>
-      )}
 
       {/* Timeline */}
       <div className="mt-6 rounded-2xl border border-border bg-card p-6">

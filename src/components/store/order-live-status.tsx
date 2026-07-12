@@ -16,11 +16,9 @@ import { useRouter } from "next/navigation";
 export function OrderLiveStatus({
   orderNumber,
   initialStatus,
-  initialRxStatus,
 }: {
   orderNumber: string;
   initialStatus: string;
-  initialRxStatus: string | null;
 }) {
   const router = useRouter();
 
@@ -40,17 +38,11 @@ export function OrderLiveStatus({
           return;
         }
         if (!res.ok) return;
-        const data = (await res.json()) as {
-          status?: string;
-          rxStatus?: string | null;
-        };
+        const data = (await res.json()) as { status?: string };
         if (!active || !data.status) return;
-        const changed =
-          data.status !== initialStatus ||
-          (data.rxStatus ?? null) !== initialRxStatus;
-        if (changed) {
+        if (data.status !== initialStatus) {
           // O refresh re-renderiza a página com o dado novo; este componente
-          // remonta com novos initial* (ou sai, se o pedido virou terminal).
+          // remonta com o novo initialStatus (ou sai, se o pedido virou terminal).
           stop();
           router.refresh();
         } else if (data.status === "DELIVERED" || data.status === "CANCELED") {
@@ -86,7 +78,7 @@ export function OrderLiveStatus({
       stop();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [orderNumber, initialStatus, initialRxStatus, router]);
+  }, [orderNumber, initialStatus, router]);
 
   return null;
 }
