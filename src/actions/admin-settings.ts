@@ -2,7 +2,7 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import { assertOwner } from "@/lib/session";
 import { stripePing } from "@/lib/stripe";
 import { logAudit } from "@/lib/audit";
 
@@ -19,15 +19,17 @@ function parseMoney(raw: string): number | null {
 }
 
 /**
- * Testa a conexão com o PagBank usando o token JÁ SALVO (não cria nada). Retorna
- * uma mensagem legível dizendo se autentica e em qual ambiente — assim o dono
- * confirma a config antes de vender de verdade, em vez de descobrir no checkout.
+ * Testa a conexão com o Stripe usando a secret key JÁ SALVA (não cria nada).
+ * Retorna uma mensagem legível dizendo se autentica e em qual ambiente — assim o
+ * dono confirma a config antes de vender de verdade, em vez de descobrir no
+ * checkout. Restrito ao DONO: a área "configuracoes" é exclusiva dele e a chave
+ * de pagamento é o segredo mais sensível da loja.
  */
 export async function testStripeConnection(): Promise<{
   ok: boolean;
   message: string;
 }> {
-  await requireAdmin();
+  await assertOwner();
   const ping = await stripePing();
   if (!ping.configured) {
     return {
@@ -49,7 +51,10 @@ export async function saveSettings(
   _prev: SettingsFormState,
   formData: FormData
 ): Promise<SettingsFormState> {
-  await requireAdmin();
+  // Área "configuracoes" é exclusiva do DONO. O middleware só protege a PÁGINA;
+  // sem este portão, qualquer staff poderia invocar a action e sobrescrever a
+  // secret key/webhook do Stripe (desviando os pagamentos da loja).
+  await assertOwner();
 
   // Parâmetros de frete (todos numéricos; vazio = volta ao padrão do sistema).
   const shipFields: { form: string; key: string; label: string }[] = [

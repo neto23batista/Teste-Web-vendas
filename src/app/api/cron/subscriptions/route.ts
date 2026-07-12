@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { sendMail, mailConfigured, baseUrl } from "@/lib/mail";
 import { subscriptionDueEmail } from "@/lib/email-templates";
@@ -13,11 +14,20 @@ export const maxDuration = 60;
 
 const CHUNK = 10; // e-mails enviados em paralelo por vez (limita a concorrência)
 
+/** Compara segredos em tempo constante (não vaza o prefixo correto pelo tempo). */
+function secretMatches(header: string | null, expected: string): boolean {
+  if (!header) return false;
+  const a = Buffer.from(header);
+  const b = Buffer.from(`Bearer ${expected}`);
+  // timingSafeEqual exige o mesmo tamanho — o tamanho em si não é segredo.
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export async function GET(request: Request) {
   // A Vercel envia `Authorization: Bearer ${CRON_SECRET}` quando a env existe.
   const secret = process.env.CRON_SECRET;
   if (secret) {
-    if (request.headers.get("authorization") !== `Bearer ${secret}`) {
+    if (!secretMatches(request.headers.get("authorization"), secret)) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
   } else if (process.env.NODE_ENV === "production") {

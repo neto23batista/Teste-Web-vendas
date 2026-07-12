@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireAdminAtPharmacy, assertOwner } from "@/lib/session";
+import { assertArea, requireAdminAtPharmacy, assertOwner } from "@/lib/session";
 import { sendMail, baseUrl } from "@/lib/mail";
 import { notifyUnit } from "@/lib/notifications";
 import { orderStatusEmail, orderIncomingTransferEmail } from "@/lib/email-templates";
@@ -30,6 +30,7 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 };
 
 export async function updateOrderStatus(id: string, status: OrderStatus) {
+  await assertArea("pedidos");
   // Filial só altera pedidos da própria unidade; matriz, de qualquer uma.
   const target = await prisma.order.findUnique({
     where: { id },
@@ -37,7 +38,6 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
   });
   if (!target) return { ok: false as const, error: "Pedido não encontrado." };
   if (target.pharmacyId) await requireAdminAtPharmacy(target.pharmacyId);
-  else await requireAdmin();
 
   if (RX_BLOCKED.includes(status)) {
     const order = await prisma.order.findUnique({
@@ -115,6 +115,7 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
  * O movimento de estoque entre unidades é feito por transferOrder.
  */
 export async function transferOrderToUnit(orderId: string, targetPharmacyId: string) {
+  await assertArea("pedidos");
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     select: { pharmacyId: true, status: true, number: true },
@@ -123,7 +124,6 @@ export async function transferOrderToUnit(orderId: string, targetPharmacyId: str
 
   // Filial só transfere o próprio pedido; matriz, qualquer um.
   if (order.pharmacyId) await requireAdminAtPharmacy(order.pharmacyId);
-  else await requireAdmin();
 
   if (!TRANSFERABLE.includes(order.status)) {
     return { ok: false as const, error: "Este pedido não pode mais ser transferido." };
@@ -240,13 +240,13 @@ export async function deleteOrder(id: string) {
 /** Observações do pedido: recado do cliente no checkout + anotações internas
  *  da equipe (mesmo campo, editável pelo admin). */
 export async function saveOrderNotes(id: string, notes: string) {
+  await assertArea("pedidos");
   const exists = await prisma.order.findUnique({
     where: { id },
     select: { id: true, pharmacyId: true, number: true },
   });
   if (!exists) return { ok: false as const, error: "Pedido não encontrado." };
   if (exists.pharmacyId) await requireAdminAtPharmacy(exists.pharmacyId);
-  else await requireAdmin();
   await prisma.order.update({
     where: { id },
     data: { notes: notes.trim().slice(0, 1000) || null },

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import type { StaffProfile } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { assertArea } from "@/lib/session";
+import { assertArea, getAdminScope } from "@/lib/session";
 import { isOwnerProfile } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 
@@ -17,11 +17,21 @@ export type TeamResult = { ok: boolean; error?: string; password?: string };
 /** Cria um membro da equipe (role ADMIN + perfil). Senha temporária gerada. */
 export async function createStaff(formData: FormData): Promise<TeamResult> {
   await assertArea("equipe");
+  const scope = await getAdminScope();
 
   const name = str(formData, "name");
   const email = str(formData, "email").toLowerCase();
   const profile = str(formData, "staffProfile") as StaffProfile;
-  const pharmacyId = str(formData, "pharmacyId") || null;
+  // Escopo de unidade: só a MATRIZ pode escolher a unidade e criar DONO (OWNER).
+  // Um admin de filial não pode escalar — o novo membro fica preso à unidade dele
+  // e não pode ser OWNER (que teria acesso global). Sem isso, uma filial criava
+  // um dono global e pegava a senha temporária no retorno.
+  const pharmacyId = scope.isGlobal
+    ? str(formData, "pharmacyId") || null
+    : scope.pharmacyId;
+  if (!scope.isGlobal && profile === "OWNER") {
+    return { ok: false, error: "Sua unidade não pode criar um Dono / Gerente." };
+  }
 
   if (name.length < 3) return { ok: false, error: "Informe o nome completo." };
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
@@ -62,9 +72,14 @@ export async function updateStaffProfile(
   profile: StaffProfile
 ): Promise<{ ok: boolean; error?: string }> {
   const actor = await assertArea("equipe");
+  const scope = await getAdminScope();
   if (!PROFILES.includes(profile)) return { ok: false, error: "Perfil inválido." };
   if (userId === actor.id && profile !== "OWNER") {
     return { ok: false, error: "Você não pode rebaixar o próprio acesso." };
+  }
+  // Filial não promove a DONO (acesso global).
+  if (!scope.isGlobal && profile === "OWNER") {
+    return { ok: false, error: "Sua unidade não pode definir um Dono / Gerente." };
   }
 
   const target = await prisma.user.findUnique({
@@ -73,6 +88,10 @@ export async function updateStaffProfile(
   });
   if (!target || target.role !== "ADMIN") {
     return { ok: false, error: "Membro não encontrado." };
+  }
+  // Filial só mexe em membros da própria unidade.
+  if (!scope.isGlobal && target.pharmacyId !== scope.pharmacyId) {
+    return { ok: false, error: "Este membro é de outra unidade." };
   }
 
   // Nunca deixar o sistema sem dono: staffProfile null (legado) conta como OWNER.
@@ -102,15 +121,20 @@ export async function revokeStaff(
   userId: string
 ): Promise<{ ok: boolean; error?: string }> {
   const actor = await assertArea("equipe");
+  const scope = await getAdminScope();
   if (userId === actor.id) {
     return { ok: false, error: "Você não pode remover o próprio acesso." };
   }
   const target = await prisma.user.findUnique({
     where: { id: userId },
-    select: { role: true, email: true, staffProfile: true },
+    select: { role: true, email: true, staffProfile: true, pharmacyId: true },
   });
   if (!target || target.role !== "ADMIN") {
     return { ok: false, error: "Membro não encontrado." };
+  }
+  // Filial só mexe em membros da própria unidade.
+  if (!scope.isGlobal && target.pharmacyId !== scope.pharmacyId) {
+    return { ok: false, error: "Este membro é de outra unidade." };
   }
   const owners = await prisma.user.count({
     where: { role: "ADMIN", OR: [{ staffProfile: "OWNER" }, { staffProfile: null }] },

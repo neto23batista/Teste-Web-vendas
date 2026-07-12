@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import { assertArea } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import type { CouponType } from "@prisma/client";
 
@@ -45,7 +45,7 @@ export async function createCoupon(
   _prev: CouponFormState,
   formData: FormData
 ): Promise<CouponFormState> {
-  await requireAdmin();
+  await assertArea("cupons");
   const d = parse(formData);
   const err = validate(d);
   if (err) return { error: err };
@@ -80,7 +80,7 @@ export async function updateCoupon(
   _prev: CouponFormState,
   formData: FormData
 ): Promise<CouponFormState> {
-  await requireAdmin();
+  await assertArea("cupons");
   const d = parse(formData);
   const err = validate(d);
   if (err) return { error: err };
@@ -114,7 +114,7 @@ export async function updateCoupon(
 }
 
 export async function toggleCoupon(id: string) {
-  await requireAdmin();
+  await assertArea("cupons");
   const coupon = await prisma.coupon.findUnique({ where: { id } });
   if (coupon) {
     await prisma.coupon.update({ where: { id }, data: { active: !coupon.active } });
@@ -130,7 +130,7 @@ export async function toggleCoupon(id: string) {
 }
 
 export async function deleteCoupon(id: string) {
-  await requireAdmin();
+  await assertArea("cupons");
   const coupon = await prisma.coupon.findUnique({
     where: { id },
     select: { code: true },

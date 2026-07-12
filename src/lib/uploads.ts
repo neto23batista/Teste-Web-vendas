@@ -11,6 +11,34 @@ const ALLOWED: Record<string, string> = {
 };
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
+/**
+ * Descobre o tipo pelos BYTES do arquivo (assinatura/"magic number"), não pelo
+ * Content-Type — que vem do navegador e pode mentir. Sem isso, um HTML/script
+ * poderia ser gravado como "image/png".
+ */
+function sniffMime(b: Buffer): string | null {
+  if (b.length >= 4 && b.toString("ascii", 0, 4) === "%PDF") {
+    return "application/pdf";
+  }
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (
+    b.length >= 8 &&
+    b.toString("hex", 0, 8) === "89504e470d0a1a0a"
+  ) {
+    return "image/png";
+  }
+  if (
+    b.length >= 12 &&
+    b.toString("ascii", 0, 4) === "RIFF" &&
+    b.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    return "image/webp";
+  }
+  return null;
+}
+
 export type UploadResult =
   | { ok: true; key: string }
   | { ok: false; error: string };
@@ -32,8 +60,16 @@ export async function saveUpload(
     return { ok: false, error: "Arquivo muito grande (máximo 5 MB)." };
   }
 
-  const key = `${subdir}/${Date.now()}-${randomUUID()}.${ext}`;
   const bytes = Buffer.from(await file.arrayBuffer());
+  // O conteúdo real precisa bater com o tipo declarado.
+  if (sniffMime(bytes) !== file.type) {
+    return {
+      ok: false,
+      error: "Arquivo corrompido ou fora do formato. Envie PDF, JPG, PNG ou WEBP.",
+    };
+  }
+
+  const key = `${subdir}/${Date.now()}-${randomUUID()}.${ext}`;
   try {
     await putObject(key, bytes);
   } catch (err) {

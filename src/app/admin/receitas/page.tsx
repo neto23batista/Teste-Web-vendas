@@ -2,6 +2,7 @@ import Link from "next/link";
 import { FileText, Inbox } from "lucide-react";
 import type { PrescriptionStatus } from "@prisma/client";
 import { getPrescriptionsByStatus } from "@/lib/admin";
+import { requireArea } from "@/lib/session";
 import { PrescriptionReview } from "@/components/admin/prescription-review";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ export default async function AdminPrescriptionsPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  await requireArea("receitas");
   const sp = await searchParams;
   const status: PrescriptionStatus = tabs.some((t) => t.status === sp.status)
     ? (sp.status as PrescriptionStatus)

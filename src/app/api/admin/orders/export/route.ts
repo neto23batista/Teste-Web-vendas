@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
+import { canAccess } from "@/lib/permissions";
 import { resolveUnitFilter } from "@/lib/admin";
 import { toCsv } from "@/lib/csv";
 import type { OrderStatus } from "@prisma/client";
@@ -19,8 +20,10 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 const VALID = new Set(Object.keys(STATUS_LABEL));
 
 export async function GET(request: Request) {
+  // A planilha leva nome e e-mail dos clientes (PII) e os valores dos pedidos:
+  // exige a área "pedidos" (quem opera o balcão) — não basta ser staff.
   const user = await getCurrentUser();
-  if (!user || user.role !== "ADMIN") {
+  if (!user || user.role !== "ADMIN" || !canAccess(user.staffProfile, "pedidos")) {
     return new Response("Acesso negado", { status: 403 });
   }
 

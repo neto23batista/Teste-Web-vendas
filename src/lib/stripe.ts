@@ -155,13 +155,50 @@ export function readPixRaw(raw: unknown): PixRaw | null {
 type CheckoutItem = { name: string; price: number; qty: number };
 
 /**
+ * Quanto o cartão deve cobrar, em centavos, a partir do total AUTORITATIVO do
+ * pedido (`order.total`). O Stripe não aceita item de linha negativo, então o
+ * abatimento (cupom + resgate de pontos) vira um cupom de uso único.
+ *
+ * O desconto é DERIVADO do total — e não recalculado — de propósito: arredondar
+ * itens, frete e desconto separadamente pode dar 1 centavo de diferença (ex.:
+ * cupom percentual sobre frete fracionado), e aí o webhook, que confere o valor
+ * pago, recusaria um pagamento legítimo e deixaria o pedido preso em "pendente".
+ * Assim, cobrado === round(order.total * 100), centavo a centavo.
+ */
+export function hostedCheckoutAmounts(
+  items: CheckoutItem[],
+  shipping: number,
+  total: number
+): { itemsCents: number; shippingCents: number; discountCents: number; chargedCents: number } {
+  const itemsCents = items.reduce((sum, i) => sum + toCents(i.price) * i.qty, 0);
+  const shippingCents = toCents(shipping);
+  const totalCents = toCents(total);
+  // Nunca desconta mais que o subtotal dos itens (o frete sempre é cobrado) nem
+  // menos que zero — as bordas são só rede de proteção; o normal cai no meio.
+  const discountCents = Math.min(
+    Math.max(0, itemsCents + shippingCents - totalCents),
+    itemsCents
+  );
+  return {
+    itemsCents,
+    shippingCents,
+    discountCents,
+    chargedCents: itemsCents + shippingCents - discountCents,
+  };
+}
+
+/**
  * Cria uma Checkout Session (página hospedada do Stripe) para cartão e devolve a
  * URL de pagamento. O cliente é redirecionado e volta para a página do pedido.
+ *
+ * `total` (order.total, já com cupom/pontos) é o valor cobrado — sem ele o Stripe
+ * cobraria o preço cheio enquanto o pedido registra o total com desconto.
  */
 export async function createHostedCheckout(opts: {
   orderNumber: string;
   items: CheckoutItem[];
   shipping: number;
+  total: number;
   customerEmail?: string | null;
   customerName?: string | null;
 }): Promise<string | null> {
@@ -170,10 +207,30 @@ export async function createHostedCheckout(opts: {
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
   try {
+    const { discountCents } = hostedCheckoutAmounts(
+      opts.items,
+      opts.shipping,
+      opts.total
+    );
+    let discounts: Stripe.Checkout.SessionCreateParams.Discount[] | undefined;
+    if (discountCents > 0) {
+      const coupon = await client.coupons.create(
+        {
+          amount_off: discountCents,
+          currency: "brl",
+          duration: "once",
+          name: `Desconto ${opts.orderNumber}`,
+        },
+        { idempotencyKey: `coupon-${opts.orderNumber}` }
+      );
+      discounts = [{ coupon: coupon.id }];
+    }
+
     const session = await client.checkout.sessions.create(
       {
         mode: "payment",
         payment_method_types: ["card"],
+        ...(discounts ? { discounts } : {}),
         line_items: [
           ...opts.items.map((i) => ({
             quantity: i.qty,

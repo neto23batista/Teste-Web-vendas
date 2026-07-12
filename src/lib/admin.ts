@@ -453,11 +453,17 @@ export function getReviewsByApproval(approved: boolean) {
 }
 
 /** Receitas por status: pendentes em fila (mais antiga primeiro); histórico
- *  de aprovadas/recusadas em ordem inversa, limitado às 100 mais recentes. */
-export function getPrescriptionsByStatus(status: PrescriptionStatus) {
+ *  de aprovadas/recusadas em ordem inversa, limitado às 100 mais recentes.
+ *  Escopo de unidade: a filial só enxerga receitas de pedidos da PRÓPRIA unidade
+ *  (receita é dado sensível/LGPD). Receita sem pedido fica visível só à matriz. */
+export async function getPrescriptionsByStatus(status: PrescriptionStatus) {
   const pending = status === "PENDING";
+  const unit = await resolveUnitFilter(null);
   return prisma.prescription.findMany({
-    where: { status },
+    where: {
+      status,
+      ...(unit ? { order: { pharmacyId: unit } } : {}),
+    },
     include: {
       user: { select: { name: true, email: true } },
       order: { select: { id: true, number: true } },

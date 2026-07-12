@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { getCurrentUser } from "@/lib/session";
+import { canAccess } from "@/lib/permissions";
 import {
   getAdminStats,
   getSalesByDay,
@@ -31,8 +32,10 @@ function styleHeader(row: ExcelJS.Row) {
 }
 
 export async function GET() {
+  // A planilha consolida faturamento e ranking de vendas: é relatório gerencial,
+  // área "relatorios" (dono) — não basta ser staff do painel.
   const user = await getCurrentUser();
-  if (!user || user.role !== "ADMIN") {
+  if (!user || user.role !== "ADMIN" || !canAccess(user.staffProfile, "relatorios")) {
     return new Response("Acesso negado", { status: 403 });
   }
 

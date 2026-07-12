@@ -2,7 +2,7 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import { assertArea } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 
 /** Recalcula média/contagem do produto a partir das avaliações APROVADAS. */
@@ -19,7 +19,7 @@ async function refreshProductRating(productId: string) {
 }
 
 export async function approveReview(id: string) {
-  await requireAdmin();
+  await assertArea("avaliacoes");
   const review = await prisma.review.update({
     where: { id },
     data: { approved: true },
@@ -40,7 +40,7 @@ export async function approveReview(id: string) {
 
 /** Recusar = excluir (o cliente pode reenviar uma nova avaliação). */
 export async function rejectReview(id: string) {
-  await requireAdmin();
+  await assertArea("avaliacoes");
   const review = await prisma.review.delete({
     where: { id },
     select: { productId: true, product: { select: { slug: true, name: true } } },

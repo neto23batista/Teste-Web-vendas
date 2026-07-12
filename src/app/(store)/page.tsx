@@ -21,6 +21,7 @@ import {
 } from "@/lib/products";
 import { getShippingConfig } from "@/lib/settings";
 import { getSelectedPharmacyId } from "@/lib/pharmacy";
+import { jsonLdScript } from "@/lib/utils";
 
 const benefits = [
   { icon: Truck, title: "Entrega expressa", text: "Receba em casa com rastreio em tempo real." },
@@ -60,7 +61,7 @@ export default async function HomePage() {
       <div className="container-page space-y-12 py-6 md:space-y-16 md:py-10">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       {/* HERO */}
       <HomeHero />

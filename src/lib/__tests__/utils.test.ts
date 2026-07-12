@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { slugify, discountPercent, formatBRL } from "@/lib/utils";
+import { slugify, discountPercent, formatBRL, jsonLdScript } from "@/lib/utils";
 
 describe("slugify", () => {
   it("normaliza acentos e espaços", () => {
@@ -30,5 +30,31 @@ describe("formatBRL", () => {
   });
   it("trata valores inválidos como zero", () => {
     expect(formatBRL("abc")).toContain("0,00");
+  });
+});
+
+describe("jsonLdScript", () => {
+  it("neutraliza um </script> vindo do nome do produto (XSS)", () => {
+    const out = jsonLdScript({
+      name: "Dipirona</script><img src=x onerror=alert(1)>",
+    });
+    expect(out).not.toContain("</script>");
+    expect(out).not.toContain("<");
+    expect(out).not.toContain(">");
+  });
+
+  it("escapa & e os separadores de linha U+2028/U+2029", () => {
+    const out = jsonLdScript({
+      amp: "A & B",
+      sep: `a${String.fromCharCode(0x2028)}b${String.fromCharCode(0x2029)}c`,
+    });
+    expect(out).not.toContain("&");
+    expect(out).not.toContain(String.fromCharCode(0x2028));
+    expect(out).not.toContain(String.fromCharCode(0x2029));
+  });
+
+  it("preserva os dados: o JSON continua sendo lido igual", () => {
+    const data = { name: "Vitamina C & D <3", price: 19.9 };
+    expect(JSON.parse(jsonLdScript(data))).toEqual(data);
   });
 });

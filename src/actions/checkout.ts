@@ -347,11 +347,14 @@ export async function placeOrder(
       }
       redirect(`/pedido/${order.number}`);
     }
-    // Cartão (e demais): Checkout Session hospedada do Stripe.
+    // Cartão (e demais): Checkout Session hospedada do Stripe. O total do pedido
+    // (já com cupom/pontos) é o valor cobrado — sem ele o cliente pagaria o preço
+    // cheio e o webhook recusaria o pagamento por divergência.
     const url = await createHostedCheckout({
       orderNumber: order.number,
       items: order.items.map((i) => ({ name: i.name, price: i.price, qty: i.qty })),
       shipping,
+      total: order.total,
       customerEmail: user.email,
       customerName: user.name,
     });

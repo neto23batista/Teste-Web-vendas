@@ -19,7 +19,7 @@ import { getUserSubscriptionFor } from "@/lib/subscriptions";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { getSelectedPharmacyId } from "@/lib/pharmacy";
-import { formatBRL, discountPercent } from "@/lib/utils";
+import { formatBRL, discountPercent, jsonLdScript } from "@/lib/utils";
 import { ProductGallery } from "@/components/store/product-gallery";
 import { StarRating } from "@/components/store/star-rating";
 import { ProductPurchase } from "@/components/store/product-purchase";
@@ -121,7 +121,7 @@ export default async function ProductPage({
       <div className="container-page space-y-12 py-6 pb-28 md:py-8 md:pb-8">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       {/* Registra no "vistos recentemente" (localStorage, sem servidor). */}
       <TrackRecentView

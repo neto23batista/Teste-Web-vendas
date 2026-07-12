@@ -103,12 +103,27 @@ export async function fulfillOrder(orderId: string) {
   // Unidade que atende o pedido (matriz como fallback de pedidos legados).
   const pharmacyId = order.pharmacyId ?? (await fallbackPharmacyId());
 
+  // Um mesmo pagamento pode chegar aqui MAIS DE UMA VEZ em paralelo: o cartão
+  // dispara dois eventos no Stripe (checkout.session.completed e
+  // payment_intent.succeeded) e a entrega do webhook é "pelo menos uma vez".
+  // A leitura acima não protege (é fora da transação), e o decremento condicional
+  // em `stock >= qty` continuaria valendo na segunda passada — creditando pontos
+  // e baixando estoque em DOBRO. Por isso reivindicamos o pedido de forma atômica:
+  // só quem efetivamente tira o status de PENDING executa os efeitos.
+  let didFulfill = false;
   await prisma.$transaction(async (tx) => {
+    const claimed = await tx.order.updateMany({
+      where: { id: order.id, status: "PENDING" },
+      data: { status: isCash && !isRx ? "PREPARING" : "PAID" },
+    });
+    if (claimed.count === 0) return; // já confirmado por uma chamada concorrente
+    didFulfill = true;
+
     for (const item of order.items) {
       if (!item.productId || !pharmacyId) continue;
       // Decremento condicional: só baixa se houver estoque suficiente na
       // unidade. Se count === 0, aborta a transação (evita estoque negativo
-      // numa corrida).
+      // numa corrida) — a reivindicação acima também é desfeita no rollback.
       const res = await tx.inventory.updateMany({
         where: { productId: item.productId, pharmacyId, stock: { gte: item.qty } },
         data: { stock: { decrement: item.qty } },
@@ -117,11 +132,6 @@ export async function fulfillOrder(orderId: string) {
         throw new Error(`Estoque insuficiente para "${item.name}"`);
       }
     }
-
-    await tx.order.update({
-      where: { id: order.id },
-      data: { status: isCash && !isRx ? "PREPARING" : "PAID" },
-    });
 
     await tx.payment.updateMany({
       where: { orderId: order.id },
@@ -144,6 +154,12 @@ export async function fulfillOrder(orderId: string) {
       });
     }
   });
+
+  // Perdeu a corrida: outra chamada já confirmou este pedido. Nada de estoque,
+  // pontos ou alerta — só devolve o estado atual.
+  if (!didFulfill) {
+    return prisma.order.findUnique({ where: { id: order.id } });
+  }
 
   // Estoque mudou — invalida o cache das listas de produto da home.
   // (revalidateTag com "max" funciona tanto em server actions quanto no webhook.)

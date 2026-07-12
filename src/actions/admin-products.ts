@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getAdminScope, requireAdminAtPharmacy } from "@/lib/session";
+import { assertArea, getAdminScope, requireAdminAtPharmacy } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import { slugify } from "@/lib/utils";
 import { parseCsvRecords } from "@/lib/csv";
@@ -402,6 +402,7 @@ export async function adjustStock(
   pharmacyId: string,
   delta: number
 ) {
+  await assertArea("estoque");
   // Filial só ajusta a própria unidade; matriz, qualquer uma.
   await requireAdminAtPharmacy(pharmacyId);
   const inv = await prisma.inventory.findUnique({
