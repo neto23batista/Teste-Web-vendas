@@ -58,3 +58,6 @@ next-env.d.ts
 
 # backups locais de banco (handover) — nunca comitar
 /backups/
+
+# CLI da Vercel (contém o id do projeto e o .env.local puxado)
+.vercel
