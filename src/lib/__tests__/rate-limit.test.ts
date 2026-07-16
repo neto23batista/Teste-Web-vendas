@@ -44,3 +44,30 @@ describe("rateLimit (fallback em memória)", () => {
     expect((await rateLimit(b, 1, 10_000)).ok).toBe(true);
   });
 });
+
+describe("rateLimit com REDIS_URL malformada", () => {
+  it("não lança e cai no contador em memória (fail-open)", async () => {
+    // O singleton do cliente Redis é cacheado no 1º uso; recarrega o módulo para
+    // que `getRedis()` releia a env já com o valor malformado.
+    vi.resetModules();
+    vi.doMock("next/headers", () => ({ headers: async () => new Headers() }));
+    const prev = process.env.REDIS_URL;
+    // Espaços + esquema quebrado: o construtor do ioredis faz `new URL(...)` e lança.
+    process.env.REDIS_URL = "  redis://:::not a url:::  ";
+    try {
+      const { rateLimit: rl } = await import("@/lib/rate-limit");
+      const key = `bad:${Math.random()}`;
+      // Não deve lançar; a 1ª chamada passa (contador em memória).
+      const first = await rl(key, 1, 10_000);
+      expect(first.ok).toBe(true);
+      // E o contador em memória continua valendo (2ª chamada bloqueia).
+      const second = await rl(key, 1, 10_000);
+      expect(second.ok).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.REDIS_URL;
+      else process.env.REDIS_URL = prev;
+      vi.doUnmock("next/headers");
+      vi.resetModules();
+    }
+  });
+});

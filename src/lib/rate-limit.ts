@@ -73,20 +73,35 @@ let redisClient: Redis | null | undefined;
 
 function getRedis(): Redis | null {
   if (redisClient !== undefined) return redisClient;
-  const url = process.env.REDIS_URL;
+  const url = process.env.REDIS_URL?.trim();
   if (!url) {
     redisClient = null;
     return null;
   }
-  redisClient = new Redis(url, {
-    connectTimeout: 2000,
-    commandTimeout: 2000,
-    maxRetriesPerRequest: 1,
-    // Sem fila offline: se o Redis estiver fora, o comando falha na hora e o
-    // chamador cai no fallback em memória em vez de travar a requisição.
-    enableOfflineQueue: false,
-    lazyConnect: true,
-  });
+  // O construtor do ioredis faz `new URL(url)` de forma SÍNCRONA e LANÇA em uma
+  // URL malformada (ex.: colada com espaço no painel). Fora de um try/catch isso
+  // subiria por todo `rateLimit` e derrubaria login/checkout do site — o oposto
+  // do fail-open prometido. Em erro, marca como indisponível e cai em memória.
+  try {
+    redisClient = new Redis(url, {
+      connectTimeout: 2000,
+      commandTimeout: 2000,
+      maxRetriesPerRequest: 1,
+      // Com fila offline: o 1º comando (conexão preguiçosa ainda abrindo) espera a
+      // conexão em vez de ser rejeitado na hora — senão o 1º hit de cada instância
+      // nova furava o Redis e caía no contador em memória. Se o Redis estiver fora,
+      // o commandTimeout (2s) encerra a espera e o chamador cai em memória.
+      enableOfflineQueue: true,
+      lazyConnect: true,
+    });
+  } catch (err) {
+    console.error(
+      "[rate-limit] REDIS_URL inválida, usando contador em memória:",
+      err instanceof Error ? err.message : err
+    );
+    redisClient = null;
+    return null;
+  }
   // Sem listener de 'error' o ioredis derruba o processo com unhandled error.
   redisClient.on("error", (err: Error) => {
     console.error("[rate-limit] redis:", err.message);
