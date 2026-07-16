@@ -246,6 +246,9 @@ model Order {
   number               String      @unique
   userId               String
   status               OrderStatus @default(PENDING)
+  // INERTE desde a remoção do fluxo de receita: createOrder não grava mais este
+  // campo, então fica sempre false nos pedidos novos. Mantido só pelo histórico
+  // (pedidos antigos). NÃO usar como filtro de "pedido com receita".
   requiresPrescription Boolean     @default(false)
   subtotal             Float
   discount             Float       @default(0)

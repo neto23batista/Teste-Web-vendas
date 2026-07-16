@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getCart } from "@/lib/cart";
 import { getShippingConfig, getPaymentSettings, resolveKm } from "@/lib/settings";
+import { paymentAvailability } from "@/lib/payment-methods";
 import { CheckoutForm } from "@/components/store/checkout-form";
 
 export const metadata: Metadata = { title: "Checkout" };
@@ -30,10 +31,7 @@ export default async function CheckoutPage() {
   // Só oferece o que dá para cobrar de verdade. As CHAVES não vão para o cliente —
   // só dois booleanos. Sem Stripe, resta dinheiro na entrega; com Stripe mas sem
   // Pix habilitado, resta cartão + dinheiro (o Pix do Stripe BR é por convite).
-  const availability = {
-    stripeConfigured: payment.stripeSecretKey.length > 0,
-    pixEnabled: payment.stripePixEnabled,
-  };
+  const availability = paymentAvailability(payment);
 
   // Resolve a distância (km) de cada endereço salvo pela faixa de CEP da unidade,
   // para o resumo de frete recalcular ao trocar de endereço/modalidade no cliente.

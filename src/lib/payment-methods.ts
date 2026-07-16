@@ -13,6 +13,8 @@
  * fica sem forma de pagamento. Regra usada pelo formulário (o que mostrar) E pelo
  * servidor (o que aceitar) — o cliente não escolhe o que o servidor não valida.
  */
+import type { PaymentSettings } from "@/lib/settings";
+
 export type PaymentMethodId = "pix" | "card" | "cash";
 
 export type PaymentAvailability = {
@@ -21,6 +23,18 @@ export type PaymentAvailability = {
   /** A conta Stripe tem a capability `pix_payments` ativa. */
   pixEnabled: boolean;
 };
+
+/**
+ * Deriva a disponibilidade a partir das configurações de pagamento salvas.
+ * Fonte única para o formulário (o que mostrar) e o servidor (o que aceitar) —
+ * evita a regra "tem chave?" divergir entre a página e o placeOrder.
+ */
+export function paymentAvailability(p: PaymentSettings): PaymentAvailability {
+  return {
+    stripeConfigured: p.stripeSecretKey.length > 0,
+    pixEnabled: p.stripePixEnabled,
+  };
+}
 
 /** Meios disponíveis, em ordem de preferência (o 1º vira o padrão). */
 export function availablePaymentMethods(

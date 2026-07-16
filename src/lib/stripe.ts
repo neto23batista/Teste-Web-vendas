@@ -26,11 +26,6 @@ async function getClient(): Promise<Stripe | null> {
   return stripeSecretKey ? new Stripe(stripeSecretKey) : null;
 }
 
-export async function stripeConfigured(): Promise<boolean> {
-  const { stripeSecretKey } = await getPaymentSettings();
-  return !!stripeSecretKey;
-}
-
 /** Cliente + segredo do webhook, para a rota /api/webhooks/stripe. */
 export async function getStripeForWebhook(): Promise<{
   client: Stripe;
