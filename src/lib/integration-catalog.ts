@@ -119,6 +119,11 @@ export async function upsertCatalog(
             // Garante o vínculo por SKU nos matches que vieram por EAN.
             sku: product.sku ?? item.sku,
             ...(item.tarja != null ? { requiresPrescription: item.tarja } : {}),
+            // A loja NÃO vende item de tarja. O produto novo já entra inativo
+            // (abaixo); aqui cobre o produto que JÁ estava à venda e o PDV
+            // reclassificou como tarja: sai da loja na hora (active:false).
+            // Republicar é decisão manual do dono no admin.
+            ...(item.tarja === true ? { active: false } : {}),
           },
         });
         result.updated++;

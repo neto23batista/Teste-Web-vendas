@@ -80,6 +80,24 @@ describe("upsertCatalog", () => {
     );
   });
 
+  it("produto existente reclassificado como tarja sai da loja (active:false)", async () => {
+    productFindUnique.mockResolvedValueOnce({ id: "p1", sku: "IF-0001", ean: null });
+    const r = await upsertCatalog("farm1", [{ ...item, tarja: true }]);
+
+    expect(r.updated).toBe(1);
+    const updateData = productUpdate.mock.calls[0][0].data;
+    expect(updateData.requiresPrescription).toBe(true);
+    expect(updateData.active).toBe(false);
+  });
+
+  it("produto existente SEM tarja não mexe no active (curadoria preservada)", async () => {
+    productFindUnique.mockResolvedValueOnce({ id: "p1", sku: "IF-0001", ean: null });
+    await upsertCatalog("farm1", [{ ...item, tarja: false }]);
+
+    const updateData = productUpdate.mock.calls[0][0].data;
+    expect(updateData.active).toBeUndefined();
+  });
+
   it("match por EAN quando o SKU ainda não existe: vincula o SKU", async () => {
     productFindUnique.mockResolvedValueOnce(null); // por sku: nada
     productFindFirst.mockResolvedValueOnce({ id: "p2", sku: null, ean: item.ean });
