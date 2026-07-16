@@ -113,7 +113,14 @@ export async function saveSettings(
     // Só entram na lista de upserts/deletes se o admin realmente digitou algo.
     ...(isMask(stripeSecretRaw)
       ? []
-      : [{ key: "stripe.secretKey", value: stripeSecretRaw }]),
+      : [
+          { key: "stripe.secretKey", value: stripeSecretRaw },
+          // Trocar a chave pode ser trocar de CONTA Stripe: zera o status do Pix
+          // (value "" = delete → getPaymentSettings volta a FALSE). Só o "Testar
+          // conexão" reconfirma a capability da conta nova. Sem isso, a flag ficava
+          // "velha" e o checkout oferecia um Pix que falhava e cancelava o pedido.
+          { key: "stripe.pixEnabled", value: "" },
+        ]),
     ...(isMask(stripeWebhookRaw)
       ? []
       : [{ key: "stripe.webhookSecret", value: stripeWebhookRaw }]),

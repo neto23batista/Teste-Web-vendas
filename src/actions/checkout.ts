@@ -15,6 +15,7 @@ import { createHostedCheckout, createPixPayment } from "@/lib/stripe";
 import {
   defaultPaymentMethod,
   isPaymentMethodAvailable,
+  paymentAvailability,
 } from "@/lib/payment-methods";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { sendMail, baseUrl } from "@/lib/mail";
@@ -68,10 +69,7 @@ export async function placeOrder(
   // aceitar "pix" com o Pix desabilitado criaria o pedido e jogaria o cliente numa
   // página sem QR e sem cobrança — pedido preso, sem como pagar. Valida aqui.
   const payment = await getPaymentSettings();
-  const availability = {
-    stripeConfigured: payment.stripeSecretKey.length > 0,
-    pixEnabled: payment.stripePixEnabled,
-  };
+  const availability = paymentAvailability(payment);
   const requested =
     str(formData, "paymentMethod") || defaultPaymentMethod(availability);
   if (!isPaymentMethodAvailable(requested, availability)) {
@@ -267,28 +265,39 @@ export async function placeOrder(
     });
   }
 
-  // Limpa a sacola
-  await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
-  revalidatePath("/sacola");
-  revalidatePath("/conta");
+  // Capturados aqui de propósito: dentro de uma função aninhada o TS não mantém
+  // o narrow feito pelos guards lá em cima (`cart` não-nulo e `pharmacyId` != null).
+  const cartId = cart.id;
+  const cartPharmacyId = cart.pharmacyId;
 
-  // Confirmação "pedido recebido" (best-effort — não bloqueia o checkout).
-  if (user.email) {
-    const mail = orderReceivedEmail(
-      { number: order.number, total: order.total },
-      `${baseUrl()}/pedido/${order.number}`
+  // Efeitos que só valem quando o pedido REALMENTE segue: esvaziar a sacola e
+  // avisar cliente/unidade. Antes rodavam aqui, ANTES do pagamento — então uma
+  // falha ao gerar o Pix/cartão cancelava o pedido mas deixava a sacola vazia
+  // (o cliente não conseguia refazer) e ainda mandava e-mail de um pedido que
+  // seria cancelado. Agora só rodam nos caminhos de sucesso, via este helper.
+  async function finalizeSuccess() {
+    await prisma.cartItem.deleteMany({ where: { cartId } });
+    revalidatePath("/sacola");
+    revalidatePath("/conta");
+
+    // Confirmação "pedido recebido" (best-effort — não bloqueia o checkout).
+    if (user.email) {
+      const mail = orderReceivedEmail(
+        { number: order.number, total: order.total },
+        `${baseUrl()}/pedido/${order.number}`
+      );
+      await sendMail({ to: user.email, subject: mail.subject, html: mail.html });
+    }
+
+    // Avisa a equipe da unidade que atende o pedido (best-effort).
+    await notifyUnit(
+      cartPharmacyId,
+      newOrderForUnitEmail(
+        { number: order.number, total: order.total, itemsCount: order.items.length },
+        `${baseUrl()}/admin/pedidos/${order.id}`
+      )
     );
-    await sendMail({ to: user.email, subject: mail.subject, html: mail.html });
   }
-
-  // Avisa a equipe da unidade que atende o pedido (best-effort).
-  await notifyUnit(
-    cart.pharmacyId,
-    newOrderForUnitEmail(
-      { number: order.number, total: order.total, itemsCount: order.items.length },
-      `${baseUrl()}/admin/pedidos/${order.id}`
-    )
-  );
 
   // Pagamento
   // Total zerado (100% desconto/pontos): nada a cobrar — confirma direto.
@@ -298,6 +307,7 @@ export async function placeOrder(
     } catch {
       // Corrida rara de estoque: pedido fica PENDENTE para tratativa manual.
     }
+    await finalizeSuccess();
     redirect(`/pedido/${order.number}`);
   }
   if (paymentMethod === "cash") {
@@ -306,6 +316,7 @@ export async function placeOrder(
     } catch {
       // Corrida rara de estoque: pedido permanece PENDENTE para tratativa manual.
     }
+    await finalizeSuccess();
     redirect(`/pedido/${order.number}`);
   }
   if (availability.stripeConfigured) {
@@ -325,7 +336,9 @@ export async function placeOrder(
       // caía numa página vazia, com o pedido preso em "aguardando pagamento" para
       // sempre. Desfaz o pedido (devolve cupom/pontos) e explica o que fazer.
       if (!pix) {
-        await cancelOrder(order.id).catch(() => {});
+        await cancelOrder(order.id).catch((e) =>
+          console.error("[checkout] falha ao cancelar pedido órfão (pix):", e)
+        );
         return {
           error:
             "Não foi possível gerar o Pix agora. Escolha cartão ou dinheiro na entrega.",
@@ -345,6 +358,7 @@ export async function placeOrder(
           },
         },
       });
+      await finalizeSuccess();
       redirect(`/pedido/${order.number}`);
     }
     // Cartão (e demais): Checkout Session hospedada do Stripe. O total do pedido
@@ -358,9 +372,14 @@ export async function placeOrder(
       customerEmail: user.email,
       customerName: user.name,
     });
-    if (url) redirect(url);
+    if (url) {
+      await finalizeSuccess();
+      redirect(url);
+    }
     // Mesma lógica do PIX: sem página de pagamento, não há como cobrar.
-    await cancelOrder(order.id).catch(() => {});
+    await cancelOrder(order.id).catch((e) =>
+      console.error("[checkout] falha ao cancelar pedido órfão (cartão):", e)
+    );
     return {
       error:
         "Não foi possível iniciar o pagamento no cartão. Tente novamente ou escolha dinheiro na entrega.",
@@ -368,6 +387,7 @@ export async function placeOrder(
   }
   // Inalcançável na prática: sem Stripe configurado, o único método que passa na
   // validação é "cash", que já saiu acima. Fica como rede de segurança.
+  await finalizeSuccess();
   redirect(`/pedido/${order.number}`);
 }
 
