@@ -3,7 +3,8 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { assertArea, getAdminScope, requireAdminAtPharmacy } from "@/lib/session";
+import { assertArea, requireAdmin, requireAdminAtPharmacy } from "@/lib/session";
+import { canAccess } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { slugify } from "@/lib/utils";
 import { parseCsvRecords } from "@/lib/csv";
@@ -15,9 +16,14 @@ function revalidateProducts() {
   revalidatePath("/");
 }
 
-// Catálogo e preços são compartilhados (globais) → só a matriz gerencia.
+// Catálogo e preços são compartilhados (globais) → só a matriz gerencia. Além do
+// escopo (matriz), exige a ÁREA "produtos": o middleware protege a página, mas as
+// Server Actions são invocáveis direto pelo id — sem esta checagem, um admin da
+// matriz com perfil que não é de catálogo (farmacêutico/atendente) conseguiria
+// criar/editar/excluir/importar produtos chamando a action na mão.
 async function isCatalogAdmin(): Promise<boolean> {
-  return (await getAdminScope()).isGlobal;
+  const user = await requireAdmin();
+  return user.pharmacyType === "MATRIZ" && canAccess(user.staffProfile, "produtos");
 }
 
 /** Garante uma linha de Inventory em todas as unidades ativas (não zera estoque
