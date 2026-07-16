@@ -17,6 +17,25 @@ import Redis from "ioredis";
  */
 export type RateResult = { ok: boolean; retryAfter: number };
 
+/**
+ * Traduz o par (contador, TTL) que o Redis devolve em RateResult. Compartilhado
+ * pelos dois caminhos (REST e TCP) para o cálculo do retryAfter não divergir
+ * entre eles. `null` = resposta inesperada → o chamador cai no contador local.
+ */
+function windowResult(
+  rawCount: unknown,
+  rawTtl: unknown,
+  limit: number,
+  windowMs: number
+): RateResult | null {
+  const count = Number(rawCount);
+  if (!Number.isFinite(count)) return null;
+  if (count <= limit) return { ok: true, retryAfter: 0 };
+  const ttl = Number(rawTtl);
+  const ms = Number.isFinite(ttl) && ttl > 0 ? ttl : windowMs;
+  return { ok: false, retryAfter: Math.max(1, Math.ceil(ms / 1000)) };
+}
+
 // ───────────────────────── fallback em memória ─────────────────────────
 type Bucket = { count: number; resetAt: number };
 const store = new Map<string, Bucket>();
@@ -123,14 +142,7 @@ async function rateLimitRedis(
       `rl:${key}`,
       String(windowMs)
     )) as [number, number];
-    const count = Number(res?.[0]);
-    if (!Number.isFinite(count)) return null;
-    if (count > limit) {
-      const ttl = Number(res?.[1]);
-      const ms = Number.isFinite(ttl) && ttl > 0 ? ttl : windowMs;
-      return { ok: false, retryAfter: Math.max(1, Math.ceil(ms / 1000)) };
-    }
-    return { ok: true, retryAfter: 0 };
+    return windowResult(res?.[0], res?.[1], limit, windowMs);
   } catch {
     return null; // fail-open: cai no contador em memória
   }
@@ -170,14 +182,7 @@ async function rateLimitUpstash(
     });
     if (!res.ok) return null;
     const data = (await res.json()) as Array<{ result?: unknown }>;
-    const count = Number(data[0]?.result);
-    if (!Number.isFinite(count)) return null;
-    if (count > limit) {
-      const ttl = Number(data[2]?.result);
-      const ms = Number.isFinite(ttl) && ttl > 0 ? ttl : windowMs;
-      return { ok: false, retryAfter: Math.max(1, Math.ceil(ms / 1000)) };
-    }
-    return { ok: true, retryAfter: 0 };
+    return windowResult(data[0]?.result, data[2]?.result, limit, windowMs);
   } catch {
     return null;
   }

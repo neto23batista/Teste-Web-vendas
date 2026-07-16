@@ -1,11 +1,22 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { canAccess, isOwnerProfile, type Area } from "@/lib/permissions";
 
-export async function getCurrentUser() {
+/**
+ * Sessão do request atual, memoizada com o `cache` do React.
+ *
+ * `auth()` não é barato: relê os cookies, remonta um Request sintético e roda o
+ * decrypt do JWT + o callback de sessão. Sem memoizar, uma única Server Action
+ * de admin resolvia a sessão DUAS vezes (o portão de área e o de escopo pedem
+ * cada um o seu), e telas como o /admin também. O `cache` dedupa por request:
+ * a 1ª chamada resolve, as demais reaproveitam. Vale para todos os guards
+ * abaixo — e para os que vierem — sem ninguém precisar passar o user na mão.
+ */
+export const getCurrentUser = cache(async () => {
   const session = await auth();
   return session?.user ?? null;
-}
+});
 
 export async function requireUser() {
   const user = await getCurrentUser();

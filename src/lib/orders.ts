@@ -1,5 +1,30 @@
 import { revalidateTag } from "next/cache";
+import type { Prisma, OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+
+/**
+ * Reivindica uma transição de status de forma ATÔMICA: o UPDATE só "pega" se o
+ * pedido ainda estiver no estado esperado. É o que impede efeito duplicado
+ * quando duas chamadas correm juntas — o webhook do cartão chega mais de uma vez
+ * (checkout.session.completed + payment_intent.succeeded, entrega "pelo menos
+ * uma vez") e o cancelamento tem dois caminhos (cliente e admin). Só quem
+ * efetivamente mudou o status recebe `true` e executa os efeitos colaterais.
+ *
+ * Compartilhado por fulfillOrder e cancelOrder de propósito: é a única defesa
+ * contra a corrida, e ter duas cópias fazia a correção poder divergir numa delas.
+ */
+async function claimOrderStatus(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  from: Prisma.OrderWhereInput["status"],
+  to: OrderStatus
+): Promise<boolean> {
+  const claimed = await tx.order.updateMany({
+    where: { id: orderId, status: from },
+    data: { status: to },
+  });
+  return claimed.count === 1;
+}
 
 // Invalida o cache das listas de produto (tag "products"). Best-effort: a
 // transação de estoque/dinheiro já está commitada, então uma falha de
@@ -98,21 +123,20 @@ export async function fulfillOrder(orderId: string) {
   // Unidade que atende o pedido (matriz como fallback de pedidos legados).
   const pharmacyId = order.pharmacyId ?? (await fallbackPharmacyId());
 
-  // Um mesmo pagamento pode chegar aqui MAIS DE UMA VEZ em paralelo: o cartão
-  // dispara dois eventos no Stripe (checkout.session.completed e
-  // payment_intent.succeeded) e a entrega do webhook é "pelo menos uma vez".
-  // A leitura acima não protege (é fora da transação), e o decremento condicional
-  // em `stock >= qty` continuaria valendo na segunda passada — creditando pontos
-  // e baixando estoque em DOBRO. Por isso reivindicamos o pedido de forma atômica:
-  // só quem efetivamente tira o status de PENDING executa os efeitos.
+  // Um mesmo pagamento pode chegar aqui MAIS DE UMA VEZ em paralelo. A leitura
+  // acima não protege (é fora da transação), e o decremento condicional em
+  // `stock >= qty` continuaria valendo na segunda passada — creditando pontos e
+  // baixando estoque em DOBRO. Por isso a reivindicação atômica: só quem
+  // efetivamente tira o status de PENDING executa os efeitos.
   let didFulfill = false;
   await prisma.$transaction(async (tx) => {
-    const claimed = await tx.order.updateMany({
-      where: { id: order.id, status: "PENDING" },
-      data: { status: isCash ? "PREPARING" : "PAID" },
-    });
-    if (claimed.count === 0) return; // já confirmado por uma chamada concorrente
-    didFulfill = true;
+    didFulfill = await claimOrderStatus(
+      tx,
+      order.id,
+      "PENDING",
+      isCash ? "PREPARING" : "PAID"
+    );
+    if (!didFulfill) return; // já confirmado por uma chamada concorrente
 
     for (const item of order.items) {
       if (!item.productId || !pharmacyId) continue;
@@ -241,12 +265,8 @@ export async function cancelOrder(orderId: string) {
   // atômica: só quem efetivamente vira o status para CANCELED executa a reversão.
   let didCancel = false;
   await prisma.$transaction(async (tx) => {
-    const claimed = await tx.order.updateMany({
-      where: { id: order.id, status: { not: "CANCELED" } },
-      data: { status: "CANCELED" },
-    });
-    if (claimed.count === 0) return; // já cancelado por uma chamada concorrente
-    didCancel = true;
+    didCancel = await claimOrderStatus(tx, order.id, { not: "CANCELED" }, "CANCELED");
+    if (!didCancel) return; // já cancelado por uma chamada concorrente
 
     if (wasFulfilled) {
       for (const item of order.items) {
