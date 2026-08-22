@@ -3,19 +3,21 @@ import { expect, type Page } from "@playwright/test";
 // Contas demo criadas pelo seed (prisma/seed.ts).
 export const DEMO_CLIENT = {
   email: "cliente@farmavida.local",
-  password: "Cliente@2026",
+  password: process.env.SEED_CUSTOMER_PASSWORD ?? "seed-password-not-configured",
 };
 export const DEMO_ADMIN = {
   email: "owner@farmavida.local",
-  password: "Dono@Farma2026",
+  password: process.env.SEED_OWNER_PASSWORD ?? "seed-password-not-configured",
 };
 
 /**
  * Specs que ESCREVEM no banco (pedido, salvar perfil) só rodam com
- * E2E_ALLOW_WRITES=1 — localmente o banco é o MESMO de produção (Neon);
- * no CI o Postgres é de serviço, descartável, e a flag fica sempre ligada.
+ * E2E_ALLOW_WRITES=I_UNDERSTAND_THIS_IS_A_DISPOSABLE_DATABASE e uma
+ * E2E_DATABASE_URL separada. No CI o Postgres de serviço é descartável.
  */
-export const ALLOW_WRITES = !!process.env.E2E_ALLOW_WRITES;
+export const ALLOW_WRITES =
+  process.env.E2E_ALLOW_WRITES ===
+  "I_UNDERSTAND_THIS_IS_A_DISPOSABLE_DATABASE";
 
 /** Faz login e espera sair da página de login. */
 export async function login(

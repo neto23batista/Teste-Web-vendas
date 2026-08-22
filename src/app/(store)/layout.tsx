@@ -22,8 +22,10 @@ export default async function StoreLayout({
   ]);
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader />
-      <main className="flex-1 pb-24 md:pb-0">{children}</main>
+      <SiteHeader cartCount={cartCount} />
+      <main id="conteudo-principal" tabIndex={-1} className="flex-1 pb-24 md:pb-0">
+        {children}
+      </main>
       <SiteFooter />
       <BottomNav cartCount={cartCount} />
       {settings.whatsapp && <WhatsAppFab whatsapp={settings.whatsapp} />}

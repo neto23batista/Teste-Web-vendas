@@ -4,8 +4,9 @@ import type { StaffProfile } from "@prisma/client";
  * Controle de acesso por perfil dentro do painel. Todo staff é `role = ADMIN`;
  * o PERFIL define o que ele enxerga e opera.
  *
- * `staffProfile = null` (contas antigas, incluindo o admin inicial) é tratado
- * como OWNER — nenhuma conta perde acesso ao migrar.
+ * Contas administrativas devem ter perfil explícito. `null` falha para o
+ * perfil de menor privilégio; a migration converte os admins legados conhecidos
+ * para OWNER antes desta regra entrar em vigor.
  */
 export type Area =
   | "dashboard"
@@ -25,14 +26,14 @@ export type Area =
   | "auditoria"
   | "configuracoes";
 
-/** Perfil efetivo: null (legado) = OWNER. */
+/** Perfil efetivo: valor ausente nunca concede privilégios de OWNER. */
 export function effectiveProfile(p: StaffProfile | null | undefined): StaffProfile {
-  return p ?? "OWNER";
+  return p ?? "ATTENDANT";
 }
 
-/** Dono/gerente? `staffProfile = null` (legado) conta como OWNER. */
+/** Dono/gerente exige atribuição explícita. */
 export function isOwnerProfile(p: StaffProfile | null | undefined): boolean {
-  return effectiveProfile(p) === "OWNER";
+  return p === "OWNER";
 }
 
 /**

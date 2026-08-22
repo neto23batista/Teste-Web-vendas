@@ -1,5 +1,6 @@
 "use server";
 
+import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -8,6 +9,12 @@ import { canAccess } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { slugify } from "@/lib/utils";
 import { parseCsvRecords } from "@/lib/csv";
+import { PRESCRIPTION_PRODUCT_UNAVAILABLE } from "@/lib/product-policy";
+import {
+  centsToDecimal,
+  parseMoneyInputToCents,
+} from "@/lib/money";
+import { validateProductImageUrls } from "@/lib/product-images";
 
 // Invalida o cache das listas de produto da home (tag "products").
 function revalidateProducts() {
@@ -30,7 +37,7 @@ async function isCatalogAdmin(): Promise<boolean> {
  *  já existente). Usado ao criar produtos / ao surgir uma unidade nova. */
 async function ensureInventoryForAllUnits(productId: string, minStock: number) {
   const pharmacies = await prisma.pharmacy.findMany({
-    where: { active: true },
+    where: { active: true, archivedAt: null },
     select: { id: true },
   });
   for (const ph of pharmacies) {
@@ -46,7 +53,7 @@ async function ensureInventoryForAllUnits(productId: string, minStock: number) {
  *  começam em 0 e gerenciam o próprio em Controle de estoque). */
 async function setMatrizStock(productId: string, stock: number, minStock: number) {
   const matriz = await prisma.pharmacy.findFirst({
-    where: { type: "MATRIZ" },
+    where: { type: "MATRIZ", archivedAt: null },
     select: { id: true },
   });
   if (!matriz) return;
@@ -60,9 +67,10 @@ async function setMatrizStock(productId: string, stock: number, minStock: number
 export type ProductFormState = { error?: string } | undefined;
 
 function parse(formData: FormData) {
-  const num = (k: string) => {
-    const v = String(formData.get(k) ?? "").replace(",", ".").trim();
-    return v === "" ? null : Number(v);
+  const raw = (key: string) => String(formData.get(key) ?? "").trim();
+  const integer = (key: string, fallback: number) => {
+    const value = raw(key);
+    return value === "" ? fallback : Number(value);
   };
   return {
     name: String(formData.get("name") ?? "").trim(),
@@ -71,22 +79,51 @@ function parse(formData: FormData) {
     activeIngredient: String(formData.get("activeIngredient") ?? "").trim() || null,
     emoji: String(formData.get("emoji") ?? "").trim() || null,
     sku: String(formData.get("sku") ?? "").trim() || null,
-    price: num("price"),
-    promoPrice: num("promoPrice"),
-    costPrice: num("costPrice"),
-    stock: num("stock") ?? 0,
-    minStock: num("minStock") ?? 5,
+    priceRaw: raw("price"),
+    promoPriceRaw: raw("promoPrice"),
+    costPriceRaw: raw("costPrice"),
+    priceCents: parseMoneyInputToCents(raw("price")),
+    promoPriceCents: raw("promoPrice")
+      ? parseMoneyInputToCents(raw("promoPrice"))
+      : null,
+    costPriceCents: raw("costPrice")
+      ? parseMoneyInputToCents(raw("costPrice"))
+      : null,
+    stock: integer("stock", 0),
+    minStock: integer("minStock", 5),
     categoryId: String(formData.get("categoryId") ?? ""),
     brandId: String(formData.get("brandId") ?? "") || null,
-    imageUrls: String(formData.get("imageUrls") ?? "")
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter((s) => /^https:\/\/.+/i.test(s))
-      .slice(0, 8),
+    imageUrlsRaw: raw("imageUrls"),
     isGeneric: formData.get("isGeneric") === "on",
     featured: formData.get("featured") === "on",
     active: formData.get("active") === "on",
   };
+}
+
+function validateProductForm(d: ReturnType<typeof parse>):
+  | { ok: true; imageUrls: string[] }
+  | { ok: false; error: string } {
+  if (!d.name || d.priceCents === null || !d.categoryId) {
+    return { ok: false, error: "Nome, preço válido e categoria são obrigatórios." };
+  }
+  if (d.priceCents <= 0) return { ok: false, error: "O preço deve ser maior que zero." };
+  if (d.promoPriceRaw && d.promoPriceCents === null) {
+    return { ok: false, error: "Preço promocional inválido (use até 2 casas)." };
+  }
+  if (d.costPriceRaw && d.costPriceCents === null) {
+    return { ok: false, error: "Custo inválido (use até 2 casas)." };
+  }
+  if (d.promoPriceCents !== null && (d.promoPriceCents <= 0 || d.promoPriceCents >= d.priceCents)) {
+    return { ok: false, error: "O preço promocional deve ser menor que o preço normal." };
+  }
+  if (d.costPriceCents !== null && d.costPriceCents < 0) {
+    return { ok: false, error: "O custo não pode ser negativo." };
+  }
+  if (!Number.isSafeInteger(d.stock) || d.stock < 0 || !Number.isSafeInteger(d.minStock) || d.minStock < 0) {
+    return { ok: false, error: "Estoque e estoque mínimo devem ser inteiros não negativos." };
+  }
+  const images = validateProductImageUrls(d.imageUrlsRaw);
+  return images.ok ? { ok: true, imageUrls: images.urls } : images;
 }
 
 async function uniqueSlug(base: string, ignoreId?: string): Promise<string> {
@@ -107,9 +144,8 @@ export async function createProduct(
     return { error: "Apenas a matriz gerencia o catálogo de produtos." };
   }
   const d = parse(formData);
-  if (!d.name || d.price === null || !d.categoryId) {
-    return { error: "Nome, preço e categoria são obrigatórios." };
-  }
+  const valid = validateProductForm(d);
+  if (!valid.ok) return { error: valid.error };
 
   const product = await prisma.product.create({
     data: {
@@ -120,16 +156,18 @@ export async function createProduct(
       activeIngredient: d.activeIngredient,
       emoji: d.emoji,
       sku: d.sku,
-      price: d.price,
-      promoPrice: d.promoPrice,
-      costPrice: d.costPrice,
+      price: centsToDecimal(d.priceCents!),
+      promoPrice:
+        d.promoPriceCents == null ? null : centsToDecimal(d.promoPriceCents),
+      costPrice:
+        d.costPriceCents == null ? null : centsToDecimal(d.costPriceCents),
       categoryId: d.categoryId,
       brandId: d.brandId,
       isGeneric: d.isGeneric,
       featured: d.featured,
       active: d.active,
       images: {
-        create: d.imageUrls.map((url, i) => ({ url, sort: i })),
+        create: valid.imageUrls.map((url, i) => ({ url, sort: i })),
       },
     },
   });
@@ -156,9 +194,14 @@ export async function updateProduct(
     return { error: "Apenas a matriz gerencia o catálogo de produtos." };
   }
   const d = parse(formData);
-  if (!d.name || d.price === null || !d.categoryId) {
-    return { error: "Nome, preço e categoria são obrigatórios." };
-  }
+  const valid = validateProductForm(d);
+  if (!valid.ok) return { error: valid.error };
+
+  const current = await prisma.product.findUnique({
+    where: { id },
+    select: { requiresPrescription: true },
+  });
+  if (!current) return { error: "Produto não encontrado." };
 
   await prisma.product.update({
     where: { id },
@@ -170,18 +213,22 @@ export async function updateProduct(
       activeIngredient: d.activeIngredient,
       emoji: d.emoji,
       sku: d.sku,
-      price: d.price,
-      promoPrice: d.promoPrice,
-      costPrice: d.costPrice,
+      price: centsToDecimal(d.priceCents!),
+      promoPrice:
+        d.promoPriceCents == null ? null : centsToDecimal(d.promoPriceCents),
+      costPrice:
+        d.costPriceCents == null ? null : centsToDecimal(d.costPriceCents),
       categoryId: d.categoryId,
       brandId: d.brandId,
       isGeneric: d.isGeneric,
       featured: d.featured,
-      active: d.active,
+      // Mesmo uma chamada direta da Server Action não consegue republicar um
+      // item classificado como sujeito a prescrição.
+      active: current.requiresPrescription ? false : d.active,
       // Substitui o conjunto de imagens pelo informado no formulário.
       images: {
         deleteMany: {},
-        create: d.imageUrls.map((url, i) => ({ url, sort: i })),
+        create: valid.imageUrls.map((url, i) => ({ url, sort: i })),
       },
     },
   });
@@ -201,9 +248,15 @@ export async function updateProduct(
 }
 
 export async function toggleProductActive(id: string) {
-  if (!(await isCatalogAdmin())) return { ok: false };
-  const product = await prisma.product.findUnique({ where: { id } });
+  if (!(await isCatalogAdmin())) return { ok: false, error: "Acesso negado." };
+  const product = await prisma.product.findUnique({
+    where: { id },
+    select: { id: true, name: true, active: true, requiresPrescription: true },
+  });
   if (product) {
+    if (!product.active && product.requiresPrescription) {
+      return { ok: false, error: PRESCRIPTION_PRODUCT_UNAVAILABLE };
+    }
     await prisma.product.update({ where: { id }, data: { active: !product.active } });
     await logAudit({
       action: "product.toggle",
@@ -213,7 +266,9 @@ export async function toggleProductActive(id: string) {
     });
     revalidateProducts();
   }
-  return { ok: true };
+  return product
+    ? { ok: true }
+    : { ok: false, error: "Produto não encontrado." };
 }
 
 export async function deleteProduct(id: string) {
@@ -266,8 +321,58 @@ const csvNum = (v: string): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+const csvMoneyCents = (value: string): number | null => {
+  const raw = (value ?? "").trim();
+  if (!raw) return null;
+  const normalized = /,/.test(raw)
+    ? raw.replace(/\./g, "").replace(",", ".")
+    : raw;
+  return parseMoneyInputToCents(normalized);
+};
+
 const csvBool = (v: string): boolean =>
   ["sim", "s", "true", "1", "x", "yes"].includes((v ?? "").trim().toLowerCase());
+
+const CSV_IMPORT_MAX_ROWS = 2_000;
+const CSV_IMPORT_BATCH_SIZE = 100;
+const CSV_IMPORT_CONCURRENCY = 20;
+const CSV_INVENTORY_BATCH_SIZE = 1_000;
+
+type CsvProductData = {
+  name: string;
+  description: string;
+  activeIngredient: string | null;
+  ean: string | null;
+  price: string;
+  promoPrice: string | null;
+  categoryId: string;
+  brandId: string | null;
+  isGeneric: boolean;
+};
+
+type CsvWorkItem = {
+  line: number;
+  sku: string | null;
+  stock: number;
+  requiresPrescription: boolean;
+  data: CsvProductData;
+  occurrences: number;
+  existing: { id: string; requiresPrescription: boolean } | null;
+};
+
+function csvChunks<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function csvImportSlug(name: string, identity: string): string {
+  const base = (slugify(name) || "produto").slice(0, 65);
+  const suffix = createHash("sha256").update(identity).digest("hex").slice(0, 12);
+  return `${base}-${suffix}`;
+}
 
 export async function importProducts(formData: FormData): Promise<ImportResult> {
   if (!(await isCatalogAdmin())) {
@@ -297,6 +402,16 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
       errors: ["CSV vazio ou sem linhas de dados (verifique o cabeçalho)."],
     };
   }
+  if (records.length > CSV_IMPORT_MAX_ROWS) {
+    return {
+      ok: false,
+      created: 0,
+      updated: 0,
+      errors: [
+        `CSV com linhas demais (máx. ${CSV_IMPORT_MAX_ROWS.toLocaleString("pt-BR")}). Divida o arquivo em lotes.`,
+      ],
+    };
+  }
 
   // Pré-carrega categorias e marcas e indexa por nome e slug normalizados.
   const [categories, brands] = await Promise.all([
@@ -314,9 +429,8 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
     brandMap.set(norm(b.slug), b.id);
   }
 
-  let created = 0;
-  let updated = 0;
   const errors: string[] = [];
+  const prepared: Omit<CsvWorkItem, "occurrences" | "existing">[] = [];
 
   for (let i = 0; i < records.length; i++) {
     const r = records[i];
@@ -328,9 +442,20 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
       errors.push(`Linha ${line}: nome em branco — ignorada.`);
       continue;
     }
-    const price = csvNum(r.preco ?? "");
-    if (price === null) {
+    const priceCents = csvMoneyCents(r.preco ?? "");
+    if (priceCents === null || priceCents <= 0) {
       errors.push(`Linha ${line} (${name}): preço inválido — ignorada.`);
+      continue;
+    }
+    const promoRaw = (r.promo ?? "").trim();
+    const promoCents = promoRaw ? csvMoneyCents(promoRaw) : null;
+    if (
+      promoRaw &&
+      (promoCents === null || promoCents <= 0 || promoCents >= priceCents)
+    ) {
+      errors.push(
+        `Linha ${line} (${name}): promoção inválida ou maior que o preço — ignorada.`
+      );
       continue;
     }
 
@@ -358,39 +483,261 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
 
     // Estoque do CSV vai para o Inventory da matriz (não mais para o Product).
     const csvStock = Math.max(0, Math.round(csvNum(r.estoque ?? "") ?? 0));
-    const data = {
+    // Importação nunca rebaixa automaticamente um item já classificado como
+    // sujeito a prescrição. `tarja=sim` só pode tornar a política mais restrita.
+    const requiresPrescription = csvBool(r.tarja ?? "");
+    const data: CsvProductData = {
       name,
       description: (r.descricao ?? "").trim() || name,
       activeIngredient: (r.principio_ativo ?? "").trim() || null,
       ean: (r.ean ?? "").trim() || null,
-      price,
-      promoPrice: csvNum(r.promo ?? ""),
+      price: centsToDecimal(priceCents),
+      promoPrice: promoCents == null ? null : centsToDecimal(promoCents),
       categoryId,
       brandId,
       isGeneric: csvBool(r.generico ?? ""),
     };
+    prepared.push({ line, sku, stock: csvStock, requiresPrescription, data });
+  }
 
-    try {
-      const existing = sku
-        ? await prisma.product.findUnique({ where: { sku } })
-        : null;
-      let productId: string;
-      if (existing) {
-        await prisma.product.update({ where: { id: existing.id }, data });
-        productId = existing.id;
-        updated++;
-      } else {
-        const product = await prisma.product.create({
-          data: { ...data, sku, slug: await uniqueSlug(name) },
-        });
-        productId = product.id;
-        created++;
+  if (prepared.length === 0) return { ok: true, created: 0, updated: 0, errors };
+
+  // Uma consulta substitui o findUnique por linha. Unidade e matriz também são
+  // resolvidas uma única vez, em vez de serem relidas para cada produto.
+  const skus = [
+    ...new Set(prepared.map((entry) => entry.sku).filter((sku): sku is string => !!sku)),
+  ];
+  const [existingProducts, activePharmacies, matriz] = await Promise.all([
+    skus.length > 0
+      ? prisma.product.findMany({
+          where: { sku: { in: skus } },
+          select: { id: true, sku: true, requiresPrescription: true },
+        })
+      : Promise.resolve([]),
+    prisma.pharmacy.findMany({
+      where: { active: true, archivedAt: null },
+      select: { id: true },
+    }),
+    prisma.pharmacy.findFirst({
+      where: { type: "MATRIZ", archivedAt: null },
+      select: { id: true },
+    }),
+  ]);
+  const existingBySku = new Map(
+    existingProducts.flatMap((product) =>
+      product.sku ? [[product.sku, product] as const] : []
+    )
+  );
+  const unitIds = [
+    ...new Set([
+      ...activePharmacies.map((pharmacy) => pharmacy.id),
+      ...(matriz ? [matriz.id] : []),
+    ]),
+  ];
+
+  // Consolida SKU repetido: o último registro vence nos dados/estoque, enquanto
+  // `tarja=sim` nunca é rebaixado por uma linha posterior.
+  const consolidated = new Map<string, CsvWorkItem>();
+  for (const entry of prepared) {
+    const key = entry.sku ? `sku:${entry.sku}` : `line:${entry.line}`;
+    const previous = consolidated.get(key);
+    if (previous) {
+      previous.line = entry.line;
+      previous.stock = entry.stock;
+      previous.data = entry.data;
+      previous.requiresPrescription ||= entry.requiresPrescription;
+      previous.occurrences++;
+      continue;
+    }
+    consolidated.set(key, {
+      ...entry,
+      occurrences: 1,
+      existing: entry.sku
+        ? (() => {
+            const product = existingBySku.get(entry.sku!);
+            return product
+              ? { id: product.id, requiresPrescription: product.requiresPrescription }
+              : null;
+          })()
+        : null,
+    });
+  }
+
+  let created = 0;
+  let updated = 0;
+  const work = [...consolidated.values()];
+  const existing = work.filter(
+    (entry): entry is CsvWorkItem & { existing: NonNullable<CsvWorkItem["existing"]> } =>
+      entry.existing != null
+  );
+
+  for (const batch of csvChunks(existing, CSV_IMPORT_CONCURRENCY)) {
+    let inventoriesPrepared = true;
+    if (unitIds.length > 0) {
+      try {
+        const inventoryRows = batch.flatMap((entry) =>
+          unitIds.map((pharmacyId) => ({
+            productId: entry.existing.id,
+            pharmacyId,
+            stock: 0,
+            minStock: 5,
+          }))
+        );
+        for (const rows of csvChunks(inventoryRows, CSV_INVENTORY_BATCH_SIZE)) {
+          await prisma.inventory.createMany({ data: rows, skipDuplicates: true });
+        }
+      } catch {
+        inventoriesPrepared = false;
       }
-      // Garante linhas nas demais unidades e aplica o estoque do CSV à matriz.
-      await ensureInventoryForAllUnits(productId, 5);
-      await setMatrizStock(productId, csvStock, 5);
-    } catch (err) {
-      errors.push(`Linha ${line} (${name}): falha ao salvar (${String(err)}).`);
+    }
+
+    await Promise.all(
+      batch.map(async (entry) => {
+        try {
+          const restrictive =
+            entry.requiresPrescription || entry.existing.requiresPrescription;
+          const update = prisma.product.update({
+            where: { id: entry.existing.id },
+            data: {
+              ...entry.data,
+              ...(restrictive ? { requiresPrescription: true, active: false } : {}),
+            },
+          });
+          if (matriz) {
+            await prisma.$transaction([
+              update,
+              prisma.inventory.upsert({
+                where: {
+                  productId_pharmacyId: {
+                    productId: entry.existing.id,
+                    pharmacyId: matriz.id,
+                  },
+                },
+                create: {
+                  productId: entry.existing.id,
+                  pharmacyId: matriz.id,
+                  stock: entry.stock,
+                  minStock: 5,
+                },
+                update: { stock: entry.stock, minStock: 5 },
+              }),
+            ]);
+          } else {
+            await update;
+          }
+          if (!inventoriesPrepared) {
+            await ensureInventoryForAllUnits(entry.existing.id, 5);
+          }
+          updated += entry.occurrences;
+        } catch (err) {
+          errors.push(
+            `Linha ${entry.line} (${entry.data.name}): falha ao salvar (${String(err)}).`
+          );
+        }
+      })
+    );
+  }
+
+  const newItems = work.filter((entry) => !entry.existing);
+  for (const batch of csvChunks(newItems, CSV_IMPORT_BATCH_SIZE)) {
+    const inserts = batch.map((entry) => {
+      const id = randomUUID();
+      return {
+        entry,
+        id,
+        product: {
+          id,
+          ...entry.data,
+          sku: entry.sku,
+          slug: csvImportSlug(entry.data.name, entry.sku ?? id),
+          requiresPrescription: entry.requiresPrescription,
+          // Todo item importado passa por curadoria; itens de receita nunca
+          // podem ser publicados enquanto a política MIP-only estiver vigente.
+          active: false,
+        },
+      };
+    });
+
+    let batchCreated = false;
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.product.createMany({ data: inserts.map((item) => item.product) });
+        if (unitIds.length > 0) {
+          const inventoryRows = inserts.flatMap(({ entry, id }) =>
+            unitIds.map((pharmacyId) => ({
+              productId: id,
+              pharmacyId,
+              stock: pharmacyId === matriz?.id ? entry.stock : 0,
+              minStock: 5,
+            }))
+          );
+          for (const rows of csvChunks(inventoryRows, CSV_INVENTORY_BATCH_SIZE)) {
+            await tx.inventory.createMany({ data: rows });
+          }
+        }
+      });
+      batchCreated = true;
+    } catch {
+      // O lote é atômico. Em colisão/constraint, isola abaixo cada linha.
+    }
+
+    if (batchCreated) {
+      created += batch.length;
+      updated += batch.reduce((sum, entry) => sum + entry.occurrences - 1, 0);
+      continue;
+    }
+
+    for (const { entry, id, product } of inserts) {
+      try {
+        const concurrent = entry.sku
+          ? await prisma.product.findUnique({
+              where: { sku: entry.sku },
+              select: { id: true, requiresPrescription: true },
+            })
+          : null;
+        if (concurrent) {
+          await prisma.product.update({
+            where: { id: concurrent.id },
+            data: {
+              ...entry.data,
+              ...(entry.requiresPrescription || concurrent.requiresPrescription
+                ? { requiresPrescription: true, active: false }
+                : {}),
+            },
+          });
+          await ensureInventoryForAllUnits(concurrent.id, 5);
+          await setMatrizStock(concurrent.id, entry.stock, 5);
+          updated += entry.occurrences;
+          continue;
+        }
+        await prisma.$transaction(async (tx) => {
+          await tx.product.create({
+            data: {
+              ...product,
+              // O batch pode ter falhado por colisão de slug. No fallback,
+              // usa um novo sufixo sem abrir uma consulta adicional.
+              slug: csvImportSlug(entry.data.name, randomUUID()),
+            },
+          });
+          if (unitIds.length > 0) {
+            const inventoryRows = unitIds.map((pharmacyId) => ({
+              productId: id,
+              pharmacyId,
+              stock: pharmacyId === matriz?.id ? entry.stock : 0,
+              minStock: 5,
+            }));
+            for (const rows of csvChunks(inventoryRows, CSV_INVENTORY_BATCH_SIZE)) {
+              await tx.inventory.createMany({ data: rows });
+            }
+          }
+        });
+        created++;
+        updated += entry.occurrences - 1;
+      } catch (err) {
+        errors.push(
+          `Linha ${entry.line} (${entry.data.name}): falha ao salvar (${String(err)}).`
+        );
+      }
     }
   }
 

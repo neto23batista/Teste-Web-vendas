@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { Brand } from "@/components/store/brand";
-import { getStoreSettings, getRegulatoryInfo } from "@/lib/settings";
+import {
+  getStoreSettings,
+  getRegulatoryInfo,
+  missingRegulatoryDisclosure,
+} from "@/lib/settings";
 import { getSelectedPharmacyId } from "@/lib/pharmacy";
 import {
   ShieldCheck,
@@ -15,9 +19,9 @@ import {
 } from "lucide-react";
 
 const trust = [
-  { icon: ShieldCheck, label: "Compra segura" },
-  { icon: Stethoscope, label: "Orientação farmacêutica" },
-  { icon: CreditCard, label: "Pagamento criptografado" },
+  { icon: ShieldCheck, label: "Controles de acesso" },
+  { icon: Stethoscope, label: "Dados regulatórios publicados" },
+  { icon: CreditCard, label: "Pagamento via Stripe" },
   { icon: Truck, label: "Entrega rápida" },
 ];
 
@@ -36,6 +40,13 @@ export async function SiteFooter() {
     { icon: Clock, value: s.hours },
     { icon: MapPin, value: s.address },
   ].filter((c) => c.value);
+  const missingRegulatory = missingRegulatoryDisclosure({
+    ...reg,
+    address: s.address,
+    hours: s.hours,
+    phone: s.phone,
+  });
+  const regulatoryReady = missingRegulatory.length === 0;
 
   return (
     <footer className="mt-16 border-t border-border bg-card pb-24 md:pb-0">
@@ -49,8 +60,8 @@ export async function SiteFooter() {
         <div className="space-y-4">
           <Brand />
           <p className="max-w-sm text-sm text-muted-foreground">
-            Farmácia online com operação segura, privacidade LGPD e suporte
-            farmacêutico de verdade.
+            Canal online restrito a produtos que não exigem receita. Consulte
+            abaixo os dados da operação e os canais de atendimento disponíveis.
           </p>
           <div className="grid grid-cols-2 gap-2">
             {trust.map(({ icon: Icon, label }) => (
@@ -120,15 +131,27 @@ export async function SiteFooter() {
       <div className="border-t border-border">
         <div className="container-page flex flex-col items-center justify-between gap-2 py-5 text-xs text-muted-foreground md:flex-row">
           <span>
-            © {new Date().getFullYear()} FarmaVida — ambiente protegido para os
-            seus dados pessoais.
+            © {new Date().getFullYear()} FarmaVida — consulte a Política de
+            Privacidade e os canais oficiais.
           </span>
-          <span className="inline-flex items-center gap-1.5 text-center">
-            <Stethoscope className="size-3.5 text-brand-600 dark:text-brand-400" />
-            Farmacêutico(a) responsável: {reg.pharmacistName} ·{" "}
-            {reg.pharmacistCrf}
-            {reg.cnpj && ` · CNPJ ${reg.cnpj}`}
-          </span>
+          {regulatoryReady ? (
+            <div className="space-y-1 text-center md:text-right">
+              <p>{reg.legalName} · CNPJ {reg.cnpj}</p>
+              <p className="inline-flex items-center gap-1.5">
+                <Stethoscope className="size-3.5 text-brand-600 dark:text-brand-400" />
+                RT: {reg.pharmacistName} · {reg.pharmacistCrf}
+              </p>
+              <p>
+                Licença sanitária {reg.sanitaryLicense} · AFE {reg.afe}
+                {reg.ae ? ` · AE ${reg.ae}` : ""}
+              </p>
+            </div>
+          ) : (
+            <p className="max-w-xl text-center font-semibold text-amber-700 dark:text-amber-300 md:text-right">
+              Ambiente não liberado para operação comercial: divulgação
+              regulatória pendente no painel administrativo.
+            </p>
+          )}
         </div>
       </div>
     </footer>

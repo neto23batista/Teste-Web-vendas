@@ -8,6 +8,7 @@ import {
   type AbcRow,
 } from "@/lib/management";
 import type { OrderStatus, ExpenseCategory } from "@prisma/client";
+import { centsToNumber, moneyToCents, moneyToNumber } from "@/lib/money";
 
 const PAID_STATUSES: OrderStatus[] = ["PAID", "PREPARING", "SHIPPED", "DELIVERED"];
 
@@ -39,16 +40,29 @@ export async function getAbcReport(days = 30, selectedUnitId?: string | null) {
     select: { productId: true, name: true, qty: true, price: true },
   });
 
-  const byProduct = new Map<string, AbcProduct>();
+  const byProduct = new Map<
+    string,
+    Omit<AbcProduct, "revenue"> & { revenueCents: number }
+  >();
   for (const it of items) {
     const key = it.productId ?? `nome:${it.name}`;
-    const cur = byProduct.get(key) ?? { key, name: it.name, qty: 0, revenue: 0 };
+    const cur = byProduct.get(key) ?? {
+      key,
+      name: it.name,
+      qty: 0,
+      revenueCents: 0,
+    };
     cur.qty += it.qty;
-    cur.revenue += it.price * it.qty;
+    cur.revenueCents += (moneyToCents(it.price) ?? 0) * it.qty;
     byProduct.set(key, cur);
   }
 
-  const rows: AbcRow<AbcProduct>[] = classifyAbc([...byProduct.values()]);
+  const rows: AbcRow<AbcProduct>[] = classifyAbc(
+    [...byProduct.values()].map(({ revenueCents, ...row }) => ({
+      ...row,
+      revenue: centsToNumber(revenueCents),
+    }))
+  );
   return {
     since,
     rows,
@@ -86,7 +100,7 @@ export async function getPurchaseSuggestions(selectedUnitId?: string | null) {
     unit ??
     (
       await prisma.pharmacy.findFirst({
-        where: { type: "MATRIZ" },
+        where: { type: "MATRIZ", archivedAt: null },
         select: { id: true },
       })
     )?.id ??
@@ -124,7 +138,8 @@ export async function getPurchaseSuggestions(selectedUnitId?: string | null) {
       sku: iv.product.sku,
       ean: iv.product.ean,
       category: iv.product.category.name,
-      costPrice: iv.product.costPrice,
+      costPrice:
+        iv.product.costPrice == null ? null : moneyToNumber(iv.product.costPrice),
       stock: iv.stock,
       minStock: iv.minStock,
       maxStock: iv.maxStock,
@@ -184,45 +199,62 @@ export async function getFinanceReport(
     }),
   ]);
 
-  let grossRevenue = 0;
-  let discounts = 0;
-  let cogs = 0;
+  let grossRevenueCents = 0;
+  let discountsCents = 0;
+  let cogsCents = 0;
   let itemsWithoutCost = 0;
-  const flow: { date: string; inflow: number; outflow: number }[] = [];
+  const flowCents: { date: string; inflow: number; outflow: number }[] = [];
 
   for (const o of orders) {
-    grossRevenue += o.total + o.discount; // total já vem líquido de desconto
-    discounts += o.discount;
+    const totalCents = moneyToCents(o.total) ?? 0;
+    const discountCents = moneyToCents(o.discount) ?? 0;
+    grossRevenueCents += totalCents + discountCents;
+    discountsCents += discountCents;
     for (const it of o.items) {
       const cost = it.product?.costPrice;
       if (cost == null) itemsWithoutCost += it.qty;
-      else cogs += cost * it.qty;
+      else cogsCents += (moneyToCents(cost) ?? 0) * it.qty;
     }
-    flow.push({
+    flowCents.push({
       date: o.createdAt.toISOString().slice(0, 10),
-      inflow: o.total,
+      inflow: totalCents,
       outflow: 0,
     });
   }
 
-  const byCategory = new Map<ExpenseCategory, number>();
+  const byCategoryCents = new Map<ExpenseCategory, number>();
+  let totalExpensesCents = 0;
   for (const e of expenses) {
-    byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + e.amount);
-    flow.push({
+    const amountCents = moneyToCents(e.amount) ?? 0;
+    byCategoryCents.set(
+      e.category,
+      (byCategoryCents.get(e.category) ?? 0) + amountCents
+    );
+    totalExpensesCents += amountCents;
+    flowCents.push({
       date: e.paidAt.toISOString().slice(0, 10),
       inflow: 0,
-      outflow: e.amount,
+      outflow: amountCents,
     });
   }
-  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+  const flow = flowCents.map((entry) => ({
+    ...entry,
+    inflow: centsToNumber(entry.inflow),
+    outflow: centsToNumber(entry.outflow),
+  }));
 
   return {
     from,
     to,
-    dre: buildDre({ grossRevenue, discounts, cogs, expenses: totalExpenses }),
+    dre: buildDre({
+      grossRevenue: centsToNumber(grossRevenueCents),
+      discounts: centsToNumber(discountsCents),
+      cogs: centsToNumber(cogsCents),
+      expenses: centsToNumber(totalExpensesCents),
+    }),
     itemsWithoutCost,
-    expensesByCategory: [...byCategory.entries()]
-      .map(([category, total]) => ({ category, total }))
+    expensesByCategory: [...byCategoryCents.entries()]
+      .map(([category, total]) => ({ category, total: centsToNumber(total) }))
       .sort((a, b) => b.total - a.total),
     cashFlow: buildCashFlow(flow),
   };

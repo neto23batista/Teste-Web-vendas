@@ -1,73 +1,137 @@
-# Deploy & operação — FarmaVida (Vercel + Neon)
+# Deploy e operação — FarmaVida (Vercel + Neon)
 
-O sistema **já está no ar**: push na `main` → GitHub Actions (CI) → deploy automático na
-Vercel. Banco **PostgreSQL na Neon** (integração *Storage → Neon* da Vercel injeta
-`DATABASE_URL` e `DATABASE_URL_UNPOOLED`). Este guia é a referência de operação.
+Referência técnica para publicar a aplicação Next.js na Vercel com PostgreSQL
+gerenciado pela Neon.
 
----
+## 1. Variáveis de ambiente
 
-## 1. Variáveis de ambiente (Vercel → Settings → Environment Variables)
+Obrigatórias para o boot:
 
-### Obrigatórias (o boot falha sem elas)
-| Variável | O quê |
+| Variável | Finalidade |
 |---|---|
-| `DATABASE_URL` | Postgres Neon, string *pooled* (injetada pela integração) |
-| `AUTH_SECRET` | segredo do Auth.js — `npx auth secret` |
+| `DATABASE_URL` | conexão pooled da aplicação |
+| `DATABASE_URL_UNPOOLED` | conexão direta usada nas migrations |
+| `AUTH_SECRET` | segredo do Auth.js, gerado com `npx auth secret` |
+| `MFA_ENCRYPTION_KEY` | chave exclusiva que protege os segredos TOTP com AES-GCM |
+| `MFA_RECOVERY_PEPPER` | segredo exclusivo usado no HMAC dos recovery codes |
+| `APP_ENV=production` | identifica produção em hospedagem própria; a Vercel usa `VERCEL_ENV` |
+| `STORAGE_DRIVER` + storage privado | `s3` + `S3_BUCKET` na Vercel; `local` exige `UPLOAD_DIR` em volume persistente self-hosted |
 
-### Para operar de verdade
-| Variável | Destrava | Sem ela |
-|---|---|---|
-| `PAGBANK_TOKEN` | cartão e PIX reais (PagBank) | só "dinheiro na entrega" |
-| `RESEND_API_KEY` + `MAIL_FROM` | e-mails (pedido, reset, assinaturas) | e-mails só no log |
-| `CRON_SECRET` | cron diário de assinaturas (`vercel.json`, 8h SP) | lembretes desligados |
-| `UPSTASH_REDIS_REST_URL` + `_TOKEN` | rate-limit durável entre instâncias | limite só por instância |
-| `STORAGE_DRIVER=s3` + `S3_*` | upload de receitas persistente | ⚠️ em serverless as receitas **somem** |
-| `NEXT_PUBLIC_BASE_URL` / `AUTH_URL` | URL pública `https://…` | cookies/links quebrados |
+Necessárias conforme os recursos habilitados:
 
-Opcionais: `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` (erros), `NEXT_PUBLIC_PHARMACIST_*` /
-`NEXT_PUBLIC_CNPJ` (fallback do rodapé — o painel *Admin → Configurações* também define).
+| Variável | Finalidade |
+|---|---|
+| `STRIPE_SECRET_KEY` | cartão e, quando habilitado na conta, Pix |
+| `STRIPE_WEBHOOK_SECRET` | valida `/api/webhooks/stripe` |
+| `RESEND_API_KEY` + `MAIL_FROM` | e-mails transacionais |
+| `CRON_SECRET` | protege os crons diários de assinaturas e retenção |
+| `UPSTASH_REDIS_REST_URL` + `_TOKEN`, `KV_REST_API_*` ou `REDIS_URL` | rate limit durável; REST em serverless ou TCP no runtime Node |
+| `NEXT_PUBLIC_BASE_URL` / `AUTH_URL` | URLs públicas HTTPS |
+| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | monitoramento de erros |
 
----
+O papel/usuário do bucket precisa permitir `s3:ListBucketVersions`,
+`s3:DeleteObject` e `s3:DeleteObjectVersion` (além das permissões de leitura e
+gravação). A fila de exclusão remove também versões e delete markers; sem essas
+permissões a tarefa permanece com falha e é retomada pelo cron de retenção. Use
+uma lifecycle policy do bucket como segunda camada, nunca como substituta da fila.
 
-## 2. Migrations (a cada mudança de schema)
+Os dados regulatórios devem ser preenchidos em **Admin → Configurações**. O
+rodapé e a página Sobre só exibem valores configurados; se razão social, CNPJ,
+endereço, horário, telefone, RT/CRF, licença sanitária ou AFE estiverem ausentes,
+o site informa que o ambiente não está liberado para operação comercial.
 
-A Vercel **não** roda migrations no build (proposital: o build não depende do banco).
-Depois de mergear uma migration nova, rode **uma vez** da sua máquina:
+Em produção, `AUTH_URL` (quando definido) precisa ter exatamente o mesmo
+origin HTTPS de `NEXT_PUBLIC_BASE_URL`. Valide o rate limit remoto com
+`npm run check:ratelimit`; uma variável presente, mas inválida, bloqueia o boot.
+As duas raízes MFA devem ser diferentes de `AUTH_SECRET` e entre si. Durante
+rotação, mantenha temporariamente os valores antigos em
+`MFA_ENCRYPTION_KEY_PREVIOUS` e `MFA_RECOVERY_PEPPER_PREVIOUS`.
+
+## 2. Migrations
+
+A Vercel não executa migrations durante o build. Aplique migrations por uma
+etapa controlada do release, usando a conexão direta:
 
 ```bash
-npx prisma migrate deploy   # usa DATABASE_URL_UNPOOLED do .env
+npm run db:migrate:deploy
 ```
 
-**Nunca** rode `npm run db:seed` em produção — ele apaga tudo e recria dados demo.
-Catálogo real: *Admin → Produtos* (ou **Importar CSV** em `/admin/produtos/importar`).
+Use migrations retrocompatíveis quando aplicação e banco puderem ficar em
+versões diferentes durante o deploy.
 
----
+O primeiro deploy da migration `20260822033000_session_mfa_policy` encerra os
+JWTs emitidos pela versão anterior, que ainda não carregam `sessionVersion`.
+Planeje a comunicação: clientes e equipe precisarão entrar novamente; em
+produção, administradores sem MFA serão encaminhados ao enrollment.
 
-## 3. PagBank (quando ativar pagamento)
+A migration de busca instala a extensão confiável `pg_trgm`. Confirme antes do
+release que a credencial de migration tem permissão para `CREATE EXTENSION` (ou
+habilite a extensão no painel do PostgreSQL gerenciado) e agende os índices para
+uma janela de baixo volume de escrita em catálogos grandes.
 
-1. Painel PagBank → **Integrações** → gere o token de API e configure `PAGBANK_TOKEN`.
-2. O webhook é registrado automaticamente a cada cobrança (`notification_urls` → `https://SEU_DOMINIO/api/webhooks/pagbank`); a notificação é validada por re-consulta na API (não confia no payload).
-3. Para testar sem dinheiro real, use `PAGBANK_SANDBOX=1` com um token de sandbox.
-4. Em produção o pagamento é real (o simulado só existe fora de produção).
+## 3. Seed destrutivo
 
----
+`npm run db:seed` apaga dados antes de criar as fixtures. A proteção no código:
 
-## 4. Primeiro acesso / usuários
+- recusa `NODE_ENV=production` e `VERCEL_ENV=production`;
+- recusa todo host que não seja `localhost`, `127.0.0.1` ou `::1`;
+- exige `ALLOW_DESTRUCTIVE_SEED=I_UNDERSTAND_THIS_WILL_DELETE_DATA`;
+- gera senhas demo aleatórias, salvo quando `SEED_*_PASSWORD` é informado.
 
-O banco foi entregue limpo: um único admin inicial (`admin@farmavida.local`, senha
-entregue fora do repositório — **trocar no primeiro acesso**). Novos admins de unidade
-são criados em *Admin → Configurações* (unidades) pelo admin da matriz.
+Nunca use o seed para inicializar produção. Cadastre o catálogo real pelo painel
+ou pela integração, sempre revisando a classificação de tarja.
 
----
+## 4. Stripe
 
-## 5. Checklist pós-mudança
+1. Configure `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET` no cofre do provedor.
+2. Registre o endpoint `https://SEU_DOMINIO/api/webhooks/stripe` no Stripe.
+3. Assine no mínimo `payment_intent.succeeded`, `payment_intent.payment_failed`,
+   `payment_intent.canceled`, `checkout.session.completed`,
+   `checkout.session.expired`, `checkout.session.async_payment_failed` e os
+   eventos `refund.created`, `refund.updated` e `refund.failed`.
+4. Em **Admin → Configurações**, teste a conexão e confirme o ambiente.
+5. O Pix só é oferecido quando a capability da conta estiver ativa.
+6. Valide cartão, Pix, expiração, cancelamento e reembolso com chaves de teste.
 
-- [ ] CI verde no GitHub (jobs **qualidade** e **e2e**).
-- [ ] Home e login funcionando no domínio de produção.
-- [ ] Se mexeu em schema: `prisma migrate deploy` executado (passo 2).
-- [ ] Se mexeu em tela: `npm run shots` e conferir os screenshots.
+Sem credenciais válidas, pagamentos online permanecem indisponíveis; não existe
+fallback de pagamento simulado em produção.
 
-## Recomendação
+## 5. Política de catálogo
 
-Para desenvolver local com segurança, evite pastas sincronizadas (OneDrive) — o *cloud
-sync* já causou lentidão e locks de arquivos; prefira algo como `C:\dev\farmavida`.
+O canal é MIP-only e não recebe novas receitas. Produtos com
+`requiresPrescription=true`:
+
+- permanecem inativos;
+- não aparecem em catálogo, busca, sitemap ou favoritos;
+- não podem ser ativados pelo painel;
+- não podem ser assinados ou repostos;
+- são desativados quando o PDV os reclassifica como tarja.
+
+O storage privado existente serve apenas ao histórico legado até a conclusão da
+política de retenção/exclusão; não é requisito para novas compras.
+
+## 6. Verificação do release
+
+```bash
+npm ci
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run test:e2e
+```
+
+Os E2E que escrevem exigem `E2E_DATABASE_URL` apontando para um PostgreSQL
+descartável e
+`E2E_ALLOW_WRITES=I_UNDERSTAND_THIS_IS_A_DISPOSABLE_DATABASE`. O Playwright
+recusa escrita sem essas duas condições e não permite reutilizar servidor
+externo nesse modo. Nunca aponte testes para produção.
+
+Os procedimentos de backup, restauração, incidentes, webhook e conciliação
+estão em [OPERATIONS.md](./OPERATIONS.md).
+
+Após o deploy, confirme HTTPS, login, checkout, webhook, e-mail, os dois crons,
+rate limit, `/api/health` (liveness), `/api/ready` (PostgreSQL + migration) e a
+divulgação regulatória na home. Faça também exercícios periódicos de
+restauração de backup. A semântica e os alertas dessas sondas estão no runbook
+[OPERATIONS.md](./OPERATIONS.md).

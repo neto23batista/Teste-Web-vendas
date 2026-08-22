@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { putObject } from "@/lib/storage";
+import { reportError } from "@/lib/monitoring";
 
 // Tipos aceitos (receitas): PDF e imagens comuns. Extensão derivada do MIME
 // (nunca do nome do arquivo enviado).
@@ -76,7 +77,7 @@ export async function saveUpload(
     // Storage indisponível/mal configurado (ex.: driver "local" na Vercel, que
     // tem FS efêmero/somente-leitura). Falha com mensagem amigável em vez de
     // derrubar o checkout. Configure STORAGE_DRIVER=s3 + S3_* (R2) em produção.
-    console.error("[uploads] falha ao salvar no storage:", err);
+    reportError(err, { operation: "upload.save", storage: "private" });
     return {
       ok: false,
       error: "Não foi possível salvar o arquivo agora. Tente novamente em instantes.",

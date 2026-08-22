@@ -7,7 +7,7 @@ import { formatBRL, cn } from "@/lib/utils";
 import { StatusBadge, STATUS_META } from "@/components/store/order-status";
 import { Pagination } from "@/components/admin/pagination";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { DeleteOrderButton } from "@/components/admin/delete-order-button";
+import { OrderArchiveButton } from "@/components/admin/order-archive-button";
 import type { OrderStatus } from "@prisma/client";
 
 type SP = Record<string, string | string[] | undefined>;
@@ -26,8 +26,9 @@ export default async function AdminOrdersPage({
   const to = one(sp.to) || undefined;
   const page = Number(one(sp.page)) || 1;
   const unit = one(sp.unit) || undefined;
+  const archived = one(sp.archived) === "1";
   const [{ items: orders, total, pages, page: current }, user] = await Promise.all([
-    getAdminOrders({ status, q, from, to }, page, unit),
+    getAdminOrders({ status, q, from, to, archived }, page, unit),
     getCurrentUser(),
   ]);
   // Só o dono/gerente vê o atalho de excluir pedidos direto na lista.
@@ -41,9 +42,14 @@ export default async function AdminOrdersPage({
     if (from) p.set("from", from);
     if (to) p.set("to", to);
     if (unit) p.set("unit", unit);
+    if (archived) p.set("archived", "1");
     const s = p.toString();
     return `/admin/pedidos${s ? `?${s}` : ""}`;
   };
+  const exportParams = new URLSearchParams();
+  if (status) exportParams.set("status", status);
+  if (unit) exportParams.set("unit", unit);
+  if (archived) exportParams.set("archived", "1");
 
   return (
     <div className="space-y-6">
@@ -55,7 +61,7 @@ export default async function AdminOrdersPage({
           <p className="text-sm text-muted-foreground">{total} pedidos</p>
         </div>
         <a
-          href={`/api/admin/orders/export${status ? `?status=${status}` : ""}`}
+          href={`/api/admin/orders/export${exportParams.size ? `?${exportParams}` : ""}`}
           className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold transition hover:border-brand-300 hover:bg-muted"
         >
           <Download className="size-4" /> Exportar CSV
@@ -69,6 +75,7 @@ export default async function AdminOrdersPage({
       >
         {status && <input type="hidden" name="status" value={status} />}
         {unit && <input type="hidden" name="unit" value={unit} />}
+        {archived && <input type="hidden" name="archived" value="1" />}
         <div className="relative lg:min-w-56 lg:max-w-md lg:flex-1">
           <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -107,7 +114,7 @@ export default async function AdminOrdersPage({
           </button>
           {(q || from || to) && (
             <Link
-              href={status ? `/admin/pedidos?status=${status}` : "/admin/pedidos"}
+              href={statusHref(status ?? "ALL")}
               className="text-sm font-semibold text-brand-600 hover:underline dark:text-brand-400"
             >
               Limpar
@@ -132,6 +139,17 @@ export default async function AdminOrdersPage({
             </Link>
           );
         })}
+        <Link
+          href={archived ? "/admin/pedidos" : "/admin/pedidos?archived=1"}
+          className={cn(
+            "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition",
+            archived
+              ? "border-brand-600 bg-brand-600 text-white"
+              : "border-border bg-card hover:border-brand-300"
+          )}
+        >
+          Arquivados
+        </Link>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -151,7 +169,7 @@ export default async function AdminOrdersPage({
               <div className="min-w-0">
                 <p className="font-semibold">{o.number}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {o.user.name} ·{" "}
+                  {o.customerName} ·{" "}
                   {new Date(o.createdAt).toLocaleDateString("pt-BR")}
                 </p>
                 <div className="mt-1.5">
@@ -187,8 +205,8 @@ export default async function AdminOrdersPage({
                     </Link>
                   </td>
                   <td className="p-4">
-                    <p className="font-medium">{o.user.name}</p>
-                    <p className="text-xs text-muted-foreground">{o.user.email}</p>
+                    <p className="font-medium">{o.customerName}</p>
+                    <p className="text-xs text-muted-foreground">{o.customerEmail}</p>
                   </td>
                   <td className="p-4 text-muted-foreground">
                     {new Date(o.createdAt).toLocaleDateString("pt-BR")}
@@ -200,9 +218,10 @@ export default async function AdminOrdersPage({
                   <td className="p-4">
                     <div className="flex items-center justify-end gap-1">
                       {isOwner && (
-                        <DeleteOrderButton
+                        <OrderArchiveButton
                           orderId={o.id}
                           orderNumber={o.number}
+                          archived={!!o.archivedAt}
                           compact
                         />
                       )}
@@ -225,7 +244,14 @@ export default async function AdminOrdersPage({
       <Pagination
         page={current}
         pages={pages}
-        baseParams={{ status: status ?? undefined, q, from, to, unit }}
+        baseParams={{
+          status: status ?? undefined,
+          q,
+          from,
+          to,
+          unit,
+          archived: archived ? "1" : undefined,
+        }}
       />
     </div>
   );

@@ -25,7 +25,7 @@ export function cepToInt(cep: string | null | undefined): number | null {
 export const getActivePharmacies = unstable_cache(
   async (): Promise<PharmacyOption[]> =>
     prisma.pharmacy.findMany({
-      where: { active: true },
+      where: { active: true, archivedAt: null },
       select: { id: true, name: true, slug: true, type: true },
       orderBy: [{ type: "asc" }, { name: "asc" }],
     }),
@@ -56,7 +56,12 @@ export async function resolvePharmacyByCep(
   if (n == null) return fallback;
   const match = await prisma.pharmacyCepRange
     .findFirst({
-      where: { start: { lte: n }, end: { gte: n }, pharmacy: { active: true } },
+      where: {
+        archivedAt: null,
+        start: { lte: n },
+        end: { gte: n },
+        pharmacy: { active: true, archivedAt: null },
+      },
       orderBy: { start: "asc" },
       select: {
         pharmacy: { select: { id: true, name: true, slug: true, type: true } },

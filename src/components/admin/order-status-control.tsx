@@ -20,9 +20,11 @@ const options: { value: OrderStatus; label: string }[] = [
 export function OrderStatusControl({
   id,
   current,
+  allowed,
 }: {
   id: string;
   current: OrderStatus;
+  allowed: readonly OrderStatus[];
 }) {
   const router = useRouter();
   const [value, setValue] = React.useState<OrderStatus>(current);
@@ -32,7 +34,8 @@ export function OrderStatusControl({
     start(async () => {
       const res = await updateOrderStatus(id, value);
       if (res.ok) {
-        toast.success("Status atualizado");
+        if (res.warning) toast.warning(res.warning);
+        else toast.success("Status atualizado");
         router.refresh();
       } else {
         toast.error(res.error);
@@ -48,11 +51,13 @@ export function OrderStatusControl({
         onChange={(e) => setValue(e.target.value as OrderStatus)}
         className="h-11 flex-1 rounded-xl border border-border bg-card px-3 text-sm font-semibold outline-none focus:border-brand-400"
       >
-        {options.map((o) => (
+        {options
+          .filter((o) => o.value === current || allowed.includes(o.value))
+          .map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
           </option>
-        ))}
+          ))}
       </select>
       <Button onClick={apply} variant="primary" disabled={pending || value === current}>
         {pending ? <Loader2 className="size-5 animate-spin" /> : <RefreshCw className="size-5" />}

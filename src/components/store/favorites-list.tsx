@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Heart, Loader2 } from "lucide-react";
+import { AlertCircle, Heart, Loader2, PackageSearch, RefreshCw } from "lucide-react";
 import { useFavorites } from "@/lib/use-favorites";
 import { ProductCard } from "@/components/store/product-card";
 import { Button } from "@/components/ui/button";
@@ -13,32 +13,60 @@ export function FavoritesList() {
   const key = favorites.join(",");
   const [data, setData] = React.useState<{
     key: string;
+    requestVersion: number;
+    status: "idle" | "success" | "error";
     items: ProductCardData[];
-  }>({ key: "", items: [] });
+  }>({ key: "", requestVersion: -1, status: "idle", items: [] });
+  const [requestVersion, setRequestVersion] = React.useState(0);
 
   React.useEffect(() => {
     if (favorites.length === 0) return;
-    let alive = true;
-    fetch(`/api/products/by-ids?ids=${key}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (alive) setData({ key, items: d.items ?? [] });
+    const controller = new AbortController();
+
+    void fetch(`/api/products/by-ids?ids=${encodeURIComponent(key)}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return (await response.json()) as { items?: ProductCardData[] };
+      })
+      .then((payload) => {
+        setData({
+          key,
+          requestVersion,
+          status: "success",
+          items: Array.isArray(payload.items) ? payload.items : [],
+        });
       })
       .catch(() => {
-        if (alive) setData({ key, items: [] });
+        if (!controller.signal.aborted) {
+          setData({ key, requestVersion, status: "error", items: [] });
+        }
       });
+
     return () => {
-      alive = false;
+      controller.abort();
     };
-  }, [key, favorites.length]);
+  }, [key, favorites.length, requestVersion]);
 
-  const fetched = data.key === key;
-  const items = favorites.length === 0 ? [] : fetched ? data.items : [];
+  const currentRequest =
+    data.key === key && data.requestVersion === requestVersion;
+  const loading =
+    !ready || (favorites.length > 0 && !currentRequest);
+  const items =
+    favorites.length > 0 && currentRequest && data.status === "success"
+      ? data.items
+      : [];
 
-  if (!ready || (favorites.length > 0 && !fetched)) {
+  if (loading) {
     return (
-      <div className="grid place-items-center py-20 text-muted-foreground">
-        <Loader2 className="size-6 animate-spin" />
+      <div
+        role="status"
+        aria-live="polite"
+        className="grid place-items-center py-20 text-muted-foreground"
+      >
+        <Loader2 className="size-6 animate-spin" aria-hidden="true" />
+        <span className="sr-only">Carregando seus produtos favoritos</span>
       </div>
     );
   }
@@ -53,6 +81,48 @@ export function FavoritesList() {
         <p className="max-w-sm text-sm text-muted-foreground">
           Toque no coração dos produtos para salvá-los aqui e comprar quando
           quiser.
+        </p>
+        <Button asChild variant="primary">
+          <Link href="/catalogo">Explorar catálogo</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (currentRequest && data.status === "error") {
+    return (
+      <div
+        role="alert"
+        className="grid place-items-center gap-3 rounded-2xl border border-danger-500/30 bg-danger-500/5 px-5 py-16 text-center"
+      >
+        <span className="grid size-14 place-items-center rounded-2xl bg-danger-500/10 text-danger-500">
+          <AlertCircle className="size-7" aria-hidden="true" />
+        </span>
+        <p className="font-semibold">Não foi possível carregar seus favoritos</p>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          Verifique sua conexão e tente novamente. Sua lista continua salva
+          neste dispositivo.
+        </p>
+        <Button
+          variant="outline"
+          onClick={() => setRequestVersion((version) => version + 1)}
+        >
+          <RefreshCw className="size-4" aria-hidden="true" /> Tentar novamente
+        </Button>
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="grid place-items-center gap-3 rounded-2xl border border-dashed border-border bg-card px-5 py-16 text-center">
+        <span className="grid size-14 place-items-center rounded-2xl bg-muted text-muted-foreground">
+          <PackageSearch className="size-7" aria-hidden="true" />
+        </span>
+        <p className="font-semibold">Seus produtos salvos não estão disponíveis</p>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          Eles podem ter saído do catálogo ou estar indisponíveis para venda
+          no momento.
         </p>
         <Button asChild variant="primary">
           <Link href="/catalogo">Explorar catálogo</Link>

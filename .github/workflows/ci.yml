@@ -5,14 +5,22 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # Estático + unitários (sem banco: o build gera o Prisma Client sem conectar
   # e os testes unitários mockam o prisma).
   qualidade:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       DATABASE_URL: "postgresql://user:pass@localhost:5432/farmavida_next"
-      AUTH_SECRET: "ci-placeholder-secret-not-used-in-tests"
+      AUTH_SECRET: "ci-only-0123456789abcdef0123456789abcdef"
       AUTH_TRUST_HOST: "true"
       NEXT_PUBLIC_APP_NAME: "FarmaVida"
       NEXT_PUBLIC_BASE_URL: "http://localhost:3000"
@@ -23,6 +31,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
@@ -33,6 +42,7 @@ jobs:
   # que escrevem no banco (E2E_ALLOW_WRITES=1 é seguro aqui).
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16
@@ -50,12 +60,18 @@ jobs:
     env:
       DATABASE_URL: "postgresql://farmavida:farmavida@localhost:5432/farmavida"
       DATABASE_URL_UNPOOLED: "postgresql://farmavida:farmavida@localhost:5432/farmavida"
-      AUTH_SECRET: "ci-e2e-secret"
+      E2E_DATABASE_URL: "postgresql://farmavida:farmavida@localhost:5432/farmavida"
+      E2E_DATABASE_URL_UNPOOLED: "postgresql://farmavida:farmavida@localhost:5432/farmavida"
+      AUTH_SECRET: "ci-e2e-0123456789abcdef0123456789abcdef"
       AUTH_TRUST_HOST: "true"
       AUTH_URL: "http://localhost:3210"
       NEXT_PUBLIC_APP_NAME: "FarmaVida"
       NEXT_PUBLIC_BASE_URL: "http://localhost:3210"
-      E2E_ALLOW_WRITES: "1"
+      E2E_ALLOW_WRITES: "I_UNDERSTAND_THIS_IS_A_DISPOSABLE_DATABASE"
+      ALLOW_DESTRUCTIVE_SEED: "I_UNDERSTAND_THIS_WILL_DELETE_DATA"
+      SEED_OWNER_PASSWORD: "ci-owner-password"
+      SEED_BRANCH_PASSWORD: "ci-branch-password"
+      SEED_CUSTOMER_PASSWORD: "ci-customer-password"
       PW_WEB_COMMAND: "npx next start -p 3210"
     steps:
       - uses: actions/checkout@v4

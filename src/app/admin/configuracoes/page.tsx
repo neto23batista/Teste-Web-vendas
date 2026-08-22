@@ -3,6 +3,7 @@ import { getAdminScope, getCurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { SettingsForm } from "@/components/admin/settings-form";
 import { PharmaciesManager } from "@/components/admin/pharmacies-manager";
+import { moneyToNumber } from "@/lib/money";
 
 export const metadata = { title: "Configurações" };
 
@@ -29,6 +30,7 @@ export default async function AdminSettingsPage() {
             name: true,
             type: true,
             active: true,
+            archivedAt: true,
             city: true,
             state: true,
             shippingFlat: true,
@@ -36,7 +38,11 @@ export default async function AdminSettingsPage() {
             cnpj: true,
             pharmacistName: true,
             pharmacistCrf: true,
-            cepRanges: { orderBy: { start: "asc" }, select: { id: true, start: true, end: true, km: true } },
+            cepRanges: {
+              where: { archivedAt: null },
+              orderBy: { start: "asc" },
+              select: { id: true, start: true, end: true, km: true },
+            },
           },
         }),
         prisma.user.findMany({
@@ -57,7 +63,16 @@ export default async function AdminSettingsPage() {
       </div>
       {scope.isGlobal && (
         <PharmaciesManager
-          units={units}
+          units={units.map((unit) => ({
+            ...unit,
+            archivedAt: unit.archivedAt?.toISOString() ?? null,
+            shippingFlat:
+              unit.shippingFlat == null ? null : moneyToNumber(unit.shippingFlat),
+            shippingFreeMin:
+              unit.shippingFreeMin == null
+                ? null
+                : moneyToNumber(unit.shippingFreeMin),
+          }))}
           admins={admins}
           currentUserId={user?.id ?? ""}
         />

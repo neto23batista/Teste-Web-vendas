@@ -4,10 +4,11 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertArea, requireAdminAtPharmacy } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
+import { markOrderDelivered, transitionOrderStatus } from "@/lib/orders";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 
-/** Cadastra um entregador para uma unidade (ou geral, sem unidade). */
+/** Cadastra um entregador vinculado obrigatoriamente a uma unidade. */
 export async function createCourier(
   formData: FormData
 ): Promise<{ ok: boolean; error?: string }> {
@@ -16,7 +17,8 @@ export async function createCourier(
   const phone = str(formData, "phone") || null;
   const pharmacyId = str(formData, "pharmacyId") || null;
   if (name.length < 3) return { ok: false, error: "Informe o nome do entregador." };
-  if (pharmacyId) await requireAdminAtPharmacy(pharmacyId);
+  if (!pharmacyId) return { ok: false, error: "Selecione a unidade do entregador." };
+  await requireAdminAtPharmacy(pharmacyId);
 
   await prisma.courier.create({ data: { name, phone, pharmacyId } });
   await logAudit({
@@ -39,7 +41,7 @@ export async function toggleCourier(
     select: { active: true, name: true, pharmacyId: true },
   });
   if (!c) return { ok: false, error: "Entregador não encontrado." };
-  if (c.pharmacyId) await requireAdminAtPharmacy(c.pharmacyId);
+  await requireAdminAtPharmacy(c.pharmacyId);
 
   await prisma.courier.update({ where: { id: courierId }, data: { active: !c.active } });
   revalidatePath("/admin/entregas");
@@ -60,20 +62,29 @@ export async function dispatchOrder(
     select: { status: true, number: true, pharmacyId: true },
   });
   if (!order) return { ok: false, error: "Pedido não encontrado." };
-  if (order.pharmacyId) await requireAdminAtPharmacy(order.pharmacyId);
-  if (order.status !== "PAID" && order.status !== "PREPARING") {
-    return { ok: false, error: "Só um pedido pago e em preparo pode sair para entrega." };
+  await requireAdminAtPharmacy(order.pharmacyId);
+  if (order.status !== "PREPARING") {
+    return { ok: false, error: "Só um pedido em preparo pode sair para entrega." };
   }
   const courier = await prisma.courier.findUnique({
     where: { id: courierId },
-    select: { name: true, active: true },
+    select: { name: true, active: true, pharmacyId: true },
   });
   if (!courier?.active) return { ok: false, error: "Entregador indisponível." };
+  if (!order.pharmacyId || courier.pharmacyId !== order.pharmacyId) {
+    return {
+      ok: false,
+      error: "O entregador precisa pertencer à mesma unidade do pedido.",
+    };
+  }
 
-  await prisma.order.update({
-    where: { id: orderId },
-    data: { courierId, status: "SHIPPED", dispatchedAt: new Date() },
-  });
+  if (
+    !(await transitionOrderStatus(orderId, "PREPARING", "SHIPPED", {
+      courierId,
+    }))
+  ) {
+    return { ok: false, error: "O pedido mudou em outra operação. Atualize a página." };
+  }
   await logAudit({
     action: "delivery.dispatch",
     entity: "Order",
@@ -96,15 +107,14 @@ export async function markDelivered(
     select: { status: true, number: true, pharmacyId: true },
   });
   if (!order) return { ok: false, error: "Pedido não encontrado." };
-  if (order.pharmacyId) await requireAdminAtPharmacy(order.pharmacyId);
+  await requireAdminAtPharmacy(order.pharmacyId);
   if (order.status !== "SHIPPED") {
     return { ok: false, error: "Só um pedido que saiu para entrega pode ser concluído." };
   }
 
-  await prisma.order.update({
-    where: { id: orderId },
-    data: { status: "DELIVERED", deliveredAt: new Date() },
-  });
+  if (!(await markOrderDelivered(orderId))) {
+    return { ok: false, error: "O pedido mudou em outra operação. Atualize a página." };
+  }
   await logAudit({
     action: "delivery.done",
     entity: "Order",

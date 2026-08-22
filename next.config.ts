@@ -34,6 +34,9 @@ const nextConfig: NextConfig = {
   // reduz o JS enviado ao cliente (só os ícones/animações usados entram).
   experimental: {
     optimizePackageImports: ["lucide-react", "framer-motion", "recharts"],
+    // O importador administrativo aceita CSV de até 2 MB; a pequena folga
+    // cobre o envelope multipart. A validação da action mantém o limite útil.
+    serverActions: { bodySizeLimit: "2100kb" },
   },
 
   // Imagens de produto vêm de CDNs https. Restringimos os hosts permitidos

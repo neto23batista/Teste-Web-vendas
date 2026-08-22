@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { searchProducts } from "@/lib/products";
+import { getProductSuggestions } from "@/lib/products";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 // Sugestões de busca (autocomplete do header). Leve e somente leitura.
@@ -21,17 +21,6 @@ export async function GET(request: Request) {
     );
   }
 
-  const { items, total } = await searchProducts({ q, perPage: 6, page: 1 });
-
-  const suggestions = items.map((p) => ({
-    name: p.name,
-    slug: p.slug,
-    emoji: p.emoji,
-    image: p.images[0]?.url ?? null,
-    price: p.promoPrice ?? p.price,
-    oldPrice: p.promoPrice != null ? p.price : null,
-    category: p.category.name,
-  }));
-
-  return NextResponse.json({ items: suggestions, total });
+  const items = await getProductSuggestions(q, 6);
+  return NextResponse.json({ items });
 }

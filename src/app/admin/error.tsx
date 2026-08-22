@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import Link from "next/link";
 import { AlertTriangle, LayoutDashboard, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,10 +11,6 @@ export default function AdminError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  React.useEffect(() => {
-    console.error(error);
-  }, [error]);
-
   return (
     <div className="grid min-h-[60vh] place-items-center p-6">
       <div className="max-w-md text-center">

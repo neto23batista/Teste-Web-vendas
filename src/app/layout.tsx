@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     template: `%s | ${APP_NAME}`,
   },
   description:
-    "Farmácia online com compra segura, dados protegidos, entrega rápida e atendimento farmacêutico.",
+    "Farmácia online de medicamentos isentos de prescrição, com catálogo, pedidos e entrega.",
   applicationName: APP_NAME,
   icons: { icon: "/icon.svg", apple: "/icon-192.png" },
   openGraph: {
@@ -61,6 +61,12 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-dvh antialiased">
+        <a
+          href="#conteudo-principal"
+          className="fixed left-4 top-0 z-[100] -translate-y-full rounded-b-xl bg-brand-700 px-4 py-3 font-semibold text-white transition-transform focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-white"
+        >
+          Pular para o conteúdo principal
+        </a>
         <Providers nonce={nonce}>{children}</Providers>
         <RegisterSW />
         {/* Só na Vercel: fora dela os scripts /_vercel/... não existem (404 no

@@ -13,12 +13,14 @@ import {
 import { getAdminCustomer } from "@/lib/admin";
 import { formatBRL } from "@/lib/utils";
 import { StatusBadge } from "@/components/store/order-status";
+import { requireArea } from "@/lib/session";
 
 export default async function AdminCustomerDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireArea("clientes");
   const { id } = await params;
   const customer = await getAdminCustomer(id);
   if (!customer) notFound();

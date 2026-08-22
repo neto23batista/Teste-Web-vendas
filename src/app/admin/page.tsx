@@ -107,6 +107,19 @@ export default async function AdminDashboard({
         })}
       </div>
 
+      {stats.productsCount === 0 && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-sky-300 bg-sky-50 p-4 text-sm text-sky-900 sm:flex-row sm:items-center dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-100">
+          <Boxes className="size-5 shrink-0" aria-hidden="true" />
+          <div>
+            <p className="font-bold">Nenhum produto ativo no catálogo</p>
+            <p className="text-xs opacity-80">
+              Os indicadores de vendas e estoque ficarão vazios até que um
+              produto seja cadastrado ou ativado.
+            </p>
+          </div>
+        </div>
+      )}
+
       {stats.lowStock > 0 && (
         <Link
           href="/admin/estoque"
@@ -155,20 +168,26 @@ export default async function AdminDashboard({
             </Link>
           </div>
           <div className="divide-y divide-border">
-            {recent.map((o) => (
-              <Link
-                key={o.id}
-                href={`/admin/pedidos/${o.id}`}
-                className="flex items-center justify-between gap-3 py-3 transition hover:opacity-80"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{o.number}</p>
-                  <p className="truncate text-xs text-muted-foreground">{o.user.name}</p>
-                </div>
-                <StatusBadge status={o.status} />
-                <span className="text-sm font-bold">{formatBRL(o.total)}</span>
-              </Link>
-            ))}
+            {recent.length > 0 ? (
+              recent.map((o) => (
+                <Link
+                  key={o.id}
+                  href={`/admin/pedidos/${o.id}`}
+                  className="flex items-center justify-between gap-3 py-3 transition hover:opacity-80"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{o.number}</p>
+                    <p className="truncate text-xs text-muted-foreground">{o.customerName}</p>
+                  </div>
+                  <StatusBadge status={o.status} />
+                  <span className="text-sm font-bold">{formatBRL(o.total)}</span>
+                </Link>
+              ))
+            ) : (
+              <p className="py-12 text-center text-sm text-muted-foreground">
+                Nenhum pedido registrado ainda.
+              </p>
+            )}
           </div>
         </div>
       </div>

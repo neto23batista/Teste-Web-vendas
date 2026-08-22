@@ -20,14 +20,14 @@ function layout(title: string, body: string): string {
       ${body}
     </div>
     <div style="padding:16px 24px;color:#94a3b8;font-size:12px;border-top:1px solid #e2e8f0">
-      FarmaVida · sua farmácia premium. Este é um e-mail automático.
+      FarmaVida · canal online de produtos isentos de prescrição. Este é um e-mail automático.
     </div>
   </div>
 </div>`;
 }
 
 function button(href: string, label: string): string {
-  return `<p style="margin:20px 0"><a href="${href}" style="background:#10b981;color:#fff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:700;display:inline-block">${label}</a></p>`;
+  return `<p style="margin:20px 0"><a href="${escapeHtml(href)}" style="background:#10b981;color:#fff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:700;display:inline-block">${escapeHtml(label)}</a></p>`;
 }
 
 export function passwordResetEmail(name: string, url: string) {
@@ -39,6 +39,19 @@ export function passwordResetEmail(name: string, url: string) {
        <p>Recebemos um pedido para redefinir a senha da sua conta. O link abaixo é válido por <strong>1 hora</strong>.</p>
        ${button(url, "Redefinir senha")}
        <p style="color:#64748b">Se você não solicitou, ignore este e-mail — sua senha continua a mesma.</p>`
+    ),
+  };
+}
+
+export function staffInviteEmail(name: string, url: string) {
+  return {
+    subject: "Convite para a equipe — FarmaVida",
+    html: layout(
+      "Configure seu acesso",
+      `<p>Olá, ${escapeHtml(name)}.</p>
+       <p>Você recebeu acesso ao painel da FarmaVida. Defina sua senha pelo link de uso único abaixo, válido por <strong>1 hora</strong>.</p>
+       ${button(url, "Criar minha senha")}
+       <p style="color:#64748b">Se você não esperava este convite, ignore o e-mail e avise a administração.</p>`
     ),
   };
 }

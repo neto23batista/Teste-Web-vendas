@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import { MapPin, Star } from "lucide-react";
-import { requireUser } from "@/lib/session";
+import { requireUserPage } from "@/lib/session";
 import { getUserWithAddresses } from "@/lib/account";
 import { ProfileForm } from "@/components/account/profile-form";
-import { PasswordForm } from "@/components/account/password-form";
 
 export const metadata: Metadata = { title: "Meus dados" };
 
 export default async function ProfilePage() {
-  const session = await requireUser();
+  const session = await requireUserPage("/conta/perfil");
   const user = await getUserWithAddresses(session.id);
   if (!user) return null;
 
@@ -24,11 +23,6 @@ export default async function ProfilePage() {
             phone: user.phone ?? "",
           }}
         />
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-lg font-bold">Alterar senha</h2>
-        <PasswordForm />
       </section>
 
       <section className="space-y-3">

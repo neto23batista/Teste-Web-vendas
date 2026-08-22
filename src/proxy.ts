@@ -2,6 +2,8 @@ import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "@/auth.config";
 import { canAccess, type Area } from "@/lib/permissions";
+import { isLiveProduction } from "@/lib/env";
+import { hasVersionedSessionClaims } from "@/lib/session-claims";
 
 const { auth } = NextAuth(authConfig);
 
@@ -54,9 +56,8 @@ function buildCsp(nonce: string): string {
   const script = isDev
     ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
     : `script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline' https:`;
-  // PagBank: toda a conversa com a API é server-side (QR do PIX vem em base64
-  // e o cartão é redirect de página inteira) — o browser não precisa de
-  // liberação para hosts do PagBank na CSP.
+  // Stripe: a conversa com a API é server-side; o cartão navega para a URL
+  // hospedada retornada pelo provedor. Nenhum script remoto é carregado na loja.
   const connect = `connect-src 'self'${isDev ? " ws: wss:" : ""} https://viacep.com.br https://*.sentry.io`;
   return [
     "default-src 'self'",
@@ -93,7 +94,9 @@ export default auth((req) => {
     pathname.startsWith("/checkout") ||
     pathname.startsWith("/admin");
 
-  if (needsAuth && !user) {
+  // Cookies legados não possuem sessionVersion/mfaEnabled e não podem ser
+  // tratados como uma sessão atual. O banco é revalidado novamente no RSC.
+  if (needsAuth && !hasVersionedSessionClaims(user)) {
     const login = new URL("/login", nextUrl.origin);
     login.searchParams.set("callbackUrl", pathname + nextUrl.search);
     return NextResponse.redirect(login);
@@ -101,6 +104,16 @@ export default auth((req) => {
   if (pathname.startsWith("/admin") && user?.role !== "ADMIN") {
     // Logado, mas sem permissão de admin: manda para a loja (não vaza o painel).
     return NextResponse.redirect(new URL("/", nextUrl.origin));
+  }
+  if (
+    pathname.startsWith("/admin") &&
+    user?.role === "ADMIN" &&
+    isLiveProduction() &&
+    !user.mfaEnabled
+  ) {
+    return NextResponse.redirect(
+      new URL("/conta/seguranca?required=1", nextUrl.origin)
+    );
   }
   // Staff logado: o PERFIL decide quais áreas do painel ele abre.
   if (pathname.startsWith("/admin")) {

@@ -1,8 +1,37 @@
 import { prisma } from "@/lib/prisma";
-import { getAdminScope } from "@/lib/session";
+import { assertArea, getAdminScope, type AdminScope } from "@/lib/session";
 import type { Prisma, OrderStatus } from "@prisma/client";
+import { centsToNumber, moneyToCents, moneyToNumber } from "@/lib/money";
 
 const PAID_STATUSES = ["PAID", "PREPARING", "SHIPPED", "DELIVERED"] as const;
+
+/**
+ * Um cliente pertence ao escopo operacional de uma filial somente quando há
+ * pelo menos um pedido atendido por ela. A matriz não recebe filtro e mantém a
+ * visão global. O caso sem pharmacyId falha fechado, mesmo que hoje o guard de
+ * sessão já rejeite administradores sem unidade ativa.
+ */
+function customerScopeWhere(scope: AdminScope): Prisma.UserWhereInput {
+  if (scope.isGlobal) return {};
+  if (!scope.pharmacyId) return { id: { equals: "__unscoped_admin__" } };
+  return { orders: { some: { pharmacyId: scope.pharmacyId } } };
+}
+
+function customerOrderScopeWhere(
+  scope: AdminScope
+): Prisma.OrderWhereInput | undefined {
+  if (scope.isGlobal) return undefined;
+  return scope.pharmacyId
+    ? { pharmacyId: scope.pharmacyId }
+    : { id: { equals: "__unscoped_admin__" } };
+}
+
+function customerAddressScopeWhere(
+  scope: AdminScope
+): Prisma.AddressWhereInput | undefined {
+  const orderWhere = customerOrderScopeWhere(scope);
+  return orderWhere ? { orders: { some: orderWhere } } : undefined;
+}
 
 /**
  * Filtro efetivo de unidade para as queries do admin:
@@ -27,6 +56,9 @@ function pctChange(curr: number, prev: number): number | null {
 export async function getAdminStats(selectedUnitId?: string | null) {
   const unit = await resolveUnitFilter(selectedUnitId);
   const orderUnit: Prisma.OrderWhereInput = unit ? { pharmacyId: unit } : {};
+  const customerUnit: Prisma.UserWhereInput = unit
+    ? { orders: { some: { pharmacyId: unit } } }
+    : {};
 
   const now = new Date();
   const d30 = new Date(now);
@@ -53,7 +85,7 @@ export async function getAdminStats(selectedUnitId?: string | null) {
       where: { status: { in: [...PAID_STATUSES] }, ...orderUnit },
     }),
     prisma.order.count({ where: orderUnit }),
-    prisma.user.count({ where: { role: "CUSTOMER" } }),
+    prisma.user.count({ where: { role: "CUSTOMER", ...customerUnit } }),
     prisma.product.count({ where: { active: true } }),
     prisma.inventory.count({
       // "Baixo" = abaixo do mínimo configurado no item (igual à página de
@@ -61,7 +93,7 @@ export async function getAdminStats(selectedUnitId?: string | null) {
       where: {
         stock: { lte: prisma.inventory.fields.minStock },
         product: { active: true },
-        pharmacy: { active: true },
+        pharmacy: { active: true, archivedAt: null },
         ...(unit ? { pharmacyId: unit } : {}),
       },
     }),
@@ -73,31 +105,40 @@ export async function getAdminStats(selectedUnitId?: string | null) {
       },
       select: { total: true, createdAt: true },
     }),
-    prisma.user.count({ where: { role: "CUSTOMER", createdAt: { gte: d30 } } }),
     prisma.user.count({
-      where: { role: "CUSTOMER", createdAt: { gte: d60, lt: d30 } },
+      where: { role: "CUSTOMER", createdAt: { gte: d30 }, ...customerUnit },
+    }),
+    prisma.user.count({
+      where: {
+        role: "CUSTOMER",
+        createdAt: { gte: d60, lt: d30 },
+        ...customerUnit,
+      },
     }),
   ]);
 
   // Particiona os pedidos pagos dos últimos 60 dias em duas janelas de 30 dias.
-  let rev30 = 0;
-  let rev3060 = 0;
+  let rev30Cents = 0;
+  let rev3060Cents = 0;
   let ord30 = 0;
   let ord3060 = 0;
   for (const o of paidOrders60) {
     if (o.createdAt >= d30) {
-      rev30 += o.total;
+      rev30Cents += moneyToCents(o.total) ?? 0;
       ord30++;
     } else {
-      rev3060 += o.total;
+      rev3060Cents += moneyToCents(o.total) ?? 0;
       ord3060++;
     }
   }
 
-  const revenue = revenueAgg._sum.total ?? 0;
-  const avgTicket = paidCount > 0 ? revenue / paidCount : 0;
-  const avg30 = ord30 > 0 ? rev30 / ord30 : 0;
-  const avg3060 = ord3060 > 0 ? rev3060 / ord3060 : 0;
+  const revenueCents = revenueAgg._sum.total
+    ? moneyToCents(revenueAgg._sum.total) ?? 0
+    : 0;
+  const revenue = centsToNumber(revenueCents);
+  const avgTicket = paidCount > 0 ? centsToNumber(Math.round(revenueCents / paidCount)) : 0;
+  const avg30 = ord30 > 0 ? centsToNumber(Math.round(rev30Cents / ord30)) : 0;
+  const avg3060 = ord3060 > 0 ? centsToNumber(Math.round(rev3060Cents / ord3060)) : 0;
 
   return {
     revenue,
@@ -108,7 +149,7 @@ export async function getAdminStats(selectedUnitId?: string | null) {
     avgTicket,
     // Variação dos últimos 30 dias vs. os 30 dias anteriores.
     deltas: {
-      revenue: pctChange(rev30, rev3060),
+      revenue: pctChange(rev30Cents, rev3060Cents),
       orders: pctChange(ord30, ord3060),
       customers: pctChange(newCust30, newCust3060),
       avgTicket: pctChange(avg30, avg3060),
@@ -139,11 +180,11 @@ export async function getSalesByDay(days = 14, selectedUnitId?: string | null) {
   }
   for (const o of orders) {
     const key = o.createdAt.toISOString().slice(0, 10);
-    buckets.set(key, (buckets.get(key) ?? 0) + o.total);
+    buckets.set(key, (buckets.get(key) ?? 0) + (moneyToCents(o.total) ?? 0));
   }
   return Array.from(buckets.entries()).map(([date, total]) => ({
     date: new Date(date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-    total: Math.round(total * 100) / 100,
+    total: centsToNumber(total),
   }));
 }
 
@@ -171,12 +212,19 @@ export async function getTopProducts(take = 5, selectedUnitId?: string | null) {
 
 export async function getRecentOrders(take = 6, selectedUnitId?: string | null) {
   const unit = await resolveUnitFilter(selectedUnitId);
-  return prisma.order.findMany({
-    where: unit ? { pharmacyId: unit } : undefined,
-    include: { user: { select: { name: true } } },
+  const rows = await prisma.order.findMany({
+    where: { archivedAt: null, ...(unit ? { pharmacyId: unit } : {}) },
+    select: {
+      id: true,
+      number: true,
+      customerName: true,
+      status: true,
+      total: true,
+    },
     orderBy: { createdAt: "desc" },
     take,
   });
+  return rows.map((row) => ({ ...row, total: moneyToNumber(row.total) }));
 }
 
 export const ADMIN_PER_PAGE = 20;
@@ -217,6 +265,9 @@ export async function getAdminProducts(
   // Achata o estoque da unidade (ou soma de todas) para a tabela.
   const items = rows.map(({ inventory, ...p }) => ({
     ...p,
+    price: moneyToNumber(p.price),
+    promoPrice: p.promoPrice == null ? null : moneyToNumber(p.promoPrice),
+    costPrice: p.costPrice == null ? null : moneyToNumber(p.costPrice),
     stock: inventory.reduce((s, i) => s + i.stock, 0),
     minStock: inventory[0]?.minStock ?? 5,
   }));
@@ -236,7 +287,10 @@ export async function getStockRows(selectedUnitId?: string | null) {
   // ajuste — o ajuste sempre age sobre UMA unidade concreta.
   const targetUnit =
     unit ??
-    (await prisma.pharmacy.findFirst({ where: { type: "MATRIZ" }, select: { id: true } }))?.id ??
+    (await prisma.pharmacy.findFirst({
+      where: { type: "MATRIZ", archivedAt: null },
+      select: { id: true },
+    }))?.id ??
     null;
   if (!targetUnit) return { unitId: null, rows: [] as StockRow[] };
 
@@ -281,6 +335,8 @@ export type AdminOrderFilters = {
   /** Datas no formato yyyy-mm-dd (input type="date"). */
   from?: string;
   to?: string;
+  /** true mostra somente o arquivo; por padrão a fila operacional fica limpa. */
+  archived?: boolean;
 };
 
 export async function getAdminOrders(
@@ -289,14 +345,16 @@ export async function getAdminOrders(
   selectedUnitId?: string | null
 ) {
   const unit = await resolveUnitFilter(selectedUnitId);
-  const where: Prisma.OrderWhereInput = {};
+  const where: Prisma.OrderWhereInput = {
+    archivedAt: filters.archived ? { not: null } : null,
+  };
   if (unit) where.pharmacyId = unit;
   if (filters.status) where.status = filters.status;
   if (filters.q) {
     where.OR = [
       { number: { contains: filters.q, mode: "insensitive" } },
-      { user: { name: { contains: filters.q, mode: "insensitive" } } },
-      { user: { email: { contains: filters.q, mode: "insensitive" } } },
+      { customerName: { contains: filters.q, mode: "insensitive" } },
+      { customerEmail: { contains: filters.q, mode: "insensitive" } },
     ];
   }
   const createdAt: Prisma.DateTimeFilter = {};
@@ -317,19 +375,28 @@ export async function getAdminOrders(
   const items = await prisma.order.findMany({
     where,
     include: {
-      user: { select: { name: true, email: true } },
       pharmacy: { select: { name: true } },
     },
     orderBy: { createdAt: "desc" },
     skip: (current - 1) * ADMIN_PER_PAGE,
     take: ADMIN_PER_PAGE,
   });
-  return { items, total, page: current, perPage: ADMIN_PER_PAGE, pages };
+  return {
+    items: items.map((item) => ({ ...item, total: moneyToNumber(item.total) })),
+    total,
+    page: current,
+    perPage: ADMIN_PER_PAGE,
+    pages,
+  };
 }
 
 export async function getAdminCustomers(q?: string, page = 1) {
+  await assertArea("clientes");
+  const scope = await getAdminScope();
+  const orderWhere = customerOrderScopeWhere(scope);
   const where: Prisma.UserWhereInput = {
     role: "CUSTOMER",
+    ...customerScopeWhere(scope),
     ...(q
       ? {
           OR: [
@@ -349,9 +416,12 @@ export async function getAdminCustomers(q?: string, page = 1) {
         name: true,
         email: true,
         phone: true,
-        cpf: true,
         createdAt: true,
-        _count: { select: { orders: true } },
+        _count: {
+          select: {
+            orders: orderWhere ? { where: orderWhere } : true,
+          },
+        },
         loyalty: { select: { points: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -369,9 +439,17 @@ export async function getAdminCustomers(q?: string, page = 1) {
   };
 }
 
-export function getAdminCustomer(id: string) {
-  return prisma.user.findFirst({
-    where: { id, role: "CUSTOMER" },
+export async function getAdminCustomer(id: string) {
+  await assertArea("clientes");
+  const scope = await getAdminScope();
+  const orderWhere = customerOrderScopeWhere(scope);
+  const addressWhere = customerAddressScopeWhere(scope);
+  const customer = await prisma.user.findFirst({
+    where: {
+      id,
+      role: "CUSTOMER",
+      ...customerScopeWhere(scope),
+    },
     select: {
       id: true,
       name: true,
@@ -380,8 +458,12 @@ export function getAdminCustomer(id: string) {
       cpf: true,
       createdAt: true,
       loyalty: { select: { points: true } },
-      addresses: { orderBy: { isDefault: "desc" } },
+      addresses: {
+        ...(addressWhere ? { where: addressWhere } : {}),
+        orderBy: { isDefault: "desc" },
+      },
       orders: {
+        ...(orderWhere ? { where: orderWhere } : {}),
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
@@ -393,6 +475,15 @@ export function getAdminCustomer(id: string) {
       },
     },
   });
+  return customer
+    ? {
+        ...customer,
+        orders: customer.orders.map((order) => ({
+          ...order,
+          total: moneyToNumber(order.total),
+        })),
+      }
+    : null;
 }
 
 /** Pedido para a tela de detalhe. Filial só acessa pedidos da própria unidade. */
@@ -401,8 +492,6 @@ export async function getAdminOrder(id: string) {
   const order = await prisma.order.findUnique({
     where: { id },
     include: {
-      user: { select: { name: true, email: true, phone: true } },
-      address: true,
       pharmacy: { select: { id: true, name: true, type: true } },
       items: { include: { product: { select: { emoji: true } } } },
       payment: true,
@@ -410,10 +499,23 @@ export async function getAdminOrder(id: string) {
   });
   if (!order) return null;
   // Filial não enxerga pedido de outra unidade.
-  if (!scope.isGlobal && order.pharmacyId && order.pharmacyId !== scope.pharmacyId) {
+  if (!scope.isGlobal && order.pharmacyId !== scope.pharmacyId) {
     return null;
   }
-  return order;
+  return {
+    ...order,
+    subtotal: moneyToNumber(order.subtotal),
+    discount: moneyToNumber(order.discount),
+    shipping: moneyToNumber(order.shipping),
+    total: moneyToNumber(order.total),
+    items: order.items.map((item) => ({
+      ...item,
+      price: moneyToNumber(item.price),
+    })),
+    payment: order.payment
+      ? { ...order.payment, amount: moneyToNumber(order.payment.amount) }
+      : null,
+  };
 }
 
 /** Contadores que viram badges de atenção na sidebar do admin. */
@@ -422,12 +524,14 @@ export async function getAdminBadges(selectedUnitId?: string | null) {
   const orderUnit: Prisma.OrderWhereInput = unit ? { pharmacyId: unit } : {};
   const [ordersToProcess, lowStock, pendingReviews] =
     await Promise.all([
-      prisma.order.count({ where: { status: { in: ["PAID", "PREPARING"] }, ...orderUnit } }),
+      prisma.order.count({
+        where: { archivedAt: null, status: { in: ["PAID", "PREPARING"] }, ...orderUnit },
+      }),
       prisma.inventory.count({
         where: {
           stock: { lte: prisma.inventory.fields.minStock },
           product: { active: true },
-          pharmacy: { active: true },
+          pharmacy: { active: true, archivedAt: null },
           ...(unit ? { pharmacyId: unit } : {}),
         },
       }),
@@ -438,11 +542,13 @@ export async function getAdminBadges(selectedUnitId?: string | null) {
 
 /** Avaliações para moderação: pendentes em fila (mais antiga primeiro);
  *  aprovadas em ordem inversa, limitadas às 100 mais recentes. */
-export function getReviewsByApproval(approved: boolean) {
+export async function getReviewsByApproval(approved: boolean) {
+  await assertArea("avaliacoes");
   return prisma.review.findMany({
     where: { approved },
     include: {
-      user: { select: { name: true, email: true } },
+      // O e-mail não é usado na moderação e não deve ser carregado.
+      user: { select: { name: true } },
       product: { select: { name: true, slug: true } },
     },
     orderBy: { createdAt: approved ? "desc" : "asc" },

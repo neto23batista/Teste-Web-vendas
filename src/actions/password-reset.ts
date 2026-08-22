@@ -1,7 +1,6 @@
 "use server";
 
 import { randomBytes, createHash } from "crypto";
-import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import {
@@ -10,6 +9,7 @@ import {
 } from "@/lib/validators/auth";
 import { sendMail, baseUrl } from "@/lib/mail";
 import { passwordResetEmail } from "@/lib/email-templates";
+import { hashPassword } from "@/lib/password";
 
 export type ResetState = { ok?: boolean; error?: string } | undefined;
 
@@ -35,6 +35,12 @@ export async function requestPasswordReset(
   }
 
   const email = parsed.data.email.toLowerCase();
+  const emailKey = hashToken(email).slice(0, 32);
+  if (!(await rateLimit(`pwreset:email:${emailKey}`, 3, 15 * 60_000)).ok) {
+    // Resposta deliberadamente igual à de sucesso: não confirma existência e
+    // impede disparos repetidos para a mesma caixa por IPs diferentes.
+    return { ok: true };
+  }
   const user = await prisma.user.findUnique({
     where: { email },
     select: { id: true, name: true },
@@ -73,25 +79,35 @@ export async function resetPassword(
   }
 
   const tokenHash = hashToken(parsed.data.token);
-  const record = await prisma.passwordResetToken.findUnique({
-    where: { tokenHash },
-    select: { id: true, userId: true, expiresAt: true, usedAt: true },
+  const passwordHash = await hashPassword(parsed.data.password);
+  const now = new Date();
+  const changed = await prisma.$transaction(async (tx) => {
+    const record = await tx.passwordResetToken.findUnique({
+      where: { tokenHash },
+      select: { id: true, userId: true },
+    });
+    if (!record) return false;
+
+    // Claim condicional: duas requisições concorrentes não podem reutilizar o token.
+    const claim = await tx.passwordResetToken.updateMany({
+      where: {
+        id: record.id,
+        usedAt: null,
+        expiresAt: { gt: now },
+      },
+      data: { usedAt: now },
+    });
+    if (claim.count !== 1) return false;
+
+    await tx.user.update({
+      where: { id: record.userId },
+      data: { passwordHash, sessionVersion: { increment: 1 } },
+    });
+    return true;
   });
-  if (!record || record.usedAt || record.expiresAt < new Date()) {
+  if (!changed) {
     return { error: "Link inválido ou expirado. Solicite um novo." };
   }
-
-  const passwordHash = await bcrypt.hash(parsed.data.password, 10);
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: record.userId },
-      data: { passwordHash },
-    }),
-    prisma.passwordResetToken.update({
-      where: { id: record.id },
-      data: { usedAt: new Date() },
-    }),
-  ]);
 
   return { ok: true };
 }

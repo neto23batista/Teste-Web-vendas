@@ -39,23 +39,29 @@ export function Pagination({
       className="flex items-center justify-center gap-1.5"
       aria-label="Paginação"
     >
-      <Link
-        href={href(page - 1)}
-        aria-disabled={page <= 1}
-        className={cn(
-          base,
-          page <= 1
-            ? "pointer-events-none border-border text-muted-foreground opacity-50"
-            : "border-border text-foreground hover:border-brand-300 hover:bg-muted"
-        )}
-      >
-        <ChevronLeft className="size-4" />
-      </Link>
+      {page <= 1 ? (
+        <span
+          aria-label="Página anterior indisponível"
+          aria-disabled="true"
+          className={cn(base, "border-border text-muted-foreground opacity-50")}
+        >
+          <ChevronLeft className="size-4" aria-hidden />
+        </span>
+      ) : (
+        <Link
+          href={href(page - 1)}
+          aria-label="Página anterior"
+          className={cn(base, "border-border text-foreground hover:border-brand-300 hover:bg-muted")}
+        >
+          <ChevronLeft className="size-4" aria-hidden />
+        </Link>
+      )}
 
       {items.map((p) => (
         <Link
           key={p}
           href={href(p)}
+          aria-label={`Página ${p}`}
           aria-current={p === page ? "page" : undefined}
           className={cn(
             base,
@@ -68,18 +74,23 @@ export function Pagination({
         </Link>
       ))}
 
-      <Link
-        href={href(page + 1)}
-        aria-disabled={page >= pages}
-        className={cn(
-          base,
-          page >= pages
-            ? "pointer-events-none border-border text-muted-foreground opacity-50"
-            : "border-border text-foreground hover:border-brand-300 hover:bg-muted"
-        )}
-      >
-        <ChevronRight className="size-4" />
-      </Link>
+      {page >= pages ? (
+        <span
+          aria-label="Próxima página indisponível"
+          aria-disabled="true"
+          className={cn(base, "border-border text-muted-foreground opacity-50")}
+        >
+          <ChevronRight className="size-4" aria-hidden />
+        </span>
+      ) : (
+        <Link
+          href={href(page + 1)}
+          aria-label="Próxima página"
+          className={cn(base, "border-border text-foreground hover:border-brand-300 hover:bg-muted")}
+        >
+          <ChevronRight className="size-4" aria-hidden />
+        </Link>
+      )}
     </nav>
   );
 }

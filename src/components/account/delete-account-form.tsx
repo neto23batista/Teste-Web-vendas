@@ -15,7 +15,7 @@ export function DeleteAccountForm({ email }: { email: string }) {
   return (
     <form action={formAction} className="space-y-4">
       {state?.error && (
-        <div className="flex items-center gap-2 rounded-xl bg-danger-500/10 px-4 py-2.5 text-sm font-medium text-danger-500">
+        <div role="alert" className="flex items-center gap-2 rounded-xl bg-danger-500/10 px-4 py-2.5 text-sm font-medium text-danger-500">
           <AlertTriangle className="size-4 shrink-0" /> {state.error}
         </div>
       )}
@@ -34,11 +34,22 @@ export function DeleteAccountForm({ email }: { email: string }) {
           onChange={(e) => setConfirm(e.target.value)}
         />
       </Field>
+      <Field label="Senha atual" htmlFor="deleteCurrentPassword">
+        <Input
+          id="deleteCurrentPassword"
+          name="currentPassword"
+          type="password"
+          autoComplete="current-password"
+          maxLength={128}
+          required
+        />
+      </Field>
       <Button
         type="submit"
         variant="danger"
         disabled={!matches || pending}
         className="w-full sm:w-auto"
+        aria-busy={pending}
       >
         {pending ? (
           <Loader2 className="size-4 animate-spin" />

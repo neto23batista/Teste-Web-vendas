@@ -1,5 +1,7 @@
 import { headers } from "next/headers";
 import Redis from "ioredis";
+import { isIP } from "node:net";
+import { reportError } from "@/lib/monitoring";
 
 /**
  * Rate limiting por janela fixa. Contador DURÁVEL (compartilhado entre as
@@ -114,16 +116,13 @@ function getRedis(): Redis | null {
       lazyConnect: true,
     });
   } catch (err) {
-    console.error(
-      "[rate-limit] REDIS_URL inválida, usando contador em memória:",
-      err instanceof Error ? err.message : err
-    );
+    reportError(err, { operation: "rate-limit.redis-config" });
     redisClient = null;
     return null;
   }
   // Sem listener de 'error' o ioredis derruba o processo com unhandled error.
   redisClient.on("error", (err: Error) => {
-    console.error("[rate-limit] redis:", err.message);
+    reportError(err, { operation: "rate-limit.redis" });
   });
   return redisClient;
 }
@@ -199,10 +198,65 @@ export async function rateLimit(
   return durable ?? rateLimitMemory(key, limit, windowMs);
 }
 
-/** IP do cliente a partir dos cabeçalhos do proxy. */
+type HeaderReader = Pick<Headers, "get">;
+
+function normalizedIp(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let candidate = raw.trim().replace(/^"|"$/g, "");
+
+  // Alguns proxies incluem a porta. Preserve IPv6 puro e remova apenas as
+  // formas inequívocas `1.2.3.4:1234` e `[2001:db8::1]:1234`.
+  const bracketedV6 = candidate.match(/^\[([^\]]+)](?::\d+)?$/);
+  if (bracketedV6) candidate = bracketedV6[1]!;
+  else if (/^\d{1,3}(?:\.\d{1,3}){3}:\d+$/.test(candidate)) {
+    candidate = candidate.slice(0, candidate.lastIndexOf(":"));
+  }
+
+  return isIP(candidate) ? candidate : null;
+}
+
+function forwardedIp(value: string | null, edge: "first" | "last"): string | null {
+  if (!value) return null;
+  const entries = value.split(",").map((part) => part.trim()).filter(Boolean);
+  const ordered = edge === "first" ? entries : entries.reverse();
+  for (const entry of ordered) {
+    const ip = normalizedIp(entry);
+    if (ip) return ip;
+  }
+  return null;
+}
+
+/**
+ * Extrai o IP somente de proxies explicitamente confiáveis.
+ *
+ * Cabeçalhos `x-forwarded-for` enviados diretamente pelo navegador são
+ * forjáveis. Na Vercel usamos o cabeçalho gerenciado pela plataforma. Em
+ * infraestrutura própria, o operador precisa definir TRUST_PROXY_HEADERS=true
+ * e garantir que o proxy sobrescreva/anexe esses cabeçalhos; nesse modo usamos
+ * o último hop para não aceitar um prefixo inventado pelo cliente.
+ */
+export function clientIpFromHeaders(h: HeaderReader): string {
+  if (process.env.VERCEL) {
+    return (
+      forwardedIp(h.get("x-vercel-forwarded-for"), "first") ??
+      forwardedIp(h.get("x-forwarded-for"), "last") ??
+      "unknown"
+    );
+  }
+
+  const trustProxy = ["1", "true"].includes(
+    process.env.TRUST_PROXY_HEADERS?.toLowerCase() ?? ""
+  );
+  if (!trustProxy) return "unknown";
+
+  return (
+    forwardedIp(h.get("x-forwarded-for"), "last") ??
+    normalizedIp(h.get("x-real-ip")) ??
+    "unknown"
+  );
+}
+
+/** IP do cliente a partir dos cabeçalhos do proxy confiável. */
 export async function clientIp(): Promise<string> {
-  const h = await headers();
-  const fwd = h.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0]!.trim();
-  return h.get("x-real-ip") ?? "unknown";
+  return clientIpFromHeaders(await headers());
 }

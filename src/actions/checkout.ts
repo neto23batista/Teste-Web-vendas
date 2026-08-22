@@ -1,16 +1,24 @@
 "use server";
 
+import { createHash } from "crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import type { Prisma, OrderStatus } from "@prisma/client";
+import { Prisma, type OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getCart } from "@/lib/cart";
-import { shippingFor, type DeliveryMethod } from "@/lib/shipping";
-import { getShippingConfig, getPaymentSettings, resolveKm } from "@/lib/settings";
-import { validateCoupon } from "@/lib/coupons";
-import { maxRedeemablePoints, pointsToBRL } from "@/lib/loyalty";
-import { createOrder, fulfillOrder, cancelOrder } from "@/lib/orders";
+import { getPaymentSettings } from "@/lib/settings";
+import { quoteCheckout } from "@/lib/checkout-quote";
+import {
+  createCheckoutOrder,
+  fulfillOrder,
+  cancelOrder,
+  CheckoutReservationError,
+  isValidItemQuantity,
+  isValidStock,
+  validateOrderFinancials,
+  type CreateInput,
+} from "@/lib/orders";
 import { createHostedCheckout, createPixPayment } from "@/lib/stripe";
 import {
   defaultPaymentMethod,
@@ -21,10 +29,68 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { sendMail, baseUrl } from "@/lib/mail";
 import { notifyUnit } from "@/lib/notifications";
 import { orderReceivedEmail, newOrderForUnitEmail } from "@/lib/email-templates";
+import { isValidCpf, onlyDigits } from "@/lib/cpf";
+import { reportError } from "@/lib/monitoring";
+import { moneyToCents, moneyToNumber } from "@/lib/money";
+import {
+  addressFromFormData,
+  validateAddress,
+} from "@/lib/address";
+import { createUserAddressWithinLimit } from "@/lib/address-persistence";
 
 export type CheckoutState = { error?: string } | undefined;
 
 const str = (fd: FormData, key: string) => String(fd.get(key) ?? "").trim();
+
+export type CheckoutPreviewInput = {
+  addressId?: string | null;
+  zip?: string | null;
+  coupon?: string | null;
+  redeemPoints?: number;
+  deliveryMethod?: string | null;
+};
+
+export async function previewCheckoutQuote(input: CheckoutPreviewInput) {
+  const user = await requireUser();
+  if (!(await rateLimit(`checkout-preview:${user.id}`, 60, 60_000)).ok) {
+    return { ok: false as const, error: "Muitas atualizações. Aguarde um instante." };
+  }
+  const cart = await getCart();
+  if (!cart?.pharmacyId || cart.items.length === 0) {
+    return { ok: false as const, error: "Sua sacola está vazia." };
+  }
+  try {
+    const quote = await quoteCheckout({
+      userId: user.id,
+      pharmacyId: cart.pharmacyId,
+      subtotal: cart.subtotal,
+      addressId: input?.addressId?.slice(0, 128) || null,
+      zip: input?.zip?.slice(0, 16) || null,
+      coupon: input?.coupon?.slice(0, 50) || null,
+      requestedRedeemPoints: input?.redeemPoints ?? 0,
+      deliveryMethod: input?.deliveryMethod,
+    });
+    return {
+      ok: true as const,
+      quote: {
+        subtotal: quote.subtotal,
+        couponCode: quote.couponCode,
+        couponDiscount: quote.couponDiscount,
+        redeemPoints: quote.redeemPoints,
+        redeemDiscount: quote.redeemDiscount,
+        discount: quote.discount,
+        shipping: quote.shipping,
+        total: quote.total,
+        deliveryMethod: quote.deliveryMethod,
+      },
+    };
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: error instanceof Error ? error.message : "Não foi possível calcular o total.",
+    };
+  }
+}
 
 export async function placeOrder(
   _prev: CheckoutState,
@@ -44,6 +110,41 @@ export async function placeOrder(
     return { error: "Nenhuma unidade disponível para atender o pedido." };
   }
 
+  const checkoutAttempt = str(formData, "checkoutAttempt");
+  if (!/^[a-zA-Z0-9_-]{16,128}$/.test(checkoutAttempt)) {
+    return { error: "A tentativa de checkout expirou. Atualize a página." };
+  }
+  // A chave persistida não revela o token do navegador nem permite colisão
+  // entre usuários/carrinhos que por acaso enviem o mesmo valor.
+  const checkoutKey = createHash("sha256")
+    .update(`${user.id}:${cart.id}:${checkoutAttempt}`)
+    .digest("hex");
+
+  const orderItems = cart.items.map((i) => ({
+    productId: i.product.id,
+    name: i.product.name,
+    price: i.product.promoPrice ?? i.product.price,
+    qty: i.qty,
+  }));
+  // Não confia nem no carrinho persistido: ele pode ser legado ou ter sido
+  // gravado antes das constraints. Isso barra qty negativa/fracionária antes
+  // de qualquer efeito colateral do checkout.
+  if (
+    cart.items.some((item) => !isValidItemQuantity(item.qty)) ||
+    validateOrderFinancials({
+      subtotal: cart.subtotal,
+      shipping: 0,
+      discount: 0,
+      total: cart.subtotal,
+      items: orderItems,
+    })
+  ) {
+    return {
+      error:
+        "Sua sacola contém uma quantidade ou valor inválido. Remova o item e adicione novamente.",
+    };
+  }
+
   // Re-valida estoque DA UNIDADE no momento do checkout (pode ter mudado desde
   // a sacola). Produto inativo não retorna na query → tratado como insuficiente.
   const stocks = await prisma.inventory.findMany({
@@ -54,6 +155,11 @@ export async function placeOrder(
     },
     select: { productId: true, stock: true },
   });
+  if (stocks.some((item) => !isValidStock(item.stock))) {
+    return {
+      error: "O estoque da unidade está inconsistente. Tente novamente mais tarde.",
+    };
+  }
   const stockById = new Map(stocks.map((s) => [s.productId, s.stock]));
   const insufficient = cart.items.filter(
     (i) => (stockById.get(i.product.id) ?? 0) < i.qty
@@ -82,160 +188,133 @@ export async function placeOrder(
   }
   const paymentMethod = requested;
 
+  // Os dados do pedido são congelados a partir do banco no checkout. A conta e
+  // o endereço podem ser alterados depois sem reescrever o documento histórico.
+  let checkoutCustomer = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { name: true, email: true, cpf: true, phone: true },
+  });
+  if (!checkoutCustomer) return { error: "Conta não encontrada." };
+
   // O PIX exige o CPF do pagador. Usa o do cadastro; se não houver, exige o
   // informado no checkout (11 dígitos) e salva no cadastro p/ as próximas compras.
-  let payerCpf: string | null = null;
   if (paymentMethod === "pix") {
-    const dbUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { cpf: true },
-    });
-    if (dbUser?.cpf) {
-      payerCpf = dbUser.cpf;
+    if (checkoutCustomer.cpf && isValidCpf(checkoutCustomer.cpf)) {
+      checkoutCustomer = {
+        ...checkoutCustomer,
+        cpf: onlyDigits(checkoutCustomer.cpf),
+      };
     } else {
-      const informed = str(formData, "cpf").replace(/\D/g, "");
-      if (informed.length !== 11) {
-        return { error: "Para pagar com PIX, informe um CPF válido (11 dígitos)." };
+      const informed = onlyDigits(str(formData, "cpf"));
+      if (!isValidCpf(informed)) {
+        return { error: "Para pagar com PIX, informe um CPF válido." };
       }
-      payerCpf = informed;
-      await prisma.user.update({ where: { id: user.id }, data: { cpf: informed } });
+      try {
+        await prisma.user.update({ where: { id: user.id }, data: { cpf: informed } });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          return {
+            error:
+              "Este CPF já está vinculado a outra conta. Entre na conta correta ou fale com o suporte.",
+          };
+        }
+        throw error;
+      }
+      checkoutCustomer = { ...checkoutCustomer, cpf: informed };
     }
   }
 
   // Endereço: existente ou novo
   let addressId: string | null = str(formData, "addressId") || null;
+  let shippingAddress: CreateInput["shippingAddress"] | null = null;
   if (addressId) {
     const owns = await prisma.address.findFirst({
       where: { id: addressId, userId: user.id },
-    });
-    if (!owns) addressId = null;
-  }
-  if (!addressId) {
-    const recipient = str(formData, "recipient");
-    const zip = str(formData, "zip");
-    const street = str(formData, "street");
-    const number = str(formData, "number");
-    const district = str(formData, "district");
-    const city = str(formData, "city");
-    const state = str(formData, "state");
-    if (!recipient || !zip || !street || !number || !district || !city || !state) {
-      return { error: "Preencha todos os campos do endereço de entrega." };
-    }
-    const created = await prisma.address.create({
-      data: {
-        userId: user.id,
-        label: str(formData, "label") || "Entrega",
-        recipient,
-        zip,
-        street,
-        number,
-        complement: str(formData, "complement") || null,
-        district,
-        city,
-        state,
-        isDefault: false,
+      select: {
+        recipient: true,
+        zip: true,
+        street: true,
+        number: true,
+        complement: true,
+        district: true,
+        city: true,
+        state: true,
       },
     });
-    addressId = created.id;
+    if (!owns) addressId = null;
+    else shippingAddress = owns;
   }
-
-  // Totais
-  const subtotal = cart.subtotal;
-  let discount = 0;
-  let couponCode: string | null = null;
-  let couponUsageLimit: number | null = null;
-  const couponRaw = str(formData, "coupon");
-  if (couponRaw) {
-    const res = await validateCoupon(couponRaw, subtotal);
-    if ("error" in res) return { error: res.error };
-    discount = res.discount;
-    couponCode = res.code;
-    couponUsageLimit = res.usageLimit;
-  }
-
-  // Resgate de pontos de fidelidade: re-valida o saldo e o teto no servidor
-  // (a base é o subtotal já com o cupom aplicado).
-  let redeemPoints = Math.max(0, Math.floor(Number(str(formData, "redeemPoints")) || 0));
-  let redeemDiscount = 0;
-  let loyaltyAccountId: string | null = null;
-  if (redeemPoints > 0) {
-    const account = await prisma.loyaltyAccount.findUnique({
-      where: { userId: user.id },
-      select: { id: true, points: true },
-    });
-    const allowed = maxRedeemablePoints(
-      account?.points ?? 0,
-      Math.max(0, subtotal - discount)
-    );
-    redeemPoints = Math.min(redeemPoints, allowed);
-    if (redeemPoints > 0 && account) {
-      loyaltyAccountId = account.id;
-      redeemDiscount = pointsToBRL(redeemPoints);
-      discount += redeemDiscount;
-    } else {
-      redeemPoints = 0;
-    }
-  }
-
-  // Frete pelo CEP do endereço escolhido (fonte da verdade no servidor):
-  // resolve a distância (km) pela faixa de CEP da unidade e aplica a modalidade.
-  const deliveryMethod: DeliveryMethod =
-    str(formData, "deliveryMethod") === "express" ? "express" : "standard";
-  const shipAddr = addressId
-    ? await prisma.address.findUnique({
-        where: { id: addressId },
-        select: { zip: true },
-      })
-    : null;
-  const [shippingConfig, km] = await Promise.all([
-    getShippingConfig(cart.pharmacyId),
-    resolveKm(shipAddr?.zip, cart.pharmacyId),
-  ]);
-  const shipping = shippingFor(subtotal, km, deliveryMethod, shippingConfig);
-  const total = Math.max(0, subtotal - discount) + shipping;
-
-  // Reserva atômica dos pontos (antes do cupom): decrementa só se o saldo
-  // ainda comporta o resgate. Em corrida, aborta sem ter tocado no cupom.
-  if (redeemPoints > 0 && loyaltyAccountId) {
-    const reserved = await prisma.loyaltyAccount.updateMany({
-      where: { id: loyaltyAccountId, points: { gte: redeemPoints } },
-      data: { points: { decrement: redeemPoints } },
-    });
-    if (reserved.count === 0) {
+  if (!addressId) {
+    const normalized = addressFromFormData(formData);
+    const addressError = validateAddress(normalized);
+    if (addressError) return { error: addressError };
+    const addressResult = await createUserAddressWithinLimit(user.id, normalized);
+    if (!addressResult.ok) {
       return {
-        error: "Seu saldo de pontos mudou. Atualize a página e tente novamente.",
+        error: "Limite de 20 endereços atingido. Selecione um existente ou remova um antigo.",
       };
     }
-  }
-
-  // Reserva atômica do cupom (antes de criar o pedido): evita corrida que
-  // ultrapasse o usageLimit. O incremento só "pega" se ainda houver saldo.
-  if (couponCode) {
-    const where: Prisma.CouponWhereInput = {
-      code: couponCode,
-      active: true,
+    const created = addressResult.address;
+    addressId = created.id;
+    shippingAddress = {
+      recipient: created.recipient,
+      zip: created.zip,
+      street: created.street,
+      number: created.number,
+      complement: created.complement,
+      district: created.district,
+      city: created.city,
+      state: created.state,
     };
-    if (couponUsageLimit != null) where.usedCount = { lt: couponUsageLimit };
-    const reserved = await prisma.coupon.updateMany({
-      where,
-      data: { usedCount: { increment: 1 } },
-    });
-    if (reserved.count === 0) {
-      // Devolve os pontos já reservados antes de abortar.
-      if (redeemPoints > 0 && loyaltyAccountId) {
-        await prisma.loyaltyAccount.update({
-          where: { id: loyaltyAccountId },
-          data: { points: { increment: redeemPoints } },
-        });
-      }
-      return { error: "Este cupom acabou de esgotar. Tente outro." };
-    }
   }
+  if (!shippingAddress) return { error: "Endereço de entrega inválido." };
 
-  // Pedido
-  const order = await createOrder({
+  // A mesma cotação server-only abastece o preview e este INSERT. Assim cupom,
+  // pontos, CEP e frete não têm implementações concorrentes.
+  const couponRaw = str(formData, "coupon");
+  const redeemRaw = str(formData, "redeemPoints");
+  const requestedRedeemPoints = redeemRaw ? Number(redeemRaw) : 0;
+  let quote: Awaited<ReturnType<typeof quoteCheckout>>;
+  try {
+    quote = await quoteCheckout({
+      userId: user.id,
+      pharmacyId: cart.pharmacyId,
+      subtotal: cart.subtotal,
+      addressId,
+      coupon: couponRaw,
+      requestedRedeemPoints,
+      deliveryMethod: str(formData, "deliveryMethod"),
+    });
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Não foi possível calcular o total.",
+    };
+  }
+  const {
+    subtotal,
+    discount,
+    shipping,
+    total,
+    couponCode,
+    couponUsageLimit,
+    redeemPoints,
+    loyaltyAccountId,
+    deliveryMethod,
+  } = quote;
+
+  const orderInput: CreateInput = {
     userId: user.id,
     addressId,
+    customer: {
+      name: checkoutCustomer.name,
+      email: checkoutCustomer.email,
+      cpf: checkoutCustomer.cpf,
+      phone: checkoutCustomer.phone,
+    },
+    shippingAddress,
     pharmacyId: cart.pharmacyId,
     paymentMethod,
     deliveryMethod,
@@ -244,25 +323,46 @@ export async function placeOrder(
     discount,
     total,
     couponCode,
+    checkoutKey,
     notes: str(formData, "notes").slice(0, 500) || null,
-    items: cart.items.map((i) => ({
-      productId: i.product.id,
-      name: i.product.name,
-      price: i.product.promoPrice ?? i.product.price,
-      qty: i.qty,
-    })),
-  });
+    items: orderItems,
+  };
+  const financialError = validateOrderFinancials(orderInput);
+  if (financialError) {
+    return {
+      error:
+        "Não foi possível validar os valores do pedido. Atualize a página e tente novamente.",
+    };
+  }
 
-  // Registra o resgate de pontos no extrato (saldo já debitado acima).
-  if (redeemPoints > 0 && loyaltyAccountId) {
-    await prisma.loyaltyTransaction.create({
-      data: {
-        accountId: loyaltyAccountId,
-        points: -redeemPoints,
-        reason: `Resgate no pedido ${order.number}`,
-        orderId: order.id,
-      },
+  // Pedido + reservas formam uma unidade atômica. A mesma tentativa devolve o
+  // mesmo pedido; falha no INSERT não deixa cupom/pontos consumidos.
+  let checkoutOrder: Awaited<ReturnType<typeof createCheckoutOrder>>;
+  try {
+    checkoutOrder = await createCheckoutOrder(orderInput, {
+      checkoutKey,
+      loyaltyAccountId,
+      redeemPoints,
+      couponUsageLimit,
     });
+  } catch (error) {
+    if (error instanceof CheckoutReservationError) {
+      return { error: error.message };
+    }
+    reportError(error, { operation: "checkout.order.create" });
+    return {
+      error: "Não foi possível criar o pedido. Nenhum cupom ou ponto foi consumido.",
+    };
+  }
+  const { order, created: orderCreated } = checkoutOrder;
+  const orderTotal = moneyToNumber(order.total);
+  if (!orderCreated && order.status === "CANCELED") {
+    return {
+      error: "Esta tentativa já foi encerrada. Tente novamente para criar um novo pedido.",
+    };
+  }
+  if (!orderCreated && order.status !== "PENDING") {
+    redirect(`/pedido/${order.number}`);
   }
 
   // Capturados aqui de propósito: dentro de uma função aninhada o TS não mantém
@@ -281,19 +381,23 @@ export async function placeOrder(
     revalidatePath("/conta");
 
     // Confirmação "pedido recebido" (best-effort — não bloqueia o checkout).
-    if (user.email) {
+    if (order.customerEmail) {
       const mail = orderReceivedEmail(
-        { number: order.number, total: order.total },
+        { number: order.number, total: orderTotal },
         `${baseUrl()}/pedido/${order.number}`
       );
-      await sendMail({ to: user.email, subject: mail.subject, html: mail.html });
+      await sendMail({
+        to: order.customerEmail,
+        subject: mail.subject,
+        html: mail.html,
+      });
     }
 
     // Avisa a equipe da unidade que atende o pedido (best-effort).
     await notifyUnit(
       cartPharmacyId,
       newOrderForUnitEmail(
-        { number: order.number, total: order.total, itemsCount: order.items.length },
+        { number: order.number, total: orderTotal, itemsCount: order.items.length },
         `${baseUrl()}/admin/pedidos/${order.id}`
       )
     );
@@ -301,20 +405,31 @@ export async function placeOrder(
 
   // Pagamento
   // Total zerado (100% desconto/pontos): nada a cobrar — confirma direto.
-  if (total <= 0) {
+  if ((moneyToCents(order.total) ?? 0) <= 0) {
     try {
       await fulfillOrder(order.id);
-    } catch {
-      // Corrida rara de estoque: pedido fica PENDENTE para tratativa manual.
+    } catch (error) {
+      await cancelOrder(order.id, {
+        paymentFailureReason: "Falha ao reservar estoque.",
+      }).catch(() => null);
+      reportError(error, { operation: "checkout.zero_total.fulfill" });
+      return { error: "O estoque mudou. Revise sua sacola e tente novamente." };
     }
     await finalizeSuccess();
     redirect(`/pedido/${order.number}`);
   }
-  if (paymentMethod === "cash") {
+  // Em uma repetição idempotente, os campos do navegador podem ter mudado
+  // depois do primeiro POST. O meio/valor persistidos no pedido são a fonte da
+  // verdade; nunca cobramos ou confirmamos usando a segunda versão do formulário.
+  if (order.paymentMethod === "cash") {
     try {
       await fulfillOrder(order.id);
-    } catch {
-      // Corrida rara de estoque: pedido permanece PENDENTE para tratativa manual.
+    } catch (error) {
+      await cancelOrder(order.id, {
+        paymentFailureReason: "Falha ao reservar estoque.",
+      }).catch(() => null);
+      reportError(error, { operation: "checkout.cash.fulfill" });
+      return { error: "O estoque mudou. Revise sua sacola e tente novamente." };
     }
     await finalizeSuccess();
     redirect(`/pedido/${order.number}`);
@@ -322,23 +437,33 @@ export async function placeOrder(
   if (availability.stripeConfigured) {
     // PIX nativo: gera o QR/copia-e-cola e mostra na própria página do pedido
     // (sem sair do site). O webhook confirma a aprovação.
-    if (paymentMethod === "pix") {
-      // CPF do pagador já resolvido/validado acima (obrigatório para PIX).
+    if (order.paymentMethod === "pix") {
+      // Usa o snapshot, inclusive numa repetição idempotente cujo formulário
+      // tenha sido alterado depois do primeiro POST.
+      const snapshotCpf = onlyDigits(order.customerCpf ?? "");
+      if (!isValidCpf(snapshotCpf)) {
+        await cancelOrder(order.id, {
+          paymentFailureReason: "CPF ausente no snapshot do pedido Pix.",
+        }).catch(() => null);
+        return { error: "O CPF do pedido Pix está inválido. Tente novamente." };
+      }
       const pix = await createPixPayment({
         orderNumber: order.number,
-        amount: order.total,
-        payerEmail: user.email ?? "",
-        payerName: user.name,
-        payerTaxId: payerCpf,
+        amount: orderTotal,
+        payerEmail: order.customerEmail,
+        payerName: order.customerName,
+        payerTaxId: snapshotCpf,
         description: `FarmaVida ${order.number}`,
       });
       // Sem QR não há como pagar. Antes o pedido era criado assim mesmo e o cliente
       // caía numa página vazia, com o pedido preso em "aguardando pagamento" para
       // sempre. Desfaz o pedido (devolve cupom/pontos) e explica o que fazer.
       if (!pix) {
-        await cancelOrder(order.id).catch((e) =>
-          console.error("[checkout] falha ao cancelar pedido órfão (pix):", e)
-        );
+        await cancelOrder(order.id, {
+          paymentFailureReason: "Não foi possível criar a cobrança Pix.",
+        }).catch((error) => {
+          reportError(error, { operation: "checkout.pix.compensate" });
+        });
         return {
           error:
             "Não foi possível gerar o Pix agora. Escolha cartão ou dinheiro na entrega.",
@@ -364,31 +489,51 @@ export async function placeOrder(
     // Cartão (e demais): Checkout Session hospedada do Stripe. O total do pedido
     // (já com cupom/pontos) é o valor cobrado — sem ele o cliente pagaria o preço
     // cheio e o webhook recusaria o pagamento por divergência.
-    const url = await createHostedCheckout({
+    const checkout = await createHostedCheckout({
       orderNumber: order.number,
-      items: order.items.map((i) => ({ name: i.name, price: i.price, qty: i.qty })),
-      shipping,
-      total: order.total,
-      customerEmail: user.email,
-      customerName: user.name,
+      items: order.items.map((i) => ({
+        name: i.name,
+        price: moneyToNumber(i.price),
+        qty: i.qty,
+      })),
+      shipping: moneyToNumber(order.shipping),
+      total: orderTotal,
+      customerEmail: order.customerEmail,
+      customerName: order.customerName,
     });
-    if (url) {
+    if (checkout) {
+      await prisma.payment.updateMany({
+        where: { orderId: order.id },
+        data: {
+          raw: {
+            checkout: {
+              sessionId: checkout.sessionId,
+              url: checkout.url,
+              expiresAt: checkout.expiresAt,
+            },
+          },
+        },
+      });
       await finalizeSuccess();
-      redirect(url);
+      redirect(checkout.url);
     }
     // Mesma lógica do PIX: sem página de pagamento, não há como cobrar.
-    await cancelOrder(order.id).catch((e) =>
-      console.error("[checkout] falha ao cancelar pedido órfão (cartão):", e)
-    );
+    await cancelOrder(order.id, {
+      paymentFailureReason: "Não foi possível criar a sessão de cartão.",
+    }).catch((error) => {
+      reportError(error, { operation: "checkout.card.compensate" });
+    });
     return {
       error:
         "Não foi possível iniciar o pagamento no cartão. Tente novamente ou escolha dinheiro na entrega.",
     };
   }
-  // Inalcançável na prática: sem Stripe configurado, o único método que passa na
-  // validação é "cash", que já saiu acima. Fica como rede de segurança.
-  await finalizeSuccess();
-  redirect(`/pedido/${order.number}`);
+  // Pode acontecer numa repetição idempotente se a configuração foi removida
+  // depois do primeiro POST. Não confirma nem esvazia a sacola sem cobrança.
+  return {
+    error:
+      "O provedor de pagamento ficou indisponível. Tente novamente em instantes.",
+  };
 }
 
 // Status em que o próprio cliente ainda pode cancelar. Depois de SHIPPED/
@@ -418,23 +563,6 @@ export async function cancelMyOrder(
 
   await cancelOrder(order.id);
 
-  revalidatePath(`/pedido/${orderNumber}`);
-  revalidatePath("/conta");
-  return { ok: true };
-}
-
-export async function confirmPaymentSimulated(orderNumber: string) {
-  // Atalho de demonstração — desabilitado em produção (pagamento real via PagBank/webhook).
-  if (process.env.NODE_ENV === "production") return { ok: false };
-
-  const user = await requireUser();
-  const order = await prisma.order.findUnique({ where: { number: orderNumber } });
-  if (!order || order.userId !== user.id) return { ok: false };
-  try {
-    await fulfillOrder(order.id);
-  } catch {
-    return { ok: false };
-  }
   revalidatePath(`/pedido/${orderNumber}`);
   revalidatePath("/conta");
   return { ok: true };

@@ -39,8 +39,8 @@ const round = (n: number) => Math.round(n * 100) / 100;
  * - **Padrão**: grátis a partir de `freeMin` em entregas de até `freeRadiusKm`;
  *   além do raio, `perKm` por km excedente. Abaixo do mínimo, cobra `perKm` por
  *   km desde o km 0 (não há raio grátis).
- * - **Rápida (30–40 min)**: `expressFlat` fixo + `perKm` por km percorrido
- *   (sempre cobrada — é um serviço premium).
+ * - **Rápida**: `expressFlat` fixo + `perKm` por km percorrido (sempre
+ *   cobrada). O prazo operacional é confirmado pela unidade, não por esta conta.
  */
 export function shippingFor(
   subtotal: number,
@@ -58,6 +58,31 @@ export function shippingFor(
   const freeKm = subtotal >= config.freeMin ? config.freeRadiusKm : 0;
   const excess = Math.max(0, dist - freeKm);
   return round(config.perKm * excess);
+}
+
+/** Cálculo autoritativo do servidor em centavos inteiros. */
+export function shippingForCents(
+  subtotalCents: number,
+  km: number | null | undefined,
+  method: DeliveryMethod = "standard",
+  config: ShippingConfig = DEFAULT_SHIPPING_CONFIG
+): number {
+  if (!Number.isSafeInteger(subtotalCents) || subtotalCents < 0) return 0;
+  const asCents = (value: number) => Math.round(Math.max(0, value) * 100);
+  const distMilliKm = Math.round(Math.max(0, km ?? config.defaultKm) * 1000);
+  const perKmCents = asCents(config.perKm);
+  const distanceCharge = (milliKm: number) =>
+    Math.round((perKmCents * Math.max(0, milliKm)) / 1000);
+
+  if (method === "express") {
+    return asCents(config.expressFlat) + distanceCharge(distMilliKm);
+  }
+  if (subtotalCents === 0) return 0;
+  const freeRadiusMilliKm =
+    subtotalCents >= asCents(config.freeMin)
+      ? Math.round(Math.max(0, config.freeRadiusKm) * 1000)
+      : 0;
+  return distanceCharge(distMilliKm - freeRadiusMilliKm);
 }
 
 export function missingForFreeShipping(
@@ -84,13 +109,13 @@ export function deliveryOptions(
     {
       method: "standard",
       label: "Entrega padrão",
-      eta: "Chega hoje",
+      eta: "Prazo confirmado pela unidade",
       price: shippingFor(subtotal, km, "standard", config),
     },
     {
       method: "express",
       label: "Entrega Rápida",
-      eta: "30–40 min",
+      eta: "Prioridade de entrega",
       price: shippingFor(subtotal, km, "express", config),
     },
   ];

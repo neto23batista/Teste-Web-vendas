@@ -2,11 +2,12 @@ import { describe, it, expect } from "vitest";
 import { canAccess, effectiveProfile } from "@/lib/permissions";
 
 describe("permissions", () => {
-  it("conta antiga (staffProfile null) é tratada como OWNER e mantém acesso total", () => {
-    expect(effectiveProfile(null)).toBe("OWNER");
+  it("perfil ausente falha para o menor privilégio e nunca vira OWNER", () => {
+    expect(effectiveProfile(null)).toBe("ATTENDANT");
     for (const area of ["financeiro", "equipe", "auditoria", "configuracoes"] as const) {
-      expect(canAccess(null, area), area).toBe(true);
+      expect(canAccess(null, area), area).toBe(false);
     }
+    expect(canAccess(null, "pedidos")).toBe(true);
   });
 
   it("OWNER acessa tudo", () => {

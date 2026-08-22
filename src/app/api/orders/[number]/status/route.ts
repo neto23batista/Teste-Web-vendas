@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 
 // Status do pedido para os pollers da página do pedido (PIX + acompanhamento
 // ao vivo). Só o dono do pedido lê.
@@ -12,8 +12,10 @@ export async function GET(
   { params }: { params: Promise<{ number: string }> }
 ) {
   const { number } = await params;
-  const user = await getCurrentUser();
-  if (!user) {
+  let user;
+  try {
+    user = await requireUser();
+  } catch {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

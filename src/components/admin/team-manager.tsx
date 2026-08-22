@@ -30,17 +30,22 @@ export function TeamManager({
 }) {
   const router = useRouter();
   const [pending, start] = React.useTransition();
-  const [tempPassword, setTempPassword] = React.useState<string | null>(null);
+  const [setupUrl, setSetupUrl] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
   const formRef = React.useRef<HTMLFormElement>(null);
 
   function onCreate(formData: FormData) {
     start(async () => {
       const res = await createStaff(formData);
-      if (res.ok && res.password) {
-        setTempPassword(res.password);
+      if (res.ok) {
+        setSetupUrl(res.setupUrl ?? null);
+        setCopied(false);
         formRef.current?.reset();
-        toast.success("Membro criado. Copie a senha temporária.");
+        toast.success(
+          res.setupUrl
+            ? "Membro criado. Entregue o link seguro de acesso."
+            : "Membro criado. Convite enviado por e-mail."
+        );
         router.refresh();
       } else {
         toast.error(res.error ?? "Falha ao criar o membro.");
@@ -125,20 +130,20 @@ export function TeamManager({
           </div>
         </form>
 
-        {tempPassword && (
+        {setupUrl && (
           <div className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
             <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-              Senha temporária — copie agora e peça para o membro trocá-la em
-              &quot;Esqueci minha senha&quot;. Ela não será exibida de novo.
+              O e-mail não pôde ser entregue. Copie este link de uso único agora:
+              ele expira em 1 hora e não será exibido novamente.
             </p>
             <div className="flex items-stretch gap-2">
               <code className="flex-1 truncate rounded-lg border border-border bg-card px-3 py-2 text-xs">
-                {tempPassword}
+                {setupUrl}
               </code>
               <button
                 type="button"
                 onClick={() =>
-                  navigator.clipboard?.writeText(tempPassword).then(() => {
+                  navigator.clipboard?.writeText(setupUrl).then(() => {
                     setCopied(true);
                     setTimeout(() => setCopied(false), 2000);
                   })
@@ -180,12 +185,12 @@ export function TeamManager({
                   {m.pharmacyName ? ` · ${m.pharmacyName}` : ""}
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {PROFILE_DESCRIPTION[m.staffProfile ?? "OWNER"]}
+                  {PROFILE_DESCRIPTION[m.staffProfile ?? "ATTENDANT"]}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <select
-                  value={m.staffProfile ?? "OWNER"}
+                  value={m.staffProfile ?? "ATTENDANT"}
                   disabled={pending}
                   onChange={(e) => changeProfile(m.id, e.target.value as StaffProfile)}
                   className="h-10 rounded-xl border border-border bg-card px-3 text-sm font-semibold outline-none focus:border-brand-400"

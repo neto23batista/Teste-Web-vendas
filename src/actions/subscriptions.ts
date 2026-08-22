@@ -6,6 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { addToCart } from "@/actions/cart";
 import { isValidInterval } from "@/lib/subscriptions";
+import { reportError } from "@/lib/monitoring";
+import {
+  isProductSaleable,
+  PRESCRIPTION_PRODUCT_UNAVAILABLE,
+} from "@/lib/product-policy";
 
 export type SubscriptionActionResult = { ok: boolean; error?: string };
 
@@ -29,16 +34,22 @@ export async function subscribeToProduct(
   if (!isValidInterval(intervalDays)) {
     return { ok: false, error: "Frequência inválida." };
   }
-  // Number.isFinite barra NaN/Infinity (a action é invocável direto — input
-  // não confiável); trunc(NaN) propagaria e o Prisma rejeitaria o Int.
-  const n = Math.trunc(Number(qty));
-  const safeQty = Number.isFinite(n) ? Math.min(10, Math.max(1, n)) : 1;
+  const safeQty = Number(qty);
+  if (!Number.isSafeInteger(safeQty) || safeQty < 1 || safeQty > 10) {
+    return { ok: false, error: "Quantidade deve ser um inteiro entre 1 e 10." };
+  }
 
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    select: { active: true },
+    select: { active: true, requiresPrescription: true },
   });
-  if (!product || !product.active) {
+  if (!product) {
+    return { ok: false, error: "Produto indisponível." };
+  }
+  if (product.requiresPrescription) {
+    return { ok: false, error: PRESCRIPTION_PRODUCT_UNAVAILABLE };
+  }
+  if (!isProductSaleable(product)) {
     return { ok: false, error: "Produto indisponível." };
   }
 
@@ -59,7 +70,7 @@ export async function subscribeToProduct(
     if (missingTable(err)) return { ok: false, error: NOT_READY };
     // Qualquer outra falha (ex.: P2002 numa corrida de duplo-clique) vira uma
     // mensagem amigável em vez de estourar o error boundary do cliente.
-    console.error("[subscriptions] subscribe falhou:", err);
+    reportError(err, { operation: "subscription.create" });
     return { ok: false, error: "Não foi possível ativar a reposição agora. Tente novamente." };
   }
 
@@ -80,7 +91,7 @@ async function ownSubscription(id: string) {
         intervalDays: true,
         status: true,
         // Necessário para revalidar a disponibilidade antes de reativar/repor.
-        product: { select: { active: true } },
+        product: { select: { active: true, requiresPrescription: true } },
       },
     });
   } catch (err) {
@@ -102,7 +113,10 @@ export async function resumeSubscription(id: string): Promise<SubscriptionAction
   if (!sub) return { ok: false, error: "Assinatura não encontrada." };
   // Não reativar assinatura de produto que saiu de linha (evita lembrete/refill
   // de item que não pode ser reposto em 1 clique).
-  if (!sub.product.active) {
+  if (sub.product.requiresPrescription) {
+    return { ok: false, error: PRESCRIPTION_PRODUCT_UNAVAILABLE };
+  }
+  if (!isProductSaleable(sub.product)) {
     return { ok: false, error: "Este produto não está mais disponível." };
   }
   // Retomar reinicia o ciclo a partir de hoje.
@@ -149,6 +163,12 @@ export async function updateSubscriptionInterval(
 export async function refillNow(id: string): Promise<SubscriptionActionResult> {
   const sub = await ownSubscription(id);
   if (!sub) return { ok: false, error: "Assinatura não encontrada." };
+  if (sub.product.requiresPrescription) {
+    return { ok: false, error: PRESCRIPTION_PRODUCT_UNAVAILABLE };
+  }
+  if (!isProductSaleable(sub.product)) {
+    return { ok: false, error: "Este produto não está mais disponível." };
+  }
 
   const added = await addToCart(sub.productId, sub.qty);
   if (!added.ok) {

@@ -4,30 +4,54 @@ import Link from "next/link";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Minus, Plus, Trash2, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { updateCartItem, removeCartItem } from "@/actions/cart";
 import { ProductImage } from "@/components/store/product-image";
 import { formatBRL } from "@/lib/utils";
 import type { CartItemView } from "@/lib/cart";
+
+// Mantido em sincronia com a validação server-side de varejo. Não importe
+// `lib/orders` neste Client Component: esse módulo também depende do Prisma.
+const MAX_ITEM_QUANTITY = 99;
 
 export function CartItemRow({ item }: { item: CartItemView }) {
   const router = useRouter();
   const [pending, start] = React.useTransition();
   const unit = item.product.promoPrice ?? item.product.price;
 
-  const change = (qty: number) =>
+  const run = (
+    action: () => Promise<{ ok: boolean; error?: string }>,
+    fallback: string
+  ) =>
     start(async () => {
-      await updateCartItem(item.id, qty);
-      router.refresh();
+      try {
+        const result = await action();
+        if (!result.ok) {
+          toast.error(result.error ?? fallback);
+        }
+      } catch {
+        toast.error(fallback);
+      } finally {
+        // Algumas falhas também corrigem o carrinho no servidor (por exemplo,
+        // removendo um item que ficou sem estoque), então sempre sincroniza.
+        router.refresh();
+      }
     });
+
+  const change = (qty: number) =>
+    run(
+      () => updateCartItem(item.id, qty),
+      "Não foi possível atualizar a quantidade."
+    );
 
   const remove = () =>
-    start(async () => {
-      await removeCartItem(item.id);
-      router.refresh();
-    });
+    run(
+      () => removeCartItem(item.id),
+      "Não foi possível remover o produto."
+    );
 
   return (
-    <div className="flex gap-4 py-4">
+    <div className="flex gap-4 py-4" aria-busy={pending}>
       <Link href={`/produto/${item.product.slug}`} className="shrink-0">
         <ProductImage
           src={item.product.images[0]?.url}
@@ -55,18 +79,40 @@ export function CartItemRow({ item }: { item: CartItemView }) {
             <button
               onClick={() => change(item.qty - 1)}
               disabled={pending}
-              aria-label="Diminuir"
+              aria-label={`Diminuir quantidade de ${item.product.name}`}
               className="grid size-11 place-items-center rounded-l-xl text-muted-foreground transition hover:bg-muted disabled:opacity-40"
             >
               <Minus className="size-4" />
             </button>
-            <span className="w-8 text-center text-sm font-bold">
-              {pending ? <Loader2 className="mx-auto size-3.5 animate-spin" /> : item.qty}
+            <span
+              className="w-8 text-center text-sm font-bold"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {pending ? (
+                <>
+                  <Loader2
+                    className="mx-auto size-3.5 animate-spin"
+                    aria-hidden="true"
+                  />
+                  <span className="sr-only">Atualizando quantidade</span>
+                </>
+              ) : (
+                <>
+                  <span className="sr-only">Quantidade: </span>
+                  {item.qty}
+                </>
+              )}
             </span>
             <button
               onClick={() => change(item.qty + 1)}
-              disabled={pending || item.qty >= item.product.stock}
-              aria-label="Aumentar"
+              disabled={
+                pending ||
+                item.qty >= item.product.stock ||
+                item.qty >= MAX_ITEM_QUANTITY
+              }
+              aria-label={`Aumentar quantidade de ${item.product.name}`}
               className="grid size-11 place-items-center rounded-r-xl text-muted-foreground transition hover:bg-muted disabled:opacity-40"
             >
               <Plus className="size-4" />
@@ -76,9 +122,10 @@ export function CartItemRow({ item }: { item: CartItemView }) {
           <button
             onClick={remove}
             disabled={pending}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground transition hover:text-danger-500"
+            aria-label={`Remover ${item.product.name} da sacola`}
+            className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-muted-foreground transition hover:bg-danger-500/10 hover:text-danger-500"
           >
-            <Trash2 className="size-4" /> Remover
+            <Trash2 className="size-4" aria-hidden="true" /> Remover
           </button>
         </div>
       </div>

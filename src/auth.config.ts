@@ -1,10 +1,13 @@
 import type { NextAuthConfig } from "next-auth";
 import type { PharmacyType, Role, StaffProfile } from "@prisma/client";
+import { hasVersionedSessionClaims } from "@/lib/session-claims";
 
 // Config edge-safe (sem bcrypt/Prisma) — usada pelo middleware.
 export const authConfig = {
   pages: { signIn: "/login" },
-  session: { strategy: "jwt" },
+  // JWT curto reduz a janela residual em dispositivos esquecidos; sessionVersion
+  // permite revogação imediata antes das 24 horas.
+  session: { strategy: "jwt", maxAge: 24 * 60 * 60 },
   providers: [],
   callbacks: {
     jwt({ token, user }) {
@@ -14,6 +17,8 @@ export const authConfig = {
         token.pharmacyId = user.pharmacyId ?? null;
         token.pharmacyType = user.pharmacyType ?? null;
         token.staffProfile = user.staffProfile ?? null;
+        token.sessionVersion = user.sessionVersion;
+        token.mfaEnabled = user.mfaEnabled;
       }
       return token;
     },
@@ -26,6 +31,12 @@ export const authConfig = {
           (token.pharmacyType as PharmacyType | null) ?? null;
         session.user.staffProfile =
           (token.staffProfile as StaffProfile | null) ?? null;
+        // Não fabrique defaults para JWTs legados: o proxy precisa distinguir
+        // "claim ausente" de MFA desativado e forçar uma autenticação nova.
+        if (hasVersionedSessionClaims(token)) {
+          session.user.sessionVersion = token.sessionVersion;
+          session.user.mfaEnabled = token.mfaEnabled;
+        }
       }
       return session;
     },

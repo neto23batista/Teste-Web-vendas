@@ -1,14 +1,25 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Download, ShieldCheck, AlertTriangle } from "lucide-react";
-import { requireUser } from "@/lib/session";
+import { Download, ShieldCheck, AlertTriangle, FileText } from "lucide-react";
+import { requireUserPage } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { DeleteAccountForm } from "@/components/account/delete-account-form";
 
 export const metadata: Metadata = { title: "Privacidade" };
 
 export default async function PrivacyAccountPage() {
-  const user = await requireUser();
+  const user = await requireUserPage("/conta/privacidade");
+  const legacyDocuments = await prisma.prescription.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      status: true,
+      createdAt: true,
+      order: { select: { number: true } },
+    },
+  });
 
   return (
     <div className="space-y-5">
@@ -27,9 +38,9 @@ export default async function PrivacyAccountPage() {
           Baixar meus dados
         </h3>
         <p className="text-sm text-muted-foreground">
-          Receba um arquivo com tudo que está associado à sua conta: perfil,
-          endereços, pedidos, pontos de fidelidade, avaliações, receitas e
-          favoritos (portabilidade — art. 18 da LGPD).
+          Receba um arquivo com perfil, endereços, pedidos e pagamentos,
+          carrinho, assinaturas, fidelidade, avaliações, documentos legados,
+          favoritos, aceites e eventos de segurança associados à conta.
         </p>
         <Button asChild variant="outline">
           <a href="/api/account/export" download>
@@ -38,6 +49,39 @@ export default async function PrivacyAccountPage() {
         </Button>
       </section>
 
+      {legacyDocuments.length > 0 ? (
+        <section className="space-y-3 rounded-2xl border border-border bg-card p-5">
+          <h3 className="flex items-center gap-2 font-bold">
+            <FileText className="size-5 text-brand-600 dark:text-brand-400" />
+            Documentos legados
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            A loja não recebe novas receitas. Estes arquivos históricos ficam em
+            armazenamento privado e cada download exige sua sessão autenticada.
+          </p>
+          <ul className="divide-y divide-border rounded-xl border border-border">
+            {legacyDocuments.map((document) => (
+              <li
+                key={document.id}
+                className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"
+              >
+                <span>
+                  {document.order?.number
+                    ? `Pedido ${document.order.number}`
+                    : "Documento sem pedido"}{" "}
+                  · {document.createdAt.toLocaleDateString("pt-BR")} · {document.status}
+                </span>
+                <Button asChild variant="outline" size="sm">
+                  <a href={`/api/prescriptions/${document.id}`} download>
+                    <Download className="size-4" /> Baixar
+                  </a>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {/* Excluir conta */}
       <section className="space-y-3 rounded-2xl border border-danger-500/30 bg-danger-500/5 p-5">
         <h3 className="flex items-center gap-2 font-bold text-danger-500">
@@ -45,10 +89,11 @@ export default async function PrivacyAccountPage() {
           Excluir minha conta
         </h3>
         <p className="text-sm text-muted-foreground">
-          Apaga seus dados pessoais (endereços, favoritos, receitas, avaliações
-          e fidelidade) e anonimiza a conta de forma{" "}
-          <strong>permanente</strong>. Registros de pedidos são mantidos sem
-          vínculo com você, por obrigação fiscal.
+          Apaga dados que não precisam ser conservados (endereços, favoritos,
+          documentos legados, avaliações e fidelidade) e anonimiza a conta de
+          forma <strong>permanente</strong>. Pedidos, pagamentos e evidências
+          obrigatórias podem permanecer com acesso restrito durante os prazos
+          fiscais, regulatórios e de defesa aplicáveis.
         </p>
         <DeleteAccountForm email={user.email ?? ""} />
       </section>

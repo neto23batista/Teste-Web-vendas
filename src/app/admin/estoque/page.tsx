@@ -1,4 +1,4 @@
-import { AlertTriangle, PackageCheck } from "lucide-react";
+import { AlertTriangle, PackageCheck, PackageSearch } from "lucide-react";
 import { getStockRows } from "@/lib/admin";
 import { getAdminScope } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
@@ -32,7 +32,7 @@ export default async function AdminStockPage({
   if (canTransfer && rows.length > 0) {
     const [unitList, invs] = await Promise.all([
       prisma.pharmacy.findMany({
-        where: { active: true },
+        where: { active: true, archivedAt: null },
         select: { id: true, name: true },
         orderBy: [{ type: "asc" }, { name: "asc" }],
       }),
@@ -60,26 +60,46 @@ export default async function AdminStockPage({
       <div
         className={cn(
           "flex items-center gap-3 rounded-2xl border p-4 text-sm font-semibold",
-          lowCount > 0
-            ? "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
-            : "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"
+          rows.length === 0
+            ? "border-border bg-muted/30 text-muted-foreground"
+            : lowCount > 0
+              ? "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+              : "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"
         )}
       >
-        {lowCount > 0 ? (
+        {rows.length === 0 ? (
           <>
-            <AlertTriangle className="size-5" /> {lowCount}{" "}
+            <PackageSearch className="size-5 shrink-0" aria-hidden="true" />
+            Nenhum produto ativo encontrado no estoque desta unidade
+          </>
+        ) : lowCount > 0 ? (
+          <>
+            <AlertTriangle className="size-5" aria-hidden="true" /> {lowCount}{" "}
             {lowCount === 1 ? "produto precisa" : "produtos precisam"} de reposição
           </>
         ) : (
           <>
-            <PackageCheck className="size-5" /> Estoque saudável em todos os produtos
+            <PackageCheck className="size-5" aria-hidden="true" /> Estoque saudável em todos os produtos
           </>
         )}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        {/* Mobile: lista em cards (a tabela não cabe na tela). */}
-        <div className="divide-y divide-border md:hidden">
+      {rows.length === 0 ? (
+        <div className="grid place-items-center gap-2 rounded-2xl border border-dashed border-border bg-card px-5 py-14 text-center">
+          <PackageSearch
+            className="size-9 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <p className="font-semibold">Estoque sem itens para exibir</p>
+          <p className="max-w-md text-sm text-muted-foreground">
+            Cadastre ou ative produtos e vincule o estoque à unidade. Se você
+            administra mais de uma loja, confirme também a unidade selecionada.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-border bg-card">
+          {/* Mobile: lista em cards (a tabela não cabe na tela). */}
+          <div className="divide-y divide-border md:hidden">
           {rows.map((p) => {
             const out = p.stock <= 0;
             const low = !out && p.stock <= p.minStock;
@@ -125,9 +145,9 @@ export default async function AdminStockPage({
               </div>
             );
           })}
-        </div>
+          </div>
 
-        <div className="hidden overflow-x-auto md:block">
+          <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-muted/50 text-left text-xs uppercase text-muted-foreground">
               <tr>
@@ -194,8 +214,9 @@ export default async function AdminStockPage({
               })}
             </tbody>
           </table>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

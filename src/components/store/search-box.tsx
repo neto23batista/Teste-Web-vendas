@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Search, Loader2, ArrowRight, TrendingUp } from "lucide-react";
@@ -36,7 +35,11 @@ export function SearchBox({
   const [items, setItems] = React.useState<Suggestion[]>([]);
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState(false);
+  const [retryKey, setRetryKey] = React.useState(0);
   const [active, setActive] = React.useState(-1);
+  const listId = React.useId();
+  const statusId = React.useId();
   const rootRef = React.useRef<HTMLFormElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const abortRef = React.useRef<AbortController | null>(null);
@@ -72,17 +75,22 @@ export function SearchBox({
         const res = await fetch(`/api/search?q=${encodeURIComponent(term)}`, {
           signal: ac.signal,
         });
+        if (!res.ok) throw new Error(`Busca indisponível (${res.status})`);
         const data = await res.json();
         setItems(data.items ?? []);
+        setError(false);
         setActive(-1);
-      } catch {
-        /* abort/rede — ignora */
+      } catch (cause) {
+        if (!(cause instanceof DOMException && cause.name === "AbortError")) {
+          setItems([]);
+          setError(true);
+        }
       } finally {
-        setLoading(false);
+        if (!ac.signal.aborted) setLoading(false);
       }
     }, 220);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, retryKey]);
 
   // Fecha ao clicar fora.
   React.useEffect(() => {
@@ -148,6 +156,7 @@ export function SearchBox({
           const v = e.target.value;
           setQ(v);
           setOpen(true);
+          setError(false);
           if (v.trim().length >= 2) {
             setLoading(true);
           } else {
@@ -161,8 +170,14 @@ export function SearchBox({
         aria-label="Buscar produtos"
         autoComplete="off"
         role="combobox"
+        aria-autocomplete="list"
         aria-expanded={showDropdown}
-        aria-controls="search-suggestions"
+        aria-controls={listId}
+        aria-activedescendant={
+          active >= 0 && items[active] ? `${listId}-option-${active}` : undefined
+        }
+        aria-describedby={statusId}
+        aria-busy={loading}
         className="h-12 w-full rounded-2xl border border-border bg-muted/60 pl-12 pr-10 text-sm outline-none transition focus:border-brand-400 focus:bg-card"
       />
       {loading ? (
@@ -178,21 +193,55 @@ export function SearchBox({
         )
       )}
 
+      <span id={statusId} className="sr-only" aria-live="polite">
+        {loading
+          ? "Buscando produtos"
+          : error
+            ? "Não foi possível buscar produtos"
+            : q.trim().length >= 2
+              ? `${items.length} sugestões encontradas`
+              : "Digite pelo menos dois caracteres"}
+      </span>
+
       {showDropdown && (
         <div
-          id="search-suggestions"
           className="absolute inset-x-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)]"
         >
-          {items.length > 0 ? (
-            <ul className="max-h-[22rem] overflow-y-auto py-1">
+          <div
+            id={listId}
+            role={!error && items.length > 0 ? "listbox" : undefined}
+            aria-label={!error && items.length > 0 ? "Sugestões de produtos" : undefined}
+          >
+            {error ? (
+              <div className="space-y-3 px-4 py-5 text-center">
+              <p className="text-sm text-danger-500" role="alert">
+                Não foi possível carregar as sugestões.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setError(false);
+                  setLoading(true);
+                  setRetryKey((current) => current + 1);
+                }}
+                className="text-sm font-semibold text-brand-600 hover:underline dark:text-brand-400"
+              >
+                Tentar novamente
+              </button>
+            </div>
+            ) : items.length > 0 ? (
+              <div className="max-h-[22rem] overflow-y-auto py-1">
               {items.map((it, i) => (
-                <li key={it.slug}>
-                  <Link
-                    href={`/produto/${it.slug}`}
-                    onClick={() => setOpen(false)}
+                <button
+                    key={it.slug}
+                    id={`${listId}-option-${i}`}
+                    type="button"
+                    role="option"
+                    aria-selected={active === i}
+                    onClick={() => goToProduct(it.slug)}
                     onMouseEnter={() => setActive(i)}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 transition",
+                      "flex w-full items-center gap-3 px-3 py-2.5 text-left transition",
                       active === i ? "bg-muted" : "hover:bg-muted/60"
                     )}
                   >
@@ -229,17 +278,17 @@ export function SearchBox({
                         </span>
                       )}
                     </span>
-                  </Link>
-                </li>
+                </button>
               ))}
-            </ul>
-          ) : (
-            !loading && (
-              <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                Nenhum produto encontrado para “{q.trim()}”.
-              </p>
-            )
-          )}
+              </div>
+            ) : (
+              !loading && (
+                <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+                  Nenhum produto encontrado para “{q.trim()}”.
+                </p>
+              )
+            )}
+          </div>
 
           <button
             type="button"

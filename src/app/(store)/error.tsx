@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import Link from "next/link";
 import { AlertTriangle, Home, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,11 +11,6 @@ export default function StoreError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  React.useEffect(() => {
-    // Loga para o console/monitoramento; não expõe detalhes ao usuário.
-    console.error(error);
-  }, [error]);
-
   return (
     <div className="container-page grid place-items-center py-20">
       <div className="max-w-md text-center">

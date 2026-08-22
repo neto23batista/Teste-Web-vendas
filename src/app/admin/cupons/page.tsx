@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { formatBRL, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CouponRowActions } from "@/components/admin/coupon-row-actions";
+import { moneyToNumber } from "@/lib/money";
 
 export const metadata = { title: "Cupons & Promoções" };
 
@@ -52,6 +53,8 @@ export default async function AdminCouponsPage() {
           <div className="divide-y divide-border md:hidden">
             {coupons.map((c) => {
               const expired = c.expiresAt && c.expiresAt < now;
+              const value = moneyToNumber(c.value);
+              const minTotal = moneyToNumber(c.minTotal);
               return (
                 <div key={c.id} className="space-y-2.5 p-4">
                   <div className="flex items-center gap-2">
@@ -74,10 +77,10 @@ export default async function AdminCouponsPage() {
                   </div>
                   <p className="text-sm text-muted-foreground">
                     <strong className="text-foreground">
-                      {c.type === "PERCENT" ? `${c.value}%` : formatBRL(c.value)}
+                      {c.type === "PERCENT" ? `${value}%` : formatBRL(value)}
                     </strong>{" "}
                     de desconto
-                    {c.minTotal > 0 && <> · mínimo {formatBRL(c.minTotal)}</>} ·{" "}
+                    {minTotal > 0 && <> · mínimo {formatBRL(minTotal)}</>} ·{" "}
                     {c.expiresAt
                       ? `até ${new Date(c.expiresAt).toLocaleDateString("pt-BR")}`
                       : "sem prazo"}{" "}
@@ -106,6 +109,8 @@ export default async function AdminCouponsPage() {
               <tbody className="divide-y divide-border">
                 {coupons.map((c) => {
                   const expired = c.expiresAt && c.expiresAt < now;
+                  const value = moneyToNumber(c.value);
+                  const minTotal = moneyToNumber(c.minTotal);
                   return (
                     <tr key={c.id} className="transition hover:bg-muted/30">
                       <td className="p-4">
@@ -115,10 +120,10 @@ export default async function AdminCouponsPage() {
                         </span>
                       </td>
                       <td className="p-4 font-semibold">
-                        {c.type === "PERCENT" ? `${c.value}%` : formatBRL(c.value)}
+                        {c.type === "PERCENT" ? `${value}%` : formatBRL(value)}
                       </td>
                       <td className="p-4 text-muted-foreground">
-                        {c.minTotal > 0 ? formatBRL(c.minTotal) : "—"}
+                        {minTotal > 0 ? formatBRL(minTotal) : "—"}
                       </td>
                       <td className="p-4 text-muted-foreground">
                         {c.expiresAt

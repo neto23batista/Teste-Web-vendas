@@ -109,7 +109,7 @@ export function SettingsForm({
           <Field
             label="Taxa da Entrega Rápida (R$)"
             htmlFor="expressFlat"
-            hint="Fixo da entrega em 30–40 min, somado ao custo por km"
+            hint="Valor fixo da modalidade prioritária, somado ao custo por km"
           >
             <Input
               id="expressFlat"
@@ -140,7 +140,20 @@ export function SettingsForm({
           <Store className="size-5 text-brand-600 dark:text-brand-400" /> Dados
           da farmácia
         </h2>
+        <p className="text-sm text-muted-foreground">
+          Estes dados são exibidos publicamente. Enquanto os campos obrigatórios
+          estiverem incompletos, a loja informa que o ambiente não está liberado
+          para operação comercial.
+        </p>
         <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Razão social" htmlFor="legalName">
+            <Input
+              id="legalName"
+              name="legalName"
+              defaultValue={settings.legalName}
+              placeholder="Razão social registrada"
+            />
+          </Field>
           <Field label="CNPJ" htmlFor="cnpj">
             <Input
               id="cnpj"
@@ -217,6 +230,36 @@ export function SettingsForm({
             />
           </Field>
         </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Licença sanitária" htmlFor="sanitaryLicense">
+            <Input
+              id="sanitaryLicense"
+              name="sanitaryLicense"
+              defaultValue={settings.sanitaryLicense}
+              placeholder="Número e órgão emissor"
+            />
+          </Field>
+          <Field label="AFE (Anvisa)" htmlFor="afe">
+            <Input
+              id="afe"
+              name="afe"
+              defaultValue={settings.afe}
+              placeholder="Número da AFE"
+            />
+          </Field>
+          <Field
+            label="AE (se aplicável)"
+            htmlFor="ae"
+            hint="Deixe em branco quando a operação não exigir Autorização Especial"
+          >
+            <Input
+              id="ae"
+              name="ae"
+              defaultValue={settings.ae}
+              placeholder="Número da AE"
+            />
+          </Field>
+        </div>
       </section>
 
       <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
@@ -225,49 +268,19 @@ export function SettingsForm({
           Pagamento online (Stripe)
         </h2>
         <p className="text-sm text-muted-foreground">
-          Cole a <strong>secret key</strong> do Stripe (Dashboard → Developers →
-          API keys) e o <strong>webhook secret</strong> (Developers → Webhooks →
-          seu endpoint <code>/api/webhooks/stripe</code> → Signing secret).
-          Chave <code>sk_test_…</code> = ambiente de teste; <code>sk_live_…</code>{" "}
-          = produção. Com as chaves salvas, a loja gera cartão e PIX
-          (PIX depende da habilitação do Stripe).
+          Por segurança, as credenciais não são armazenadas no banco. Configure
+          <code> STRIPE_SECRET_KEY </code> e <code>STRIPE_WEBHOOK_SECRET</code> no
+          secret manager da plataforma e faça um novo deploy. Esta tela mostra
+          apenas se cada variável está disponível.
         </p>
-        <Field
-          label="Secret key"
-          htmlFor="stripeSecretKey"
-          hint={
-            payment.hasSecretKey
-              ? "Uma chave já está salva. Deixe como está para mantê-la; cole uma nova para substituir."
-              : "Nenhuma chave salva ainda — os pagamentos online estão desativados."
-          }
-        >
-          <Input
-            id="stripeSecretKey"
-            name="stripeSecretKey"
-            type="password"
-            autoComplete="off"
-            defaultValue={payment.hasSecretKey ? "••••••••••••••••" : ""}
-            placeholder="sk_live_… ou sk_test_…"
-          />
-        </Field>
-        <Field
-          label="Webhook secret"
-          htmlFor="stripeWebhookSecret"
-          hint={
-            payment.hasWebhook
-              ? "Um webhook secret já está salvo. Deixe como está para mantê-lo; cole um novo para substituir."
-              : "Necessário para confirmar os pagamentos automaticamente (whsec_…)."
-          }
-        >
-          <Input
-            id="stripeWebhookSecret"
-            name="stripeWebhookSecret"
-            type="password"
-            autoComplete="off"
-            defaultValue={payment.hasWebhook ? "••••••••••••••••" : ""}
-            placeholder="whsec_…"
-          />
-        </Field>
+        <div className="grid gap-3 sm:grid-cols-2" role="status" aria-live="polite">
+          <p className="rounded-xl border border-border bg-muted/50 p-3 text-sm">
+            Secret key: <strong>{payment.hasSecretKey ? "configurada" : "ausente"}</strong>
+          </p>
+          <p className="rounded-xl border border-border bg-muted/50 p-3 text-sm">
+            Webhook secret: <strong>{payment.hasWebhook ? "configurado" : "ausente"}</strong>
+          </p>
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
@@ -283,8 +296,7 @@ export function SettingsForm({
             Testar conexão
           </button>
           <p className="text-xs text-muted-foreground">
-            Verifica se a secret key salva autentica e em qual ambiente. Salve
-            antes de testar.
+            Verifica se a secret key do ambiente autentica e em qual modo está.
           </p>
         </div>
       </section>

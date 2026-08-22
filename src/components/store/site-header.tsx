@@ -6,13 +6,11 @@ import { CartBadge } from "@/components/store/cart-badge";
 import { PharmacySelector } from "@/components/store/pharmacy-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { getCartCount } from "@/lib/cart";
 import { getCurrentUser } from "@/lib/session";
 import { listPharmaciesSafe, getSelectedPharmacyId } from "@/lib/pharmacy";
 
-export async function SiteHeader() {
-  const [count, user, pharmacies, selectedId] = await Promise.all([
-    getCartCount(),
+export async function SiteHeader({ cartCount }: { cartCount: number }) {
+  const [user, pharmacies, selectedId] = await Promise.all([
     getCurrentUser(),
     listPharmaciesSafe(),
     getSelectedPharmacyId(),
@@ -64,7 +62,7 @@ export async function SiteHeader() {
             <Link href="/sacola">
               <ShoppingBag className="size-5" />
               <span className="hidden sm:inline">Sacola</span>
-              <CartBadge count={count} />
+              <CartBadge count={cartCount} />
             </Link>
           </Button>
         </nav>

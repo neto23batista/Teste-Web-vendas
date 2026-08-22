@@ -24,6 +24,7 @@ type Product = {
   isGeneric: boolean;
   featured: boolean;
   active: boolean;
+  requiresPrescription?: boolean;
   images?: { url: string }[];
 };
 
@@ -89,14 +90,14 @@ export function ProductForm({
             <Field
               label="Imagens (URLs)"
               htmlFor="imageUrls"
-              hint="Uma URL https por linha. A primeira é a imagem principal. Sem imagem, mostramos o emoji."
+              hint="Uma URL HTTPS por linha (até 8), somente images.unsplash.com ou images.pexels.com. A primeira é a principal."
             >
               <textarea
                 id="imageUrls"
                 name="imageUrls"
                 rows={3}
                 defaultValue={(p?.images ?? []).map((i) => i.url).join("\n")}
-                placeholder="https://exemplo.com/produto-1.jpg"
+                placeholder="https://images.unsplash.com/photo-..."
                 className="w-full rounded-xl border border-border bg-card p-4 text-sm outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
               />
             </Field>
@@ -164,6 +165,12 @@ export function ProductForm({
 
           <section className="space-y-3 rounded-2xl border border-border bg-card p-5">
             <h2 className="font-bold">Atributos</h2>
+            {p?.requiresPrescription && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                Produto sujeito a prescrição: permanece inativo e não pode ser
+                vendido ou assinado neste canal.
+              </div>
+            )}
             {[
               ["active", "Ativo na loja", p ? p.active : true],
               ["featured", "Destaque", p?.featured ?? false],
@@ -174,6 +181,7 @@ export function ProductForm({
                   type="checkbox"
                   name={name as string}
                   defaultChecked={checked as boolean}
+                  disabled={name === "active" && p?.requiresPrescription === true}
                   className="size-4 rounded border-border accent-brand-600"
                 />
                 {label as string}

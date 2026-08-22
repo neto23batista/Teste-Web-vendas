@@ -317,7 +317,8 @@ export function AddressBook({ addresses }: { addresses: Address[] }) {
                       onClick={() => onSetDefault(a)}
                       disabled={pending}
                       title="Definir como padrão"
-                      className="grid size-9 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-brand-600"
+                      aria-label={`Definir ${a.label} como endereço padrão`}
+                      className="grid size-11 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-brand-600"
                     >
                       <Star className="size-4" />
                     </button>
@@ -329,7 +330,8 @@ export function AddressBook({ addresses }: { addresses: Address[] }) {
                     }}
                     disabled={pending}
                     title="Editar"
-                    className="grid size-9 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-brand-600"
+                    aria-label={`Editar endereço ${a.label}`}
+                    className="grid size-11 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-brand-600"
                   >
                     <Pencil className="size-4" />
                   </button>
@@ -337,7 +339,8 @@ export function AddressBook({ addresses }: { addresses: Address[] }) {
                     onClick={() => onDelete(a)}
                     disabled={pending}
                     title="Excluir"
-                    className="grid size-9 place-items-center rounded-lg text-muted-foreground transition hover:bg-danger-500/10 hover:text-danger-500"
+                    aria-label={`Excluir endereço ${a.label}`}
+                    className="grid size-11 place-items-center rounded-lg text-muted-foreground transition hover:bg-danger-500/10 hover:text-danger-500"
                   >
                     <Trash2 className="size-4" />
                   </button>

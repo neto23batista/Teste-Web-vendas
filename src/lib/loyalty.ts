@@ -9,6 +9,7 @@
 
 export const BRL_PER_POINT = 0.05;
 export const REDEEM_MAX_FRACTION = 0.5;
+export const CENTS_PER_POINT = 5;
 
 /** Quantos pontos podem ser resgatados dado o saldo e a base (subtotal − cupom). */
 export function maxRedeemablePoints(available: number, base: number): number {
@@ -19,5 +20,22 @@ export function maxRedeemablePoints(available: number, base: number): number {
 
 /** Converte pontos em desconto (R$), arredondado a centavos. */
 export function pointsToBRL(points: number): number {
-  return Math.round(Math.max(0, points) * BRL_PER_POINT * 100) / 100;
+  return pointsToCents(points) / 100;
+}
+
+export function pointsToCents(points: number): number {
+  if (!Number.isSafeInteger(points) || points <= 0) return 0;
+  const cents = points * CENTS_PER_POINT;
+  return Number.isSafeInteger(cents) ? cents : 0;
+}
+
+/** Versão usada pelo checkout: base em centavos, sem ponto flutuante. */
+export function maxRedeemablePointsForCents(
+  available: number,
+  baseCents: number
+): number {
+  if (!Number.isSafeInteger(available) || !Number.isSafeInteger(baseCents)) return 0;
+  if (available <= 0 || baseCents <= 0) return 0;
+  // 50% da base / 5 centavos por ponto = baseCents / 10.
+  return Math.max(0, Math.min(available, Math.floor(baseCents / 10)));
 }

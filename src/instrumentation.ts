@@ -11,9 +11,14 @@ export async function register() {
 
   if (process.env.SENTRY_DSN) {
     const Sentry = await import("@sentry/nextjs");
+    const { scrubSentryEvent } = await import("@/lib/telemetry");
     Sentry.init({
       dsn: process.env.SENTRY_DSN,
+      sendDefaultPii: false,
       tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? 0),
+      beforeSend: (event) => scrubSentryEvent(event),
+      beforeSendTransaction: (event) => scrubSentryEvent(event),
+      beforeBreadcrumb: (breadcrumb) => scrubSentryEvent(breadcrumb),
     });
   }
 }
@@ -27,7 +32,7 @@ export const onRequestError: Instrumentation.onRequestError = async (
 ) => {
   const { reportError } = await import("@/lib/monitoring");
   reportError(err, {
-    path: request?.path,
+    path: request?.path?.split("?", 1)[0],
     method: request?.method,
     routeType: context?.routeType,
   });

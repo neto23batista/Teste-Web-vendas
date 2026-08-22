@@ -3,7 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import useEmblaCarousel from "embla-carousel-react";
-import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { useReducedMotion } from "framer-motion";
+import { ArrowRight, ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import { ProductCard } from "@/components/store/product-card";
 import type { ProductCard as ProductCardData } from "@/lib/products";
 
@@ -28,26 +29,28 @@ export function ProductCarousel({
     duration: 30,
   });
   const paused = React.useRef(false);
-  const stopped = React.useRef(false);
+  const [playing, setPlaying] = React.useState(true);
+  const reduceMotion = useReducedMotion();
+  const autoplayActive = playing && !reduceMotion;
 
   // Autoplay (sem plugin): mesmo padrão do PromoCarousel.
   React.useEffect(() => {
     if (!emblaApi) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (reduceMotion) return;
     const id = setInterval(() => {
-      if (!paused.current && !stopped.current) emblaApi.scrollNext();
+      if (!paused.current && playing) emblaApi.scrollNext();
     }, AUTOPLAY_MS);
     // Arrasto manual = a pessoa assumiu; o autoplay não volta a "brigar".
-    const stop = () => (stopped.current = true);
+    const stop = () => setPlaying(false);
     emblaApi.on("pointerDown", stop);
     return () => {
       clearInterval(id);
       emblaApi.off("pointerDown", stop);
     };
-  }, [emblaApi]);
+  }, [emblaApi, playing, reduceMotion]);
 
   const manual = (dir: "prev" | "next") => {
-    stopped.current = true;
+    setPlaying(false);
     if (dir === "prev") emblaApi?.scrollPrev();
     else emblaApi?.scrollNext();
   };
@@ -60,6 +63,25 @@ export function ProductCarousel({
       onFocusCapture={() => (paused.current = true)}
       onBlurCapture={() => (paused.current = false)}
     >
+      <div className="mb-2 flex justify-end">
+        <button
+          type="button"
+          aria-label={
+            reduceMotion
+              ? "Rotação desativada pela preferência de movimento reduzido"
+              : autoplayActive
+                ? "Pausar rotação de produtos"
+                : "Retomar rotação de produtos"
+          }
+          aria-pressed={!autoplayActive}
+          disabled={!!reduceMotion}
+          onClick={() => setPlaying((current) => !current)}
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {autoplayActive ? <Pause className="size-4" /> : <Play className="size-4" />}
+          {reduceMotion ? "Movimento reduzido" : autoplayActive ? "Pausar" : "Retomar"}
+        </button>
+      </div>
       <div ref={emblaRef} className="-mx-4 overflow-hidden px-4 md:mx-0 md:px-0">
         <div className="flex touch-pan-y gap-3 pb-2 md:gap-4">
           {products.map((p) => (
@@ -94,7 +116,7 @@ export function ProductCarousel({
         type="button"
         aria-label="Produtos anteriores"
         onClick={() => manual("prev")}
-        className="glass-surface press absolute -left-4 top-1/2 z-10 hidden size-11 -translate-y-1/2 place-items-center rounded-full text-foreground opacity-0 shadow-[var(--shadow-card)] transition-opacity duration-200 hover:text-brand-600 group-hover/rail:opacity-100 md:grid dark:hover:text-brand-400"
+        className="glass-surface press absolute -left-4 top-1/2 z-10 hidden size-11 -translate-y-1/2 place-items-center rounded-full text-foreground opacity-0 shadow-[var(--shadow-card)] transition-opacity duration-200 hover:text-brand-600 focus-visible:opacity-100 group-focus-within/rail:opacity-100 group-hover/rail:opacity-100 md:grid dark:hover:text-brand-400"
       >
         <ChevronLeft className="size-5" />
       </button>
@@ -102,7 +124,7 @@ export function ProductCarousel({
         type="button"
         aria-label="Próximos produtos"
         onClick={() => manual("next")}
-        className="glass-surface press absolute -right-4 top-1/2 z-10 hidden size-11 -translate-y-1/2 place-items-center rounded-full text-foreground opacity-0 shadow-[var(--shadow-card)] transition-opacity duration-200 hover:text-brand-600 group-hover/rail:opacity-100 md:grid dark:hover:text-brand-400"
+        className="glass-surface press absolute -right-4 top-1/2 z-10 hidden size-11 -translate-y-1/2 place-items-center rounded-full text-foreground opacity-0 shadow-[var(--shadow-card)] transition-opacity duration-200 hover:text-brand-600 focus-visible:opacity-100 group-focus-within/rail:opacity-100 group-hover/rail:opacity-100 md:grid dark:hover:text-brand-400"
       >
         <ChevronRight className="size-5" />
       </button>

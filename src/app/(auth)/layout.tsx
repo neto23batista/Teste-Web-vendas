@@ -1,5 +1,10 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { Plus, ShieldCheck, Truck, Stethoscope, ArrowLeft } from "lucide-react";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false, nocache: true },
+};
 
 export default function AuthLayout({
   children,
@@ -19,14 +24,14 @@ export default function AuthLayout({
         </Link>
 
         <div className="relative space-y-6">
-          <h1 className="text-balance text-4xl font-extrabold leading-tight">
-            Sua farmácia premium, do jeito que você merece.
-          </h1>
+          <p className="text-balance text-4xl font-extrabold leading-tight">
+            Compra online com segurança e informações claras.
+          </p>
           <ul className="space-y-3 text-white/85">
             {[
-              { icon: Truck, t: "Entrega expressa com rastreio em tempo real" },
-              { icon: ShieldCheck, t: "Pagamento seguro e dados protegidos (LGPD)" },
-              { icon: Stethoscope, t: "Atendimento e validação farmacêutica" },
+              { icon: Truck, t: "Modalidades e custos informados no checkout" },
+              { icon: ShieldCheck, t: "Pagamento processado por provedor especializado" },
+              { icon: Stethoscope, t: "Canais de atendimento nos horários publicados" },
             ].map(({ icon: Icon, t }) => (
               <li key={t} className="flex items-center gap-3">
                 <span className="grid size-9 place-items-center rounded-xl bg-white/15 glass">
@@ -53,9 +58,13 @@ export default function AuthLayout({
             <ArrowLeft className="size-4" /> Voltar à loja
           </Link>
         </div>
-        <div className="flex flex-1 items-center justify-center p-6 pb-16">
+        <main
+          id="conteudo-principal"
+          tabIndex={-1}
+          className="flex flex-1 items-center justify-center p-6 pb-16"
+        >
           <div className="w-full max-w-md">{children}</div>
-        </div>
+        </main>
       </div>
     </div>
   );

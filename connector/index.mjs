@@ -11,6 +11,11 @@ import { config } from "./config.mjs";
 import { pingAll } from "./client.mjs";
 import { sincronizarCatalogo } from "./catalogo.mjs";
 import { exportarPedidos } from "./pedidos.mjs";
+import {
+  createSerialExecutor,
+  safeErrorMessage,
+  scheduleAfterCompletion,
+} from "./security.mjs";
 
 const arg = process.argv[2];
 
@@ -18,7 +23,7 @@ async function cicloCatalogo() {
   try {
     await sincronizarCatalogo();
   } catch (err) {
-    console.error(`[catalogo] ERRO: ${err instanceof Error ? err.message : err}`);
+    console.error(`[catalogo] ERRO: ${safeErrorMessage(err)}`);
   }
 }
 
@@ -26,7 +31,7 @@ async function cicloPedidos() {
   try {
     await exportarPedidos();
   } catch (err) {
-    console.error(`[pedidos] ERRO: ${err instanceof Error ? err.message : err}`);
+    console.error(`[pedidos] ERRO: ${safeErrorMessage(err)}`);
   }
 }
 
@@ -43,12 +48,17 @@ if (arg === "--ping") {
   console.log(
     `[conector] iniciado — catálogo a cada ${config.catalogEveryMin}min, pedidos a cada ${config.ordersEverySec}s`
   );
-  console.log(
-    `[conector] InovaFarma: ${config.inovafarmaUrl} | FarmaVida: ${config.farmavidaUrl}`
-  );
+  console.log("[conector] endpoints validados; valores omitidos dos logs");
 
-  await cicloCatalogo();
-  await cicloPedidos();
-  setInterval(cicloCatalogo, config.catalogEveryMin * 60_000);
-  setInterval(cicloPedidos, config.ordersEverySec * 1_000);
+  const execute = createSerialExecutor();
+  await execute(cicloCatalogo);
+  await execute(cicloPedidos);
+  scheduleAfterCompletion(
+    () => execute(cicloCatalogo),
+    config.catalogEveryMin * 60_000
+  );
+  scheduleAfterCompletion(
+    () => execute(cicloPedidos),
+    config.ordersEverySec * 1_000
+  );
 }

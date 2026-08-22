@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { updateCoupon } from "@/actions/admin-coupons";
 import { CouponForm } from "@/components/admin/coupon-form";
+import { moneyToNumber } from "@/lib/money";
 
 export const metadata = { title: "Editar cupom" };
 
@@ -30,7 +31,15 @@ export default async function EditCouponPage({
         <h1 className="mt-2 text-2xl font-extrabold">Editar cupom</h1>
         <p className="text-sm text-muted-foreground">{coupon.code}</p>
       </div>
-      <CouponForm action={action} coupon={coupon} submitLabel="Salvar alterações" />
+      <CouponForm
+        action={action}
+        coupon={{
+          ...coupon,
+          value: moneyToNumber(coupon.value),
+          minTotal: moneyToNumber(coupon.minTotal),
+        }}
+        submitLabel="Salvar alterações"
+      />
     </div>
   );
 }

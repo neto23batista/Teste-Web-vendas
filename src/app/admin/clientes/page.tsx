@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Search, Star, ChevronRight } from "lucide-react";
 import { getAdminCustomers } from "@/lib/admin";
 import { Pagination } from "@/components/admin/pagination";
+import { requireArea } from "@/lib/session";
 
 type SP = Record<string, string | string[] | undefined>;
 
@@ -10,6 +11,7 @@ export default async function AdminCustomersPage({
 }: {
   searchParams: Promise<SP>;
 }) {
+  await requireArea("clientes");
   const sp = await searchParams;
   const q = (Array.isArray(sp.q) ? sp.q[0] : sp.q)?.trim() || undefined;
   const page = Number(Array.isArray(sp.page) ? sp.page[0] : sp.page) || 1;

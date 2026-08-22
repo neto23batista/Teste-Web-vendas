@@ -1,16 +1,18 @@
+import { randomUUID } from "crypto";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireUserPage } from "@/lib/session";
 import { getCart } from "@/lib/cart";
 import { getShippingConfig, getPaymentSettings, resolveKm } from "@/lib/settings";
 import { paymentAvailability } from "@/lib/payment-methods";
 import { CheckoutForm } from "@/components/store/checkout-form";
+import { isValidCpf } from "@/lib/cpf";
 
 export const metadata: Metadata = { title: "Checkout" };
 
 export default async function CheckoutPage() {
-  const user = await requireUser();
+  const user = await requireUserPage("/checkout");
   const cart = await getCart();
   if (!cart || cart.items.length === 0) redirect("/sacola");
 
@@ -46,18 +48,19 @@ export default async function CheckoutPage() {
     <div className="aurora">
       <div className="container-page py-6 md:py-8">
       <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
-        Pagamento seguro
+        Revisão e pagamento
       </p>
       <h1 className="mb-6 text-2xl font-extrabold tracking-tight md:text-3xl">
         Finalizar compra
       </h1>
       <CheckoutForm
+        initialCheckoutAttempt={randomUUID()}
         addresses={addresses}
         subtotal={cart.subtotal}
         points={loyalty?.points ?? 0}
         shippingConfig={shippingConfig}
         defaultKm={shippingConfig.defaultKm}
-        hasCpf={!!dbUser?.cpf}
+        hasCpf={isValidCpf(dbUser?.cpf ?? "")}
         availability={availability}
       />
       </div>

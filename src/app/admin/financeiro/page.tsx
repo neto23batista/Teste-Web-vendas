@@ -9,6 +9,7 @@ import { listPharmaciesSafe } from "@/lib/pharmacy";
 import { formatBRL, cn } from "@/lib/utils";
 import { ExpenseManager, type ExpenseRow } from "@/components/admin/expense-manager";
 import { StatementImport } from "@/components/admin/statement-import";
+import { moneyToNumber } from "@/lib/money";
 
 export const metadata: Metadata = { title: "Financeiro" };
 export const dynamic = "force-dynamic";
@@ -72,7 +73,7 @@ export default async function AdminFinancePage({
     id: e.id,
     description: e.description,
     category: e.category,
-    amount: e.amount,
+    amount: moneyToNumber(e.amount),
     paidAt: e.paidAt.toLocaleDateString("pt-BR"),
     pharmacyName: e.pharmacy?.name ?? null,
   }));
@@ -266,7 +267,9 @@ export default async function AdminFinancePage({
               Nenhum lançamento importado neste mês.
             </p>
           )}
-          {bankTx.map((t) => (
+          {bankTx.map((t) => {
+            const amount = moneyToNumber(t.amount, true);
+            return (
             <div key={t.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
               <div className="min-w-0">
                 <p className="truncate font-semibold">{t.description}</p>
@@ -279,12 +282,12 @@ export default async function AdminFinancePage({
                 <span
                   className={cn(
                     "font-bold tabular-nums",
-                    t.amount >= 0 ? "text-success-600" : "text-danger-500"
+                    amount >= 0 ? "text-success-600" : "text-danger-500"
                   )}
                 >
-                  {formatBRL(t.amount)}
+                  {formatBRL(amount)}
                 </span>
-                {t.amount > 0 && (
+                {amount > 0 && (
                   <span
                     className={cn(
                       "inline-flex rounded-full px-2.5 py-1 text-xs font-bold",
@@ -298,7 +301,8 @@ export default async function AdminFinancePage({
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
         {bankTx.length > 0 && (
           <p className="text-xs text-muted-foreground">

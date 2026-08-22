@@ -66,7 +66,7 @@ export function StockLevels({
           onClick={save}
           disabled={pending}
           aria-label="Salvar níveis"
-          className="inline-grid size-9 shrink-0 place-items-center rounded-lg bg-brand-600 text-white transition hover:bg-brand-700 disabled:opacity-60"
+          className="inline-grid size-11 shrink-0 place-items-center rounded-lg bg-brand-600 text-white transition hover:bg-brand-700 disabled:opacity-60"
         >
           {pending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
         </button>

@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { CART_COOKIE } from "@/lib/cart-merge";
 import { getDefaultPharmacy } from "@/lib/pharmacy";
 import type { Prisma } from "@prisma/client";
+import { moneyToCents, centsToNumber, moneyToNumber } from "@/lib/money";
 
 export { CART_COOKIE };
 
@@ -42,7 +43,10 @@ type CartItemRow = Prisma.CartItemGetPayload<{
 export type CartItemView = {
   id: string;
   qty: number;
-  product: Omit<CartItemRow["product"], "inventory"> & { stock: number };
+  product: Omit<
+    CartItemRow["product"],
+    "inventory" | "price" | "promoPrice"
+  > & { price: number; promoPrice: number | null; stock: number };
 };
 
 export type CartView = {
@@ -56,7 +60,17 @@ export type CartView = {
 function toItemView(row: CartItemRow): CartItemView {
   const { inventory, ...product } = row.product;
   const stock = inventory.reduce((sum, i) => sum + i.stock, 0);
-  return { id: row.id, qty: row.qty, product: { ...product, stock } };
+  return {
+    id: row.id,
+    qty: row.qty,
+    product: {
+      ...product,
+      price: moneyToNumber(product.price),
+      promoPrice:
+        product.promoPrice == null ? null : moneyToNumber(product.promoPrice),
+      stock,
+    },
+  };
 }
 
 async function readToken(): Promise<string | null> {
@@ -69,10 +83,11 @@ function buildView(
   pharmacyId: string | null,
   items: CartItemView[]
 ): CartView {
-  const subtotal = items.reduce(
-    (sum, it) => sum + (it.product.promoPrice ?? it.product.price) * it.qty,
-    0
-  );
+  const subtotalCents = items.reduce((sum, it) => {
+    const unit = moneyToCents(it.product.promoPrice ?? it.product.price) ?? 0;
+    return sum + unit * it.qty;
+  }, 0);
+  const subtotal = centsToNumber(subtotalCents);
   const count = items.reduce((sum, it) => sum + it.qty, 0);
   return { id, pharmacyId, items, subtotal, count };
 }

@@ -1,13 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import useEmblaCarousel from "embla-carousel-react";
+import { useReducedMotion } from "framer-motion";
 import {
   BadgePercent,
   Leaf,
   Truck,
   ArrowRight,
+  Pause,
+  Play,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -53,7 +56,7 @@ export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) 
     {
       badge: "Entrega",
       title: `Frete grátis acima de ${formatBRL(freeShippingMin)}`,
-      text: "Receba em casa rapidinho, com rastreio em tempo real.",
+      text: "Prazo e disponibilidade calculados conforme seu CEP e a unidade selecionada.",
       cta: "Começar a comprar",
       href: "/catalogo",
       icon: Truck,
@@ -64,6 +67,9 @@ export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) 
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, align: "start" });
   const [selected, setSelected] = useState(0);
   const paused = useRef(false);
+  const [playing, setPlaying] = useState(true);
+  const reduceMotion = useReducedMotion();
+  const autoplayActive = playing && !reduceMotion;
 
   useEffect(() => {
     if (!emblaApi) return;
@@ -77,17 +83,22 @@ export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) 
   // Autoplay manual (sem plugin): respeita reduced-motion e pausa em interação.
   useEffect(() => {
     if (!emblaApi) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (reduceMotion) return;
     const id = setInterval(() => {
-      if (!paused.current) emblaApi.scrollNext();
+      if (!paused.current && playing) emblaApi.scrollNext();
     }, AUTOPLAY_MS);
-    return () => clearInterval(id);
-  }, [emblaApi]);
+    const stop = () => setPlaying(false);
+    emblaApi.on("pointerDown", stop);
+    return () => {
+      clearInterval(id);
+      emblaApi.off("pointerDown", stop);
+    };
+  }, [emblaApi, playing, reduceMotion]);
 
-  const goTo = useCallback(
-    (i: number) => emblaApi?.scrollTo(i),
-    [emblaApi]
-  );
+  const goTo = (i: number) => {
+    setPlaying(false);
+    emblaApi?.scrollTo(i);
+  };
 
   return (
     <section
@@ -135,6 +146,24 @@ export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) 
           })}
         </div>
       </div>
+
+      <button
+        type="button"
+        aria-label={
+          reduceMotion
+            ? "Banners automáticos desativados pela preferência de movimento reduzido"
+            : autoplayActive
+              ? "Pausar banners"
+              : "Retomar banners"
+        }
+        aria-pressed={!autoplayActive}
+        disabled={!!reduceMotion}
+        onClick={() => setPlaying((current) => !current)}
+        className="absolute bottom-2.5 left-3 inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-black/35 px-3 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-black/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-70 md:bottom-3 md:left-5"
+      >
+        {autoplayActive ? <Pause className="size-4" /> : <Play className="size-4" />}
+        {reduceMotion ? "Movimento reduzido" : autoplayActive ? "Pausar" : "Retomar"}
+      </button>
 
       {/* dots */}
       <div className="absolute bottom-3 right-4 flex gap-1.5 md:bottom-4 md:right-6">

@@ -139,4 +139,15 @@ describe("matchStatement", () => {
     expect(matches.get(0)).toBe("perto");
     expect(matches.get(1)).toBe("longe");
   });
+
+  it("não concilia automaticamente quando há dois pagamentos igualmente prováveis", () => {
+    const matches = matchStatement(
+      [tx("2026-07-05", 100)],
+      [
+        { id: "pay-a", amount: 100, date: "2026-07-05" },
+        { id: "pay-b", amount: 100, date: "2026-07-05" },
+      ]
+    );
+    expect(matches.size).toBe(0);
+  });
 });

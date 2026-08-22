@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, MapPin, Loader2, Building2 } from "lucide-react";
+import { Plus, Trash2, MapPin, Loader2, Building2, Archive, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 import {
   createPharmacy,
   setPharmacyActive,
-  deletePharmacy,
+  archivePharmacy,
+  restorePharmacy,
   addCepRange,
   removeCepRange,
   setPharmacyShipping,
@@ -25,6 +26,7 @@ type UnitView = {
   name: string;
   type: PharmacyType;
   active: boolean;
+  archivedAt: string | null;
   city: string | null;
   state: string | null;
   shippingFlat: number | null;
@@ -99,42 +101,66 @@ export function PharmaciesManager({
               >
                 {u.type === "MATRIZ" ? "Matriz" : "Filial"}
               </span>
-              {!u.active && (
+              {u.archivedAt ? (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">
+                  Arquivada
+                </span>
+              ) : !u.active ? (
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
                   Inativa
                 </span>
-              )}
+              ) : null}
               {(u.city || u.state) && (
                 <span className="text-xs text-muted-foreground">
                   {[u.city, u.state].filter(Boolean).join(" / ")}
                 </span>
               )}
               <div className="ml-auto flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => run(() => setPharmacyActive(u.id, !u.active))}
-                  className="rounded-lg border border-border px-2.5 py-1 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
-                >
-                  {u.active ? "Desativar" : "Ativar"}
-                </button>
-                {u.type !== "MATRIZ" && (
+                {u.archivedAt ? (
                   <button
                     type="button"
                     disabled={pending}
-                    onClick={() => {
-                      if (confirm(`Excluir a unidade "${u.name}"?`))
-                        run(() => deletePharmacy(u.id));
-                    }}
-                    aria-label="Excluir unidade"
-                    className="grid size-8 place-items-center rounded-lg text-muted-foreground transition hover:bg-danger-500/10 hover:text-danger-500 disabled:opacity-40"
+                    onClick={() => run(() => restorePharmacy(u.id))}
+                    className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 py-1 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
                   >
-                    <Trash2 className="size-4" />
+                    <RotateCcw className="size-4" /> Restaurar
                   </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => run(() => setPharmacyActive(u.id, !u.active))}
+                      className="min-h-11 rounded-lg border border-border px-3 py-1 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
+                    >
+                      {u.active ? "Desativar" : "Ativar"}
+                    </button>
+                    {u.type !== "MATRIZ" && (
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => {
+                          if (
+                            confirm(
+                              `Arquivar a unidade "${u.name}"? O histórico será preservado e o token do conector será revogado.`
+                            )
+                          ) {
+                            run(() => archivePharmacy(u.id));
+                          }
+                        }}
+                        aria-label="Arquivar unidade"
+                        className="grid size-11 place-items-center rounded-lg text-muted-foreground transition hover:bg-amber-500/10 hover:text-amber-600 disabled:opacity-40"
+                      >
+                        <Archive className="size-4" />
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
 
+            {!u.archivedAt && (
+              <>
             {/* Faixas de CEP atendidas */}
             <div className="mt-3 space-y-2">
               <p className="text-xs font-semibold uppercase text-muted-foreground">
@@ -163,7 +189,7 @@ export function PharmaciesManager({
                         disabled={pending}
                         onClick={() => run(() => removeCepRange(r.id))}
                         aria-label="Remover faixa"
-                        className="text-muted-foreground transition hover:text-danger-500 disabled:opacity-40"
+                        className="grid size-6 place-items-center rounded text-muted-foreground transition hover:bg-danger-500/10 hover:text-danger-500 disabled:opacity-40"
                       >
                         <Trash2 className="size-3.5" />
                       </button>
@@ -249,6 +275,8 @@ export function PharmaciesManager({
                 onSave={run}
               />
             </div>
+              </>
+            )}
           </div>
         ))}
       </div>

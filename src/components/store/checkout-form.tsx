@@ -17,7 +17,7 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
-import { placeOrder } from "@/actions/checkout";
+import { placeOrder, previewCheckoutQuote } from "@/actions/checkout";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 import { maxRedeemablePoints, pointsToBRL } from "@/lib/loyalty";
@@ -61,6 +61,7 @@ const METHOD_INFO: Record<
 };
 
 export function CheckoutForm({
+  initialCheckoutAttempt,
   addresses,
   subtotal,
   points,
@@ -69,6 +70,7 @@ export function CheckoutForm({
   hasCpf = false,
   availability,
 }: {
+  initialCheckoutAttempt: string;
   addresses: Address[];
   subtotal: number;
   points: number;
@@ -86,11 +88,23 @@ export function CheckoutForm({
   }));
   const formRef = React.useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState(placeOrder, undefined);
+  const [checkoutAttempt, setCheckoutAttempt] = React.useState(
+    initialCheckoutAttempt
+  );
 
   // O banner de erro fica no topo do form; o toast garante que o aviso seja
   // visto mesmo com a página rolada até o botão (ex.: rate limit no duplo clique).
   React.useEffect(() => {
-    if (state?.error) toast.error(state.error);
+    if (state?.error) {
+      toast.error(state.error);
+      // Uma tentativa que chegou a criar/cancelar pedido não deve ser reutilizada
+      // no retry; um novo token continua idempotente contra duplo clique.
+      const timer = window.setTimeout(
+        () => setCheckoutAttempt(crypto.randomUUID()),
+        0
+      );
+      return () => window.clearTimeout(timer);
+    }
   }, [state]);
   const [addressId, setAddressId] = React.useState(addresses[0]?.id ?? "new");
   const [method, setMethod] = React.useState<PaymentMethodId>(
@@ -98,6 +112,7 @@ export function CheckoutForm({
   );
   const [delivery, setDelivery] = React.useState<DeliveryMethod>("standard");
   const [newZip, setNewZip] = React.useState("");
+  const [coupon, setCoupon] = React.useState("");
   const [cepLoading, setCepLoading] = React.useState(false);
   const isNew = addressId === "new";
 
@@ -115,6 +130,75 @@ export function CheckoutForm({
   const redeemPoints = usePoints ? maxRedeem : 0;
   const redeemDiscount = pointsToBRL(redeemPoints);
   const total = Math.max(0, subtotal - redeemDiscount) + shipping;
+  type PreviewResult = Awaited<ReturnType<typeof previewCheckoutQuote>>;
+  const zipDigits = newZip.replace(/\D/g, "");
+  const canQuote = !isNew || zipDigits.length === 8;
+  const quoteRequestKey = JSON.stringify([
+    isNew ? null : addressId,
+    isNew ? zipDigits : null,
+    coupon,
+    redeemPoints,
+    delivery,
+  ]);
+  const [quoteResult, setQuoteResult] = React.useState<{
+    key: string;
+    result: PreviewResult;
+  } | null>(null);
+  const [, startQuoteTransition] = React.useTransition();
+
+  React.useEffect(() => {
+    let active = true;
+    if (!canQuote) {
+      return () => {
+        active = false;
+      };
+    }
+
+    const timer = window.setTimeout(() => {
+      startQuoteTransition(async () => {
+        const result = await previewCheckoutQuote({
+          addressId: isNew ? null : addressId,
+          zip: isNew ? newZip : null,
+          coupon,
+          redeemPoints,
+          deliveryMethod: delivery,
+        });
+        if (!active) return;
+        setQuoteResult({ key: quoteRequestKey, result });
+      });
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [
+    addressId,
+    canQuote,
+    coupon,
+    delivery,
+    isNew,
+    newZip,
+    quoteRequestKey,
+    redeemPoints,
+  ]);
+
+  const currentQuoteResult =
+    quoteResult?.key === quoteRequestKey ? quoteResult.result : null;
+  const quote = currentQuoteResult?.ok ? currentQuoteResult.quote : null;
+  const quoteError = !canQuote
+    ? zipDigits.length > 0
+      ? "Informe um CEP com 8 dígitos."
+      : null
+    : currentQuoteResult && !currentQuoteResult.ok
+      ? currentQuoteResult.error
+      : null;
+  const quoteRefreshing = canQuote && currentQuoteResult === null;
+
+  const displayedShipping = quote?.shipping ?? shipping;
+  const displayedSubtotal = quote?.subtotal ?? subtotal;
+  const displayedRedeemDiscount = quote?.redeemDiscount ?? redeemDiscount;
+  const displayedTotal = quote?.total ?? total;
 
   async function handleCepBlur() {
     setCepLoading(true);
@@ -134,6 +218,7 @@ export function CheckoutForm({
 
   return (
     <form ref={formRef} action={formAction} className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+      <input type="hidden" name="checkoutAttempt" value={checkoutAttempt} />
       <div className="space-y-6">
         {state?.error && (
           <div className="flex items-center gap-2 rounded-xl bg-danger-500/10 px-4 py-3 text-sm font-medium text-danger-500">
@@ -394,11 +479,26 @@ export function CheckoutForm({
             Revisão do pedido
           </h2>
           <Field label="Cupom de desconto" htmlFor="coupon">
-            <Input id="coupon" name="coupon" placeholder="Ex.: BEMVINDO10" />
+            <Input
+              id="coupon"
+              name="coupon"
+              placeholder="Ex.: BEMVINDO10"
+              value={coupon}
+              onChange={(event) => setCoupon(event.target.value)}
+            />
           </Field>
+          {quoteError && (
+            <p role="alert" className="text-xs font-semibold text-danger-500">
+              {quoteError}
+            </p>
+          )}
 
           {/* Resgate de pontos de fidelidade */}
-          <input type="hidden" name="redeemPoints" value={redeemPoints} />
+          <input
+            type="hidden"
+            name="redeemPoints"
+            value={usePoints ? (quote?.redeemPoints ?? 0) : 0}
+          />
           {maxRedeem > 0 && (
             <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-3 transition hover:border-brand-300">
               <input
@@ -423,13 +523,23 @@ export function CheckoutForm({
           <dl className="space-y-2 border-t border-border pt-4 text-sm">
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Subtotal</dt>
-              <dd className="font-semibold">{formatBRL(subtotal)}</dd>
+              <dd className="font-semibold">{formatBRL(displayedSubtotal)}</dd>
             </div>
-            {redeemDiscount > 0 && (
+            {quote && quote.couponDiscount > 0 && (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">
+                  Cupom{quote.couponCode ? ` (${quote.couponCode})` : ""}
+                </dt>
+                <dd className="font-semibold text-success-600">
+                  −{formatBRL(quote.couponDiscount)}
+                </dd>
+              </div>
+            )}
+            {displayedRedeemDiscount > 0 && (
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Pontos de fidelidade</dt>
                 <dd className="font-semibold text-success-600">
-                  −{formatBRL(redeemDiscount)}
+                  −{formatBRL(displayedRedeemDiscount)}
                 </dd>
               </div>
             )}
@@ -438,22 +548,32 @@ export function CheckoutForm({
                 Frete{delivery === "express" ? " · Entrega Rápida" : ""}
               </dt>
               <dd className="font-semibold">
-                {shipping === 0 ? <span className="text-success-600">Grátis</span> : formatBRL(shipping)}
+                {displayedShipping === 0 ? (
+                  <span className="text-success-600">Grátis</span>
+                ) : (
+                  formatBRL(displayedShipping)
+                )}
               </dd>
             </div>
           </dl>
           <div className="flex items-end justify-between border-t border-border pt-4">
             <span className="font-bold">Total</span>
             <span className="text-2xl font-extrabold text-brand-700 dark:text-brand-400">
-              {formatBRL(total)}
+              {quoteRefreshing ? "Calculando…" : formatBRL(displayedTotal)}
             </span>
           </div>
-          <Button type="submit" variant="primary" size="lg" className="w-full" disabled={pending}>
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            className="w-full"
+            disabled={pending || quoteRefreshing || !quote}
+          >
             {pending ? <Loader2 className="size-5 animate-spin" /> : <ShieldCheck className="size-5" />}
             Finalizar pedido
           </Button>
           <p className="text-center text-xs text-muted-foreground">
-            Ambiente seguro · cupom aplicado na confirmação
+            Ambiente seguro · total calculado e validado no servidor
           </p>
         </div>
       </aside>

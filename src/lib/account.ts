@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import { moneyToNumber } from "@/lib/money";
 
-export function getUserOrders(userId: string, take?: number) {
-  return prisma.order.findMany({
+export async function getUserOrders(userId: string, take?: number) {
+  const orders = await prisma.order.findMany({
     where: { userId },
     include: {
       items: { include: { product: { select: { emoji: true, slug: true } } } },
@@ -9,6 +10,17 @@ export function getUserOrders(userId: string, take?: number) {
     orderBy: { createdAt: "desc" },
     take,
   });
+  return orders.map((order) => ({
+    ...order,
+    subtotal: moneyToNumber(order.subtotal),
+    discount: moneyToNumber(order.discount),
+    shipping: moneyToNumber(order.shipping),
+    total: moneyToNumber(order.total),
+    items: order.items.map((item) => ({
+      ...item,
+      price: moneyToNumber(item.price),
+    })),
+  }));
 }
 
 export type UserOrder = Awaited<ReturnType<typeof getUserOrders>>[number];

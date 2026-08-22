@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { pharmacyFromRequest } from "@/lib/integration-auth";
+import { moneyToNumber } from "@/lib/money";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,14 +22,13 @@ export async function GET(req: NextRequest) {
     where: {
       pharmacyId: pharmacy.id,
       status: { in: ["PAID", "PREPARING"] },
+      archivedAt: null,
       OR: [{ orderExport: null }, { orderExport: { status: { not: "SENT" } } }],
     },
     orderBy: { createdAt: "asc" },
     take: 20,
     include: {
       items: { include: { product: { select: { sku: true, ean: true } } } },
-      address: { select: { zip: true, city: true, state: true } },
-      user: { select: { name: true, cpf: true, email: true } },
     },
   });
 
@@ -46,24 +46,31 @@ export async function GET(req: NextRequest) {
       pedidos: orders.map((o) => ({
         numero: o.number,
         criadoEm: o.createdAt.toISOString(),
-        total: o.total,
-        frete: o.shipping,
-        desconto: o.discount,
+        total: moneyToNumber(o.total),
+        frete: moneyToNumber(o.shipping),
+        desconto: moneyToNumber(o.discount),
         formaPagamento: o.paymentMethod ?? "outro",
         cliente: {
-          nome: o.user?.name ?? "Cliente",
-          cpf: o.user?.cpf ?? null,
-          email: o.user?.email ?? null,
+          nome: o.customerName,
+          cpf: o.customerCpf,
+          email: o.customerEmail || null,
         },
-        entrega: o.address
-          ? { cep: o.address.zip, cidade: o.address.city, uf: o.address.state }
-          : null,
+        entrega: {
+          destinatario: o.shippingRecipient,
+          cep: o.shippingZip,
+          logradouro: o.shippingStreet,
+          numero: o.shippingNumber,
+          complemento: o.shippingComplement,
+          bairro: o.shippingDistrict,
+          cidade: o.shippingCity,
+          uf: o.shippingState,
+        },
         itens: o.items.map((i) => ({
           sku: i.product?.sku ?? null,
           ean: i.product?.ean ?? null,
           nome: i.name,
           qtd: i.qty,
-          preco: i.price,
+          preco: moneyToNumber(i.price),
         })),
       })),
     },

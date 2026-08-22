@@ -2,17 +2,24 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getAdminScope, getCurrentUser } from "@/lib/session";
+import { assertOwner } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import { cepToInt } from "@/lib/pharmacy";
 import { slugify } from "@/lib/utils";
-import type { PharmacyType } from "@prisma/client";
+import { Prisma, type PharmacyType } from "@prisma/client";
+import { centsToDecimal, parseMoneyInputToCents } from "@/lib/money";
 
 export type PharmacyResult = { ok: boolean; error?: string };
 
-// Só a matriz (admin global) gerencia unidades.
-async function ensureMatriz(): Promise<boolean> {
-  return (await getAdminScope()).isGlobal;
+// Somente um OWNER vinculado à matriz pode executar mutações globais.
+// Server Actions são endpoints: a autorização precisa viver em cada Action.
+async function ensureGlobalOwner() {
+  try {
+    const actor = await assertOwner();
+    return actor.pharmacyType === "MATRIZ" ? actor : null;
+  } catch {
+    return null;
+  }
 }
 
 function revalidatePharmacies() {
@@ -37,23 +44,39 @@ export async function createPharmacy(data: {
   state?: string;
   phone?: string;
 }): Promise<PharmacyResult> {
-  if (!(await ensureMatriz())) return { ok: false, error: "Sem permissão." };
+  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
   const name = data.name.trim();
   if (!name) return { ok: false, error: "Informe o nome da unidade." };
   if (data.type === "MATRIZ") {
-    const exists = await prisma.pharmacy.findFirst({ where: { type: "MATRIZ" } });
+    const exists = await prisma.pharmacy.findFirst({
+      where: { type: "MATRIZ", archivedAt: null },
+    });
     if (exists) return { ok: false, error: "Já existe uma matriz; cadastre como filial." };
   }
-  const created = await prisma.pharmacy.create({
-    data: {
-      name,
-      slug: await uniquePharmacySlug(name),
-      type: data.type,
-      city: data.city?.trim() || null,
-      state: data.state?.trim() || null,
-      phone: data.phone?.trim() || null,
-    },
-  });
+  let created;
+  try {
+    created = await prisma.pharmacy.create({
+      data: {
+        name,
+        slug: await uniquePharmacySlug(name),
+        type: data.type,
+        city: data.city?.trim() || null,
+        state: data.state?.trim() || null,
+        phone: data.phone?.trim() || null,
+      },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return {
+        ok: false,
+        error:
+          data.type === "MATRIZ"
+            ? "Já existe uma matriz; cadastre como filial."
+            : "Outra unidade acabou de usar este identificador. Tente novamente.",
+      };
+    }
+    throw error;
+  }
   await logAudit({
     action: "pharmacy.create",
     entity: "Pharmacy",
@@ -69,8 +92,14 @@ export async function setPharmacyActive(
   id: string,
   active: boolean
 ): Promise<PharmacyResult> {
-  if (!(await ensureMatriz())) return { ok: false, error: "Sem permissão." };
-  const ph = await prisma.pharmacy.findUnique({ where: { id }, select: { type: true } });
+  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
+  const ph = await prisma.pharmacy.findUnique({
+    where: { id },
+    select: { type: true, archivedAt: true },
+  });
+  if (!ph || ph.archivedAt) {
+    return { ok: false, error: "Unidade não encontrada ou arquivada." };
+  }
   if (ph?.type === "MATRIZ" && !active) {
     return { ok: false, error: "A matriz não pode ser desativada." };
   }
@@ -86,26 +115,101 @@ export async function setPharmacyActive(
   return { ok: true };
 }
 
-export async function deletePharmacy(id: string): Promise<PharmacyResult> {
-  if (!(await ensureMatriz())) return { ok: false, error: "Sem permissão." };
-  const ph = await prisma.pharmacy.findUnique({ where: { id }, select: { type: true, name: true } });
+export async function archivePharmacy(id: string): Promise<PharmacyResult> {
+  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
+  const ph = await prisma.pharmacy.findUnique({
+    where: { id },
+    select: { type: true, name: true, archivedAt: true },
+  });
+  if (!ph) return { ok: false, error: "Unidade não encontrada." };
+  if (ph.archivedAt) return { ok: false, error: "A unidade já está arquivada." };
   if (ph?.type === "MATRIZ") {
-    return { ok: false, error: "A matriz não pode ser excluída." };
+    return { ok: false, error: "A matriz não pode ser arquivada." };
   }
-  // Cascade remove Inventory e faixas de CEP; pedidos ficam sem unidade (SetNull).
-  // Só registra na auditoria (e reporta sucesso) se o delete de fato ocorreu.
-  const deleted = await prisma.pharmacy
-    .delete({ where: { id } })
-    .then(() => true)
-    .catch(() => false);
-  if (!deleted) {
-    return { ok: false, error: "Não foi possível excluir a unidade. Tente novamente." };
+  const [admins, openOrders] = await Promise.all([
+    prisma.user.count({ where: { pharmacyId: id, role: "ADMIN" } }),
+    prisma.order.count({
+      where: {
+        pharmacyId: id,
+        archivedAt: null,
+        status: { in: ["PENDING", "PAID", "PREPARING", "SHIPPED"] },
+      },
+    }),
+  ]);
+  if (admins > 0) {
+    return {
+      ok: false,
+      error: "Revogue ou transfira os administradores desta unidade antes de arquivar.",
+    };
   }
+  if (openOrders > 0) {
+    return {
+      ok: false,
+      error: "Conclua ou transfira os pedidos em aberto antes de arquivar a unidade.",
+    };
+  }
+  const archivedAt = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.pharmacyCepRange.updateMany({
+      where: { pharmacyId: id, archivedAt: null },
+      data: { archivedAt },
+    });
+    await tx.pharmacy.update({
+      where: { id },
+      data: {
+        active: false,
+        archivedAt,
+        integrationTokenHash: null,
+        integrationTokenLastUsedAt: null,
+      },
+    });
+  });
   await logAudit({
-    action: "pharmacy.delete",
+    action: "pharmacy.archive",
     entity: "Pharmacy",
     entityId: id,
-    detail: `Excluiu a unidade "${ph?.name ?? id}"`,
+    detail: `Arquivou a unidade "${ph.name}" e revogou seu token de integração`,
+  });
+  revalidatePharmacies();
+  return { ok: true };
+}
+
+export async function restorePharmacy(id: string): Promise<PharmacyResult> {
+  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
+  const archived = await prisma.pharmacy.findFirst({
+    where: { id, type: "FILIAL", archivedAt: { not: null } },
+    select: { id: true },
+  });
+  if (!archived) {
+    return { ok: false, error: "Filial arquivada não encontrada." };
+  }
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.pharmacy.update({
+        where: { id },
+        data: { archivedAt: null, active: false },
+      });
+      await tx.pharmacyCepRange.updateMany({
+        where: { pharmacyId: id, archivedAt: { not: null } },
+        data: { archivedAt: null },
+      });
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2004") {
+      return {
+        ok: false,
+        error:
+          "Não foi possível restaurar: outra unidade passou a atender parte destes CEPs.",
+      };
+    }
+    throw error;
+  }
+  await logAudit({
+    action: "pharmacy.restore",
+    entity: "Pharmacy",
+    entityId: id,
+    detail: "Restaurou a filial como inativa; requer reativação explícita",
+    pharmacyId: id,
   });
   revalidatePharmacies();
   return { ok: true };
@@ -117,7 +221,7 @@ export async function addCepRange(
   endCep: string,
   kmRaw?: string
 ): Promise<PharmacyResult> {
-  if (!(await ensureMatriz())) return { ok: false, error: "Sem permissão." };
+  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
   const start = cepToInt(startCep);
   const end = cepToInt(endCep);
   if (start == null || end == null) {
@@ -125,6 +229,18 @@ export async function addCepRange(
   }
   if (start > end) {
     return { ok: false, error: "O CEP inicial deve ser menor ou igual ao final." };
+  }
+  const pharmacy = await prisma.pharmacy.findFirst({
+    where: { id: pharmacyId, archivedAt: null },
+    select: { id: true },
+  });
+  if (!pharmacy) return { ok: false, error: "Unidade não encontrada ou arquivada." };
+  const overlap = await prisma.pharmacyCepRange.findFirst({
+    where: { archivedAt: null, start: { lte: end }, end: { gte: start } },
+    select: { id: true },
+  });
+  if (overlap) {
+    return { ok: false, error: "Esta faixa se sobrepõe a uma cobertura já cadastrada." };
   }
   // km opcional: distância desta faixa até a unidade (base do frete por km).
   let km: number | null = null;
@@ -135,14 +251,34 @@ export async function addCepRange(
     }
     km = n;
   }
-  await prisma.pharmacyCepRange.create({ data: { pharmacyId, start, end, km } });
+  try {
+    await prisma.pharmacyCepRange.create({ data: { pharmacyId, start, end, km } });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === "P2004" || error.code === "P2002")
+    ) {
+      return {
+        ok: false,
+        error: "Outra faixa sobreposta foi cadastrada ao mesmo tempo. Revise a cobertura.",
+      };
+    }
+    throw error;
+  }
   revalidatePharmacies();
   return { ok: true };
 }
 
 export async function removeCepRange(id: string): Promise<PharmacyResult> {
-  if (!(await ensureMatriz())) return { ok: false, error: "Sem permissão." };
-  await prisma.pharmacyCepRange.delete({ where: { id } }).catch(() => {});
+  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
+  const range = await prisma.pharmacyCepRange.findUnique({
+    where: { id },
+    select: { archivedAt: true, pharmacy: { select: { archivedAt: true } } },
+  });
+  if (!range || range.archivedAt || range.pharmacy.archivedAt) {
+    return { ok: false, error: "Faixa não encontrada ou unidade arquivada." };
+  }
+  await prisma.pharmacyCepRange.delete({ where: { id } });
   revalidatePharmacies();
   return { ok: true };
 }
@@ -156,23 +292,26 @@ export async function setPharmacyShipping(
   flat: string,
   freeMin: string
 ): Promise<PharmacyResult> {
-  if (!(await ensureMatriz())) return { ok: false, error: "Sem permissão." };
+  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
   // "" → null (herda o global); número válido → valor; senão → inválido.
-  const parse = (v: string): number | null | undefined => {
+  const parse = (v: string): string | null | undefined => {
     const t = v.trim();
     if (t === "") return null;
-    const n = Number(t.replace(",", "."));
-    return Number.isFinite(n) && n >= 0 ? n : undefined;
+    const cents = parseMoneyInputToCents(t);
+    return cents === null ? undefined : centsToDecimal(cents);
   };
   const shippingFlat = parse(flat);
   const shippingFreeMin = parse(freeMin);
   if (shippingFlat === undefined || shippingFreeMin === undefined) {
     return { ok: false, error: "Use valores numéricos não negativos (ex.: 12,90)." };
   }
-  await prisma.pharmacy.update({
-    where: { id },
+  const updated = await prisma.pharmacy.updateMany({
+    where: { id, archivedAt: null },
     data: { shippingFlat, shippingFreeMin },
   });
+  if (updated.count === 0) {
+    return { ok: false, error: "Unidade não encontrada ou arquivada." };
+  }
   await logAudit({
     action: "pharmacy.shipping",
     entity: "Pharmacy",
@@ -194,15 +333,18 @@ export async function setPharmacyRegulatory(
   pharmacistName: string,
   pharmacistCrf: string
 ): Promise<PharmacyResult> {
-  if (!(await ensureMatriz())) return { ok: false, error: "Sem permissão." };
-  await prisma.pharmacy.update({
-    where: { id },
+  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
+  const updated = await prisma.pharmacy.updateMany({
+    where: { id, archivedAt: null },
     data: {
       cnpj: cnpj.trim() || null,
       pharmacistName: pharmacistName.trim() || null,
       pharmacistCrf: pharmacistCrf.trim() || null,
     },
   });
+  if (updated.count === 0) {
+    return { ok: false, error: "Unidade não encontrada ou arquivada." };
+  }
   await logAudit({
     action: "pharmacy.regulatory",
     entity: "Pharmacy",
@@ -222,10 +364,15 @@ export async function assignUnitAdmin(
   email: string,
   pharmacyId: string
 ): Promise<PharmacyResult> {
-  if (!(await ensureMatriz())) return { ok: false, error: "Sem permissão." };
+  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
+  const pharmacy = await prisma.pharmacy.findFirst({
+    where: { id: pharmacyId, active: true, archivedAt: null },
+    select: { id: true },
+  });
+  if (!pharmacy) return { ok: false, error: "Unidade ativa não encontrada." };
   const user = await prisma.user.findUnique({
     where: { email: email.trim().toLowerCase() },
-    select: { id: true },
+    select: { id: true, role: true, staffProfile: true },
   });
   if (!user) {
     return {
@@ -235,7 +382,14 @@ export async function assignUnitAdmin(
   }
   await prisma.user.update({
     where: { id: user.id },
-    data: { role: "ADMIN", pharmacyId },
+    data: {
+      role: "ADMIN",
+      // Menor privilégio útil para novos admins; perfil ausente nunca eleva acesso.
+      staffProfile:
+        user.role === "ADMIN" && user.staffProfile ? user.staffProfile : "ATTENDANT",
+      pharmacyId,
+      sessionVersion: { increment: 1 },
+    },
   });
   await logAudit({
     action: "admin.assign",
@@ -251,19 +405,29 @@ export async function assignUnitAdmin(
 
 /** Revoga o acesso admin (volta a ser cliente). Não permite revogar a si mesmo. */
 export async function removeUnitAdmin(userId: string): Promise<PharmacyResult> {
-  if (!(await ensureMatriz())) return { ok: false, error: "Sem permissão." };
-  const me = await getCurrentUser();
-  if (me?.id === userId) {
+  const actor = await ensureGlobalOwner();
+  if (!actor) return { ok: false, error: "Sem permissão." };
+  if (actor.id === userId) {
     return { ok: false, error: "Você não pode remover seu próprio acesso." };
   }
   const target = await prisma.user.findUnique({
     where: { id: userId },
     select: { email: true },
   });
-  await prisma.user.update({
-    where: { id: userId },
-    data: { role: "CUSTOMER", pharmacyId: null },
-  });
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: {
+        role: "CUSTOMER",
+        staffProfile: null,
+        pharmacyId: null,
+        mfaSecretEncrypted: null,
+        mfaEnabledAt: null,
+        sessionVersion: { increment: 1 },
+      },
+    }),
+    prisma.mfaRecoveryCode.deleteMany({ where: { userId } }),
+  ]);
   await logAudit({
     action: "admin.revoke",
     entity: "User",

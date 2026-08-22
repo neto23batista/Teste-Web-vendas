@@ -1,5 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "node:crypto";
+import { assertDestructiveSeedAllowed } from "../src/lib/seed-safety";
 // Fotos reais validadas por scripts/check-product-images.cjs (name → url).
 // DESATIVADAS por padrão (o dono preferiu o visual de emoji estilizado).
 // Para popular com fotos: SEED_PRODUCT_PHOTOS=1 npm run db:seed
@@ -107,10 +109,16 @@ function descFor(p: Seed): string {
     p.short,
     `Produto da linha ${p.brand}, com qualidade garantida e procedência segura.`,
     p.rx
-      ? "Este item exige receita médica — envie o documento no checkout para validação farmacêutica."
+      ? "Item sujeito a prescrição, mantido apenas para controle interno e indisponível para venda online."
       : "Disponível para compra imediata, com entrega rápida e atendimento farmacêutico.",
     "Leia a bula e mantenha fora do alcance de crianças.",
   ].join(" ");
+}
+
+function demoPassword(envName: string): { value: string; generated: boolean } {
+  const configured = process.env[envName]?.trim();
+  if (configured) return { value: configured, generated: false };
+  return { value: randomBytes(18).toString("base64url"), generated: true };
 }
 
 function slugify(text: string): string {
@@ -123,6 +131,14 @@ function slugify(text: string): string {
 }
 
 async function main() {
+  // Precisa acontecer ANTES da primeira mutação. Além da confirmação explícita,
+  // a função recusa produção e qualquer host que não seja loopback.
+  assertDestructiveSeedAllowed(process.env);
+
+  const ownerPassword = demoPassword("SEED_OWNER_PASSWORD");
+  const branchPassword = demoPassword("SEED_BRANCH_PASSWORD");
+  const customerPassword = demoPassword("SEED_CUSTOMER_PASSWORD");
+
   console.log("🌱 Limpando dados...");
   await prisma.review.deleteMany();
   await prisma.cartItem.deleteMany();
@@ -192,7 +208,7 @@ async function main() {
     data: {
       name: "Dono FarmaVida",
       email: "owner@farmavida.local",
-      passwordHash: await bcrypt.hash("Dono@Farma2026", 10),
+      passwordHash: await bcrypt.hash(ownerPassword.value, 10),
       role: "ADMIN",
       // Admin da matriz = escopo global (vê todas as unidades).
       pharmacyId: matriz.id,
@@ -203,7 +219,7 @@ async function main() {
     data: {
       name: "Gerente Filial ABC",
       email: "filial@farmavida.local",
-      passwordHash: await bcrypt.hash("Filial@2026", 10),
+      passwordHash: await bcrypt.hash(branchPassword.value, 10),
       role: "ADMIN",
       pharmacyId: filial.id,
     },
@@ -212,7 +228,7 @@ async function main() {
     data: {
       name: "Cliente Demo",
       email: "cliente@farmavida.local",
-      passwordHash: await bcrypt.hash("Cliente@2026", 10),
+      passwordHash: await bcrypt.hash(customerPassword.value, 10),
       role: "CUSTOMER",
       cpf: "529.982.247-25",
       phone: "(11) 90000-0000",
@@ -267,7 +283,10 @@ async function main() {
         isGeneric: p.generic ?? false,
         rating: p.rating,
         ratingCount: p.ratingCount,
-        featured: p.featured ?? false,
+        featured: p.rx ? false : (p.featured ?? false),
+        // Itens sujeitos a prescrição existem somente para demonstrar a
+        // classificação no backoffice; nunca entram no catálogo público.
+        active: !p.rx,
         categoryId: catMap.get(p.cat)!,
         brandId: brandMap.get(p.brand) ?? null,
         // Estoque por unidade: matriz com o estoque cheio; filial com metade
@@ -305,16 +324,22 @@ async function main() {
 
   await prisma.setting.createMany({
     data: [
-      { key: "pharmacy_name", value: "FarmaVida" },
-      { key: "pharmacy_cnpj", value: "12.345.678/0001-90" },
-      { key: "pharmacist", value: "Dra. Ana Souza - CRF/SP 123456" },
-      { key: "free_shipping_min", value: "150" },
-      { key: "shipping_flat", value: "14.90" },
+      { key: "shipping.freeMin", value: "150" },
+      { key: "shipping.expressFlat", value: "14.90" },
     ],
   });
 
   const total = await prisma.product.count();
   console.log(`✅ Seed concluído: ${total} produtos, admin=${admin.email}, cliente=${customer.email}`);
+  if (ownerPassword.generated) {
+    console.log(`🔐 Senha OWNER gerada para este seed: ${ownerPassword.value}`);
+  }
+  if (branchPassword.generated) {
+    console.log(`🔐 Senha da filial gerada para este seed: ${branchPassword.value}`);
+  }
+  if (customerPassword.generated) {
+    console.log(`🔐 Senha do cliente gerada para este seed: ${customerPassword.value}`);
+  }
 }
 
 main()

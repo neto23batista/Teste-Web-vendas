@@ -3,29 +3,39 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { assertArea } from "@/lib/session";
+import { assertOwner } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import type { CouponType } from "@prisma/client";
+import { centsToDecimal, parseMoneyInputToCents } from "@/lib/money";
 
 /** Descrição curta do desconto para a trilha de auditoria (ex.: "10%", "R$ 15"). */
-function couponValueLabel(type: CouponType, value: number): string {
+function couponValueLabel(type: CouponType, valueCents: number): string {
+  const value = centsToDecimal(valueCents).replace(".", ",");
   return type === "PERCENT" ? `${value}%` : `R$ ${value}`;
 }
 
 export type CouponFormState = { error?: string } | undefined;
 
+async function assertMatrixOwner() {
+  const owner = await assertOwner();
+  if (owner.pharmacyType !== "MATRIZ") {
+    throw new Error("Apenas o dono/gerente da matriz pode alterar cupons globais.");
+  }
+  return owner;
+}
+
 function parse(formData: FormData) {
-  const num = (k: string) => {
-    const v = String(formData.get(k) ?? "").replace(",", ".").trim();
-    return v === "" ? null : Number(v);
-  };
+  const rawUsage = String(formData.get("usageLimit") ?? "").trim();
+  const usageLimit = rawUsage === "" ? null : Number(rawUsage);
   const expires = String(formData.get("expiresAt") ?? "").trim();
+  const minTotalRaw = String(formData.get("minTotal") ?? "").trim();
   return {
     code: String(formData.get("code") ?? "").trim().toUpperCase(),
     type: (String(formData.get("type") ?? "PERCENT") as CouponType),
-    value: num("value"),
-    minTotal: num("minTotal") ?? 0,
-    usageLimit: num("usageLimit"),
+    valueCents: parseMoneyInputToCents(String(formData.get("value") ?? "")),
+    minTotalCents:
+      minTotalRaw === "" ? 0 : parseMoneyInputToCents(minTotalRaw),
+    usageLimit,
     expiresAt: expires ? new Date(`${expires}T23:59:59`) : null,
     active: formData.get("active") === "on",
   };
@@ -35,9 +45,19 @@ function validate(d: ReturnType<typeof parse>): string | null {
   if (!d.code) return "Informe o código do cupom.";
   if (!/^[A-Z0-9]{3,20}$/.test(d.code))
     return "Código deve ter 3 a 20 letras/números, sem espaços.";
-  if (d.value === null || d.value <= 0) return "Informe um valor maior que zero.";
-  if (d.type === "PERCENT" && d.value > 90)
+  if (d.valueCents === null || d.valueCents <= 0)
+    return "Informe um valor maior que zero, com até 2 casas decimais.";
+  if (d.minTotalCents === null || d.minTotalCents < 0) {
+    return "A compra mínima é inválida; use até 2 casas decimais.";
+  }
+  if (d.type === "PERCENT" && d.valueCents > 9_000)
     return "Desconto percentual não pode passar de 90%.";
+  if (
+    d.usageLimit !== null &&
+    (!Number.isSafeInteger(d.usageLimit) || d.usageLimit <= 0)
+  ) {
+    return "O limite de usos deve ser um inteiro positivo.";
+  }
   return null;
 }
 
@@ -45,7 +65,7 @@ export async function createCoupon(
   _prev: CouponFormState,
   formData: FormData
 ): Promise<CouponFormState> {
-  await assertArea("cupons");
+  await assertMatrixOwner();
   const d = parse(formData);
   const err = validate(d);
   if (err) return { error: err };
@@ -57,8 +77,8 @@ export async function createCoupon(
     data: {
       code: d.code,
       type: d.type,
-      value: d.value!,
-      minTotal: d.minTotal,
+      value: centsToDecimal(d.valueCents!),
+      minTotal: centsToDecimal(d.minTotalCents!),
       usageLimit: d.usageLimit,
       expiresAt: d.expiresAt,
       active: d.active,
@@ -69,7 +89,7 @@ export async function createCoupon(
     action: "coupon.create",
     entity: "Coupon",
     entityId: created.id,
-    detail: `Criou o cupom "${d.code}" (${couponValueLabel(d.type, d.value!)})`,
+    detail: `Criou o cupom "${d.code}" (${couponValueLabel(d.type, d.valueCents!)})`,
   });
   revalidatePath("/admin/cupons");
   redirect("/admin/cupons");
@@ -80,7 +100,7 @@ export async function updateCoupon(
   _prev: CouponFormState,
   formData: FormData
 ): Promise<CouponFormState> {
-  await assertArea("cupons");
+  await assertMatrixOwner();
   const d = parse(formData);
   const err = validate(d);
   if (err) return { error: err };
@@ -95,8 +115,8 @@ export async function updateCoupon(
     data: {
       code: d.code,
       type: d.type,
-      value: d.value!,
-      minTotal: d.minTotal,
+      value: centsToDecimal(d.valueCents!),
+      minTotal: centsToDecimal(d.minTotalCents!),
       usageLimit: d.usageLimit,
       expiresAt: d.expiresAt,
       active: d.active,
@@ -107,14 +127,14 @@ export async function updateCoupon(
     action: "coupon.update",
     entity: "Coupon",
     entityId: id,
-    detail: `Editou o cupom "${d.code}" (${couponValueLabel(d.type, d.value!)})`,
+    detail: `Editou o cupom "${d.code}" (${couponValueLabel(d.type, d.valueCents!)})`,
   });
   revalidatePath("/admin/cupons");
   redirect("/admin/cupons");
 }
 
 export async function toggleCoupon(id: string) {
-  await assertArea("cupons");
+  await assertMatrixOwner();
   const coupon = await prisma.coupon.findUnique({ where: { id } });
   if (coupon) {
     await prisma.coupon.update({ where: { id }, data: { active: !coupon.active } });
@@ -130,7 +150,7 @@ export async function toggleCoupon(id: string) {
 }
 
 export async function deleteCoupon(id: string) {
-  await assertArea("cupons");
+  await assertMatrixOwner();
   const coupon = await prisma.coupon.findUnique({
     where: { id },
     select: { code: true },

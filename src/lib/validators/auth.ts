@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { isValidCpf } from "@/lib/cpf";
 
 export const loginSchema = z.object({
-  email: z.string().email("E-mail inválido"),
-  password: z.string().min(6, "Mínimo de 6 caracteres"),
+  email: z.string().max(254).email("E-mail inválido"),
+  password: z.string().min(6, "Mínimo de 6 caracteres").max(128, "Senha inválida"),
+  mfaCode: z.string().trim().max(64, "Código inválido").optional(),
 });
 
 // CPF/telefone: normaliza ANTES de validar (aceita qualquer pontuação/espaços
@@ -12,13 +14,13 @@ const digits = (v: string | undefined) => (v ? v.replace(/\D/g, "") : v);
 
 export const registerSchema = z
   .object({
-    name: z.string().min(3, "Informe seu nome completo"),
-    email: z.string().email("E-mail inválido"),
+    name: z.string().min(3, "Informe seu nome completo").max(120, "Nome muito longo"),
+    email: z.string().max(254).email("E-mail inválido"),
     cpf: z
       .string()
       .optional()
       .transform(digits)
-      .refine((v) => !v || v.length === 11, "CPF inválido — confira os 11 dígitos"),
+      .refine((v) => !v || isValidCpf(v), "CPF inválido — confira os dígitos"),
     phone: z
       .string()
       .optional()
@@ -27,8 +29,11 @@ export const registerSchema = z
         (v) => !v || v.length === 10 || v.length === 11,
         "Telefone inválido — use DDD + número"
       ),
-    password: z.string().min(8, "A senha precisa de pelo menos 8 caracteres"),
-    confirm: z.string().min(8, "Confirme a senha"),
+    password: z
+      .string()
+      .min(12, "A senha precisa de pelo menos 12 caracteres")
+      .max(64, "A senha pode ter no máximo 64 caracteres"),
+    confirm: z.string().min(12, "Confirme a senha").max(64, "Senha muito longa"),
     lgpd: z.literal("on", { message: "É necessário aceitar a política" }).or(z.boolean()),
   })
   .refine((d) => d.password === d.confirm, {
@@ -37,14 +42,14 @@ export const registerSchema = z
   });
 
 export const resetRequestSchema = z.object({
-  email: z.string().email("E-mail inválido"),
+  email: z.string().max(254).email("E-mail inválido"),
 });
 
 export const resetPasswordSchema = z
   .object({
-    token: z.string().min(10, "Token inválido"),
-    password: z.string().min(8, "Mínimo de 8 caracteres"),
-    confirm: z.string().min(8, "Confirme a senha"),
+    token: z.string().regex(/^[a-f0-9]{64}$/i, "Token inválido"),
+    password: z.string().min(12, "Mínimo de 12 caracteres").max(64, "Senha muito longa"),
+    confirm: z.string().min(12, "Confirme a senha").max(64, "Senha muito longa"),
   })
   .refine((d) => d.password === d.confirm, {
     message: "As senhas não conferem",

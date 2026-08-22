@@ -14,8 +14,8 @@ const upV = {
 };
 
 const trust = [
-  { icon: Star, label: "4,9 de satisfação", iconCls: "fill-amber-300 text-amber-300" },
-  { icon: Truck, label: "Entrega no mesmo dia", iconCls: "" },
+  { icon: Star, label: "Catálogo somente MIP", iconCls: "fill-amber-300 text-amber-300" },
+  { icon: Truck, label: "Entrega conforme seu CEP", iconCls: "" },
   { icon: ShieldCheck, label: "Compra protegida", iconCls: "" },
 ];
 
@@ -55,8 +55,8 @@ export function HomeHero() {
             variants={upV}
             className="max-w-md text-base text-white/85 md:text-lg"
           >
-            Medicamentos, dermocosméticos e cuidados diários com preço justo,
-            entrega rápida e atendimento farmacêutico de verdade.
+            Medicamentos isentos de prescrição, dermocosméticos e cuidados
+            diários, com condições e horários publicados de forma transparente.
           </motion.p>
 
           <motion.form
@@ -106,24 +106,18 @@ export function HomeHero() {
                   <Pill className="size-6" />
                 </span>
                 <div>
-                  <p className="text-sm font-bold">Kit Imunidade</p>
-                  <p className="text-xs text-slate-500">Vitamina C + Zinco</p>
+                  <p className="text-sm font-bold">Ofertas da semana</p>
+                  <p className="text-xs text-slate-500">Produtos selecionados</p>
                 </div>
-                <span className="ml-auto rounded-full bg-success-500/10 px-2.5 py-1 text-xs font-bold text-success-600">
-                  -25%
-                </span>
               </div>
-              <div className="mt-4 flex items-end justify-between">
-                <div>
-                  <p className="text-xs text-slate-400 line-through">R$ 79,90</p>
-                  <p className="text-2xl font-extrabold text-brand-700">
-                    R$ 59,90
-                  </p>
-                </div>
+              <div className="mt-4 flex items-center justify-between gap-4">
+                <p className="text-sm text-slate-600">
+                  Consulte os produtos e preços válidos agora.
+                </p>
                 {/* Cartão ilustrativo — o CTA leva às ofertas reais (um botão
                     "morto" aqui parecia travado para quem clicava). */}
                 <Button asChild size="sm" variant="primary">
-                  <a href="/catalogo?promo=1">Adicionar</a>
+                  <a href="/catalogo?promo=1">Ver ofertas</a>
                 </Button>
               </div>
             </div>
@@ -142,7 +136,7 @@ export function HomeHero() {
             </span>
             <div className="text-sm leading-tight">
               <p className="font-bold">Entrega expressa</p>
-              <p className="text-xs text-white/80">em até 45 minutos</p>
+              <p className="text-xs text-white/80">consulte prazo pelo CEP</p>
             </div>
           </motion.div>
         </div>

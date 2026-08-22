@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getCategoriesAndBrands } from "@/lib/admin";
 import { updateProduct } from "@/actions/admin-products";
 import { ProductForm } from "@/components/admin/product-form";
+import { moneyToNumber } from "@/lib/money";
 
 export const metadata = { title: "Editar produto" };
 
@@ -48,6 +49,11 @@ export default async function EditProductPage({
         brands={brands}
         product={{
           ...product,
+          price: moneyToNumber(product.price),
+          promoPrice:
+            product.promoPrice == null ? null : moneyToNumber(product.promoPrice),
+          costPrice:
+            product.costPrice == null ? null : moneyToNumber(product.costPrice),
           stock: matrizInv?.stock ?? 0,
           minStock: matrizInv?.minStock ?? 5,
         }}

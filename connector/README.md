@@ -23,7 +23,8 @@ conexões de **saída** — não precisa de IP fixo, port-forward nem VPN:
 3. `copy .env.example .env` e preencha:
    - `INOVAFARMA_*` — credenciais do credenciamento no **Portal PS** e o endereço
      da Web API local (ex.: `http://localhost:PORTA`).
-   - `FARMAVIDA_URL` — URL pública do site.
+   - `FARMAVIDA_URL` — URL pública **HTTPS** do site (HTTP só é aceito em
+     localhost para desenvolvimento).
    - `FARMAVIDA_TOKEN` — gere em **Admin → Integração** (aparece uma única vez).
 4. Teste as conexões: `node index.mjs --ping`
 5. Rode um ciclo: `node index.mjs --once`
@@ -32,6 +33,19 @@ conexões de **saída** — não precisa de IP fixo, port-forward nem VPN:
      programa `node`, argumento `C:\farmavida-conector\index.mjs`, marcar
      "Reiniciar em caso de falha"; **ou**
    - **NSSM** (nssm.cc): `nssm install FarmaVidaConector "C:\Program Files\nodejs\node.exe" "C:\farmavida-conector\index.mjs"`.
+
+## Segurança operacional
+
+- Restrinja a ACL de `.env` ao usuário de serviço dedicado; não use conta de
+  administrador compartilhada e nunca copie o token para linha de comando,
+  histórico ou logs.
+- O conector recusa a nuvem por HTTP e URLs com credenciais embutidas. Para a API
+  local, HTTP só é aceito em localhost/rede privada; prefira HTTPS sempre que a
+  InovaFarma oferecer suporte e mantenha a LAN isolada.
+- Rotacione `FARMAVIDA_TOKEN` em **Admin → Integração** após troca de operador,
+  suspeita de exposição ou restauração do PC. A rotação invalida o token antigo.
+- Os ciclos são enfileirados e nunca executam em paralelo; respostas remotas e
+  identificadores de pedidos não são impressos em logs.
 
 ## Desenvolvimento sem credenciais (mock)
 

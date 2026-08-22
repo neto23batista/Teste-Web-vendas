@@ -3,9 +3,19 @@
 import { revalidatePath } from "next/cache";
 import type { ExpenseCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { assertArea } from "@/lib/session";
-import { logAudit } from "@/lib/audit";
+import {
+  assertArea,
+  assertOwner,
+  getAdminScope,
+  requireAdminAtPharmacy,
+} from "@/lib/session";
+import { logAuditInTransaction } from "@/lib/audit";
 import { parseStatement, matchStatement } from "@/lib/ofx";
+import {
+  centsToDecimal,
+  moneyToCents,
+  parseMoneyInputToCents,
+} from "@/lib/money";
 
 const CATEGORIES: ExpenseCategory[] = [
   "RENT",
@@ -25,29 +35,45 @@ const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 export async function createExpense(
   formData: FormData
 ): Promise<{ ok: boolean; error?: string }> {
-  await assertArea("financeiro");
+  const actor = await assertArea("financeiro");
+  const scope = await getAdminScope();
 
   const description = str(formData, "description");
   const category = str(formData, "category") as ExpenseCategory;
-  const pharmacyId = str(formData, "pharmacyId") || null;
-  const amount = Number(str(formData, "amount").replace(/\./g, "").replace(",", "."));
+  const requestedPharmacyId = str(formData, "pharmacyId") || null;
+  const pharmacyId = scope.isGlobal ? requestedPharmacyId : scope.pharmacyId;
+  const amountCents = parseMoneyInputToCents(
+    str(formData, "amount").replace(/\./g, "")
+  );
   const paidAt = new Date(`${str(formData, "paidAt")}T12:00:00`);
 
   if (description.length < 3) return { ok: false, error: "Descreva a despesa." };
   if (!CATEGORIES.includes(category)) return { ok: false, error: "Categoria inválida." };
-  if (!Number.isFinite(amount) || amount <= 0) {
+  if (amountCents === null || amountCents <= 0) {
     return { ok: false, error: "Informe um valor válido." };
   }
   if (Number.isNaN(paidAt.getTime())) return { ok: false, error: "Informe a data." };
+  if (pharmacyId) await requireAdminAtPharmacy(pharmacyId);
 
-  await prisma.expense.create({
-    data: { description, category, amount, paidAt, pharmacyId },
-  });
-  await logAudit({
-    action: "expense.create",
-    entity: "Expense",
-    detail: `Despesa "${description}" de R$ ${amount.toFixed(2)}`,
-    pharmacyId,
+  await prisma.$transaction(async (tx) => {
+    const expense = await tx.expense.create({
+      data: {
+        description,
+        category,
+        amount: centsToDecimal(amountCents),
+        paidAt,
+        pharmacyId,
+      },
+      select: { id: true },
+    });
+    await logAuditInTransaction(tx, {
+      action: "expense.create",
+      entity: "Expense",
+      entityId: expense.id,
+      detail: `Registrou despesa operacional na categoria ${category}`,
+      pharmacyId,
+      actor: { id: actor.id, email: actor.email ?? null },
+    });
   });
   revalidatePath("/admin/financeiro");
   return { ok: true };
@@ -56,17 +82,26 @@ export async function createExpense(
 export async function deleteExpense(
   expenseId: string
 ): Promise<{ ok: boolean; error?: string }> {
-  await assertArea("financeiro");
+  const actor = await assertArea("financeiro");
+  const scope = await getAdminScope();
   const expense = await prisma.expense.findUnique({ where: { id: expenseId } });
   if (!expense) return { ok: false, error: "Despesa não encontrada." };
+  if (expense.pharmacyId) {
+    await requireAdminAtPharmacy(expense.pharmacyId);
+  } else if (!scope.isGlobal) {
+    return { ok: false, error: "Sem permissão para esta despesa." };
+  }
 
-  await prisma.expense.delete({ where: { id: expenseId } });
-  await logAudit({
-    action: "expense.delete",
-    entity: "Expense",
-    entityId: expenseId,
-    detail: `Despesa "${expense.description}" removida`,
-    pharmacyId: expense.pharmacyId,
+  await prisma.$transaction(async (tx) => {
+    await tx.expense.delete({ where: { id: expenseId } });
+    await logAuditInTransaction(tx, {
+      action: "expense.delete",
+      entity: "Expense",
+      entityId: expenseId,
+      detail: "Removeu despesa operacional",
+      pharmacyId: expense.pharmacyId,
+      actor: { id: actor.id, email: actor.email ?? null },
+    });
   });
   revalidatePath("/admin/financeiro");
   return { ok: true };
@@ -101,7 +136,11 @@ const fail = (error: string): ImportStatementResult => ({
 export async function importStatement(
   formData: FormData
 ): Promise<ImportStatementResult> {
-  await assertArea("financeiro");
+  const actor = await assertOwner();
+  const scope = await getAdminScope();
+  if (!scope.isGlobal) {
+    return fail("A conciliação bancária global é restrita à matriz.");
+  }
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -115,6 +154,16 @@ export async function importStatement(
       "Nenhum lançamento reconhecido — o arquivo precisa ser um OFX do banco ou um CSV com colunas de data e valor."
     );
   }
+  if (
+    txs.some(
+      (tx) => moneyToCents(tx.amount, { allowNegative: true }) === null
+    )
+  ) {
+    return fail("O extrato contém valor monetário fora do limite aceito.");
+  }
+
+  const statementDecimal = (amount: number) =>
+    centsToDecimal(moneyToCents(amount, { allowNegative: true })!);
 
   // Dedupe: por identificador (FITID) quando houver; sem identificador, por
   // data + valor + descrição (evita duplicar reimportando o mesmo período).
@@ -139,7 +188,7 @@ export async function importStatement(
         where: {
           externalId: null,
           date: new Date(`${t.date}T12:00:00`),
-          amount: t.amount,
+          amount: statementDecimal(t.amount),
           description: t.description,
         },
         select: { id: true },
@@ -149,58 +198,73 @@ export async function importStatement(
     }
   }
 
-  if (fresh.length > 0) {
-    await prisma.bankTransaction.createMany({
-      data: fresh.map((t) => ({
-        externalId: t.externalId,
-        date: new Date(`${t.date}T12:00:00`),
-        description: t.description,
-        amount: t.amount,
-      })),
-      skipDuplicates: true,
-    });
-  }
+  const matched = await prisma.$transaction(
+    async (tx) => {
+      if (fresh.length > 0) {
+        await tx.bankTransaction.createMany({
+          data: fresh.map((t) => ({
+            externalId: t.externalId,
+            date: new Date(`${t.date}T12:00:00`),
+            description: t.description,
+            amount: statementDecimal(t.amount),
+          })),
+          skipDuplicates: true,
+        });
+      }
 
-  // Conciliação: créditos ainda sem pagamento × pagamentos aprovados sem extrato.
-  const pending = await prisma.bankTransaction.findMany({
-    where: { paymentId: null, amount: { gt: 0 } },
-    select: { id: true, externalId: true, date: true, description: true, amount: true },
-    orderBy: { date: "asc" },
-    take: 1000,
-  });
-  const candidates = await prisma.payment.findMany({
-    where: { status: "APPROVED", bankTx: null },
-    select: { id: true, amount: true, updatedAt: true },
-    orderBy: { updatedAt: "desc" },
-    take: 1000,
-  });
+      // Conciliação: créditos ainda sem pagamento × pagamentos aprovados.
+      const pending = await tx.bankTransaction.findMany({
+        where: { paymentId: null, amount: { gt: 0 } },
+        select: {
+          id: true,
+          externalId: true,
+          date: true,
+          description: true,
+          amount: true,
+        },
+        orderBy: { date: "asc" },
+        take: 1000,
+      });
+      const candidates = await tx.payment.findMany({
+        where: { status: "APPROVED", bankTx: null },
+        select: { id: true, amount: true, updatedAt: true },
+        orderBy: { updatedAt: "desc" },
+        take: 1000,
+      });
 
-  const matches = matchStatement(
-    pending.map((t) => ({
-      externalId: t.externalId,
-      date: t.date.toISOString().slice(0, 10),
-      description: t.description,
-      amount: t.amount,
-    })),
-    candidates.map((p) => ({
-      id: p.id,
-      amount: p.amount,
-      date: p.updatedAt.toISOString().slice(0, 10),
-    }))
+      const matches = matchStatement(
+        pending.map((statement) => ({
+          externalId: statement.externalId,
+          date: statement.date.toISOString().slice(0, 10),
+          description: statement.description,
+          amount: statement.amount,
+        })),
+        candidates.map((payment) => ({
+          id: payment.id,
+          amount: payment.amount,
+          date: payment.updatedAt.toISOString().slice(0, 10),
+        }))
+      );
+
+      await Promise.all(
+        [...matches].map(([txIndex, paymentId]) =>
+          tx.bankTransaction.update({
+            where: { id: pending[txIndex].id },
+            data: { paymentId },
+          })
+        )
+      );
+
+      await logAuditInTransaction(tx, {
+        action: "finance.import",
+        entity: "BankTransaction",
+        detail: `Importou ${fresh.length} lançamentos e conciliou ${matches.size}`,
+        actor: { id: actor.id, email: actor.email ?? null },
+      });
+      return matches.size;
+    },
+    { maxWait: 5_000, timeout: 30_000 }
   );
-
-  for (const [txIndex, paymentId] of matches) {
-    await prisma.bankTransaction.update({
-      where: { id: pending[txIndex].id },
-      data: { paymentId },
-    });
-  }
-
-  await logAudit({
-    action: "finance.import",
-    entity: "BankTransaction",
-    detail: `Extrato importado: ${fresh.length} lançamentos, ${matches.size} conciliados`,
-  });
   revalidatePath("/admin/financeiro");
-  return { ok: true, imported: fresh.length, duplicated, matched: matches.size };
+  return { ok: true, imported: fresh.length, duplicated, matched };
 }

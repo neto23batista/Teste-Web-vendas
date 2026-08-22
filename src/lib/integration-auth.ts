@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import type { Pharmacy } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
+import { reportError } from "@/lib/monitoring";
 
 /**
  * Autenticação das rotas /api/integracao/*: o conector (PC da farmácia) envia
@@ -29,13 +30,39 @@ export async function pharmacyFromRequest(
 ): Promise<Pharmacy | null> {
   const auth = req.headers.get("authorization") ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
-  if (!token) return null;
+  if (!/^fvi_[a-f0-9]{48}$/.test(token)) return null;
 
   const hash = hashIntegrationToken(token);
   if (!(await rateLimit(`integracao:${hash.slice(0, 16)}`, 120, 60_000)).ok) {
     return null;
   }
-  return prisma.pharmacy.findFirst({
-    where: { integrationTokenHash: hash, active: true },
+  const pharmacy = await prisma.pharmacy.findUnique({
+    where: { integrationTokenHash: hash },
   });
+  if (!pharmacy?.active || pharmacy.archivedAt) return null;
+
+  // Evita uma escrita em cada poll; ainda mantém evidência operacional recente
+  // para detectar credenciais abandonadas e planejar rotação.
+  const staleBefore = new Date(Date.now() - 5 * 60_000);
+  if (
+    !pharmacy.integrationTokenLastUsedAt ||
+    pharmacy.integrationTokenLastUsedAt < staleBefore
+  ) {
+    await prisma.pharmacy
+      .updateMany({
+        where: {
+          id: pharmacy.id,
+          integrationTokenHash: hash,
+          OR: [
+            { integrationTokenLastUsedAt: null },
+            { integrationTokenLastUsedAt: { lt: staleBefore } },
+          ],
+        },
+        data: { integrationTokenLastUsedAt: new Date() },
+      })
+      .catch((error) => {
+        reportError(error, { operation: "integration.token_last_used" });
+      });
+  }
+  return pharmacy;
 }

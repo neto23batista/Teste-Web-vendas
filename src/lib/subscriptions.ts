@@ -36,6 +36,7 @@ export async function getUserSubscriptions(userId: string) {
             price: true,
             promoPrice: true,
             active: true,
+            requiresPrescription: true,
             images: { orderBy: { sort: "asc" }, take: 1, select: { url: true } },
           },
         },
@@ -47,8 +48,12 @@ export async function getUserSubscriptions(userId: string) {
 /** Assinatura do usuário para um produto (para o estado do botão na PDP). */
 export async function getUserSubscriptionFor(userId: string, productId: string) {
   return prisma.subscription
-    .findUnique({
-      where: { userId_productId: { userId, productId } },
+    .findFirst({
+      where: {
+        userId,
+        productId,
+        product: { active: true, requiresPrescription: false },
+      },
       select: { id: true, status: true, intervalDays: true, qty: true },
     })
     .catch(() => null);

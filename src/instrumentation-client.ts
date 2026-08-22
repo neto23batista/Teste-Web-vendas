@@ -9,12 +9,18 @@
 // estático de volta (e o custo no bundle). O Sentry de SERVIDOR fica em
 // src/instrumentation.ts, que já é import dinâmico condicional (sem custo aqui).
 if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
-  import("@sentry/nextjs").then((Sentry) => {
-    Sentry.init({
-      dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-      tracesSampleRate: Number(
-        process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? 0
-      ),
-    });
-  });
+  Promise.all([import("@sentry/nextjs"), import("@/lib/telemetry")]).then(
+    ([Sentry, { scrubSentryEvent }]) => {
+      Sentry.init({
+        dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+        sendDefaultPii: false,
+        tracesSampleRate: Number(
+          process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? 0
+        ),
+        beforeSend: (event) => scrubSentryEvent(event),
+        beforeSendTransaction: (event) => scrubSentryEvent(event),
+        beforeBreadcrumb: (breadcrumb) => scrubSentryEvent(breadcrumb),
+      });
+    }
+  );
 }

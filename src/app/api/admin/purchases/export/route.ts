@@ -1,5 +1,4 @@
-import { getCurrentUser } from "@/lib/session";
-import { canAccess } from "@/lib/permissions";
+import { assertArea } from "@/lib/session";
 import { getPurchaseSuggestions } from "@/lib/admin-reports";
 import { toCsv } from "@/lib/csv";
 
@@ -8,8 +7,9 @@ export const dynamic = "force-dynamic";
 
 /** Pedido de compra eletrônico (CSV) — só os itens que precisam de reposição. */
 export async function GET(request: Request) {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "ADMIN" || !canAccess(user.staffProfile, "compras")) {
+  try {
+    await assertArea("compras");
+  } catch {
     return new Response("Acesso negado", { status: 403 });
   }
 

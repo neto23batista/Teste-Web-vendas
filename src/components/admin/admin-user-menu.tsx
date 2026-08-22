@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Store, LogOut } from "lucide-react";
+import { KeyRound, Store, LogOut } from "lucide-react";
 import { logout } from "@/actions/auth";
 
 /**
@@ -30,7 +30,7 @@ export function AdminUserMenu({ name }: { name: string }) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Conta do administrador"
-        className="flex items-center gap-2.5 rounded-full pr-1 outline-none transition active:scale-95 focus-visible:ring-2 focus-visible:ring-brand-500/40"
+        className="flex min-h-11 min-w-11 items-center justify-center gap-2.5 rounded-full pr-1 outline-none transition active:scale-95 focus-visible:ring-2 focus-visible:ring-brand-500/40"
       >
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white">
           {initial}
@@ -61,10 +61,18 @@ export function AdminUserMenu({ name }: { name: string }) {
               <p className="text-xs text-muted-foreground">Administrador</p>
             </div>
             <Link
+              href="/conta/seguranca"
+              onClick={() => setOpen(false)}
+              role="menuitem"
+              className="flex min-h-11 items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            >
+              <KeyRound className="size-4.5" /> Segurança da conta
+            </Link>
+            <Link
               href="/"
               onClick={() => setOpen(false)}
               role="menuitem"
-              className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              className="flex min-h-11 items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
               <Store className="size-4.5" /> Ver loja
             </Link>
@@ -72,7 +80,7 @@ export function AdminUserMenu({ name }: { name: string }) {
               <button
                 type="submit"
                 role="menuitem"
-                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-danger-500/10 hover:text-danger-500"
+                className="flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-danger-500/10 hover:text-danger-500"
               >
                 <LogOut className="size-4.5" /> Sair
               </button>

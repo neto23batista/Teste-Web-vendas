@@ -21,7 +21,10 @@ export function ProductRowActions({
 
   const toggle = () =>
     start(async () => {
-      await toggleProductActive(id);
+      const result = await toggleProductActive(id);
+      if (!result.ok) {
+        toast.error(result.error ?? "Não foi possível alterar o produto.");
+      }
       router.refresh();
     });
 

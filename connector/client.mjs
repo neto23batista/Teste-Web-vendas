@@ -32,7 +32,8 @@ async function getToken() {
     }),
   });
   if (!res.ok) {
-    throw new Error(`auth falhou: HTTP ${res.status} ${await res.text().catch(() => "")}`);
+    await res.body?.cancel().catch(() => undefined);
+    throw new Error(`auth falhou: HTTP ${res.status}`);
   }
   const data = await res.json();
   if (!data.access_token) throw new Error("auth sem access_token na resposta");
@@ -63,7 +64,8 @@ export async function inovafarma(method, path, body) {
         throw new Error("401 da API local (token renovado para retry)");
       }
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => "")}`);
+        await res.body?.cancel().catch(() => undefined);
+        throw new Error(`API local respondeu HTTP ${res.status}`);
       }
       return await res.json();
     } catch (err) {
@@ -88,9 +90,8 @@ export async function farmavida(method, path, body) {
     30_000
   );
   if (!res.ok) {
-    throw new Error(
-      `FarmaVida ${path}: HTTP ${res.status} ${await res.text().catch(() => "")}`
-    );
+    await res.body?.cancel().catch(() => undefined);
+    throw new Error(`FarmaVida respondeu HTTP ${res.status}`);
   }
   return res.json();
 }

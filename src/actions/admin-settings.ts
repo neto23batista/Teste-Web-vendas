@@ -12,6 +12,14 @@ export type SettingsFormState =
 
 const str = (fd: FormData, key: string) => String(fd.get(key) ?? "").trim();
 
+async function assertMatrixOwner() {
+  const owner = await assertOwner();
+  if (owner.pharmacyType !== "MATRIZ") {
+    throw new Error("Apenas o dono/gerente da matriz pode alterar configurações globais.");
+  }
+  return owner;
+}
+
 function parseMoney(raw: string): number | null {
   if (!raw) return null;
   const n = Number(raw.replace(/\./g, "").replace(",", "."));
@@ -19,7 +27,7 @@ function parseMoney(raw: string): number | null {
 }
 
 /**
- * Testa a conexão com o Stripe usando a secret key JÁ SALVA (não cria nada).
+ * Testa a conexão com o Stripe usando a secret key do ambiente (não cria nada).
  * Retorna uma mensagem legível dizendo se autentica e em qual ambiente — assim o
  * dono confirma a config antes de vender de verdade, em vez de descobrir no
  * checkout. Restrito ao DONO: a área "configuracoes" é exclusiva dele e a chave
@@ -29,12 +37,12 @@ export async function testStripeConnection(): Promise<{
   ok: boolean;
   message: string;
 }> {
-  await assertOwner();
+  await assertMatrixOwner();
   const ping = await stripePing();
   if (!ping.configured) {
     return {
       ok: false,
-      message: "Nenhuma secret key do Stripe salva. Cole a chave e salve antes de testar.",
+      message: "STRIPE_SECRET_KEY não está configurada no ambiente de execução.",
     };
   }
   const env = ping.live ? "produção (live)" : "teste (test)";
@@ -69,7 +77,7 @@ export async function saveSettings(
   // Área "configuracoes" é exclusiva do DONO. O middleware só protege a PÁGINA;
   // sem este portão, qualquer staff poderia invocar a action e sobrescrever a
   // secret key/webhook do Stripe (desviando os pagamentos da loja).
-  await assertOwner();
+  await assertMatrixOwner();
 
   // Parâmetros de frete (todos numéricos; vazio = volta ao padrão do sistema).
   const shipFields: { form: string; key: string; label: string }[] = [
@@ -89,12 +97,6 @@ export async function saveSettings(
     shipEntries.push({ key: f.key, value: n === null ? "" : String(n) });
   }
 
-  // Chaves do Stripe: um campo com "•••" (máscara) ou vazio significa "não mexer"
-  // — o valor real nunca chega ao cliente, então não sobrescrevemos com a máscara.
-  const isMask = (v: string) => v === "" || /^•+$/.test(v);
-  const stripeSecretRaw = str(formData, "stripeSecretKey");
-  const stripeWebhookRaw = str(formData, "stripeWebhookSecret");
-
   // Política de troca/devolução: vazio = mantém o texto padrão (CDC).
   const returnPolicyRaw = String(formData.get("returnPolicy") ?? "").trim();
 
@@ -102,6 +104,7 @@ export async function saveSettings(
   const entries: { key: string; value: string }[] = [
     ...shipEntries,
     { key: "store.returnPolicy", value: returnPolicyRaw },
+    { key: "store.legalName", value: str(formData, "legalName") },
     { key: "store.cnpj", value: str(formData, "cnpj") },
     { key: "store.phone", value: str(formData, "phone") },
     { key: "store.whatsapp", value: str(formData, "whatsapp") },
@@ -110,20 +113,9 @@ export async function saveSettings(
     { key: "store.hours", value: str(formData, "hours") },
     { key: "store.pharmacistName", value: str(formData, "pharmacistName") },
     { key: "store.pharmacistCrf", value: str(formData, "pharmacistCrf") },
-    // Só entram na lista de upserts/deletes se o admin realmente digitou algo.
-    ...(isMask(stripeSecretRaw)
-      ? []
-      : [
-          { key: "stripe.secretKey", value: stripeSecretRaw },
-          // Trocar a chave pode ser trocar de CONTA Stripe: zera o status do Pix
-          // (value "" = delete → getPaymentSettings volta a FALSE). Só o "Testar
-          // conexão" reconfirma a capability da conta nova. Sem isso, a flag ficava
-          // "velha" e o checkout oferecia um Pix que falhava e cancelava o pedido.
-          { key: "stripe.pixEnabled", value: "" },
-        ]),
-    ...(isMask(stripeWebhookRaw)
-      ? []
-      : [{ key: "stripe.webhookSecret", value: stripeWebhookRaw }]),
+    { key: "store.sanitaryLicense", value: str(formData, "sanitaryLicense") },
+    { key: "store.afe", value: str(formData, "afe") },
+    { key: "store.ae", value: str(formData, "ae") },
   ];
 
   await prisma.$transaction(

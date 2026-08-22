@@ -1,6 +1,8 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { SALEABLE_PRODUCT_WHERE } from "@/lib/product-policy";
+import { moneyToNumber } from "@/lib/money";
 
 /** Campos do card, exceto o estoque (que agora é por unidade — ver Inventory). */
 const productCardBase = {
@@ -37,12 +39,24 @@ type ProductCardRow = Prisma.ProductGetPayload<{
 }>;
 
 /** Card com o estoque já achatado em `stock` (da unidade selecionada). */
-export type ProductCard = Omit<ProductCardRow, "inventory"> & { stock: number };
+export type ProductCard = Omit<
+  ProductCardRow,
+  "inventory" | "price" | "promoPrice"
+> & {
+  price: number;
+  promoPrice: number | null;
+  stock: number;
+};
 
 export function toProductCard(row: ProductCardRow): ProductCard {
   const { inventory, ...rest } = row;
   const stock = inventory.reduce((sum, i) => sum + i.stock, 0);
-  return { ...rest, stock };
+  return {
+    ...rest,
+    price: moneyToNumber(rest.price),
+    promoPrice: rest.promoPrice == null ? null : moneyToNumber(rest.promoPrice),
+    stock,
+  };
 }
 
 // Categorias quase nunca mudam — cacheadas (tag "categories", revalida 1h).
@@ -69,7 +83,7 @@ export function getFeaturedProducts(take = 8, pharmacyId?: string | null) {
     async () =>
       (
         await prisma.product.findMany({
-          where: { active: true, featured: true },
+          where: { ...SALEABLE_PRODUCT_WHERE, featured: true },
           select: productCardSelect(pharmacyId),
           orderBy: { ratingCount: "desc" },
           take,
@@ -85,7 +99,7 @@ export function getPromoProducts(take = 8, pharmacyId?: string | null) {
     async () =>
       (
         await prisma.product.findMany({
-          where: { active: true, promoPrice: { not: null } },
+          where: { ...SALEABLE_PRODUCT_WHERE, promoPrice: { not: null } },
           select: productCardSelect(pharmacyId),
           orderBy: { ratingCount: "desc" },
           take,
@@ -105,7 +119,7 @@ export function getProductsByCategory(
     async () =>
       (
         await prisma.product.findMany({
-          where: { active: true, category: { slug } },
+          where: { ...SALEABLE_PRODUCT_WHERE, category: { slug } },
           select: productCardSelect(pharmacyId),
           orderBy: { ratingCount: "desc" },
           take,
@@ -139,47 +153,45 @@ type SearchResult = {
   pages: number;
 };
 
-// Tamanho da janela de ranking por relevância: os N melhores resultados (por
-// avaliação) são re-ranqueados por nome no app. Buscas com mais matches que
-// isso caem na paginação direta do banco nas páginas além da janela.
-const RELEVANCE_WINDOW = 200;
+const MAX_SEARCH_TERMS = 6;
 
-export async function searchProducts(params: CatalogParams): Promise<SearchResult> {
-  const perPage = params.perPage ?? 12;
-  const page = Math.max(1, params.page ?? 1);
+function normalizedSearchTerms(query?: string): string[] {
+  return (query ?? "")
+    .split(/\s+/)
+    .map((term) => term.trim().slice(0, 80))
+    .filter(Boolean)
+    .slice(0, MAX_SEARCH_TERMS);
+}
 
-  const where: Prisma.ProductWhereInput = { active: true };
-  if (params.q) {
-    // Busca multi-termo: cada palavra precisa aparecer em ALGUM campo
-    // (nome, descrição, princípio ativo, SKU, EAN ou marca). Mais preciso que
-    // um único `contains` para consultas como "dipirona 500".
-    const terms = params.q
-      .split(/\s+/)
-      .map((t) => t.trim())
-      .filter(Boolean)
-      .slice(0, 6);
-    if (terms.length > 0) {
-      // `mode: "insensitive"` porque no Postgres o LIKE é case-sensitive.
-      where.AND = terms.map((t): Prisma.ProductWhereInput => ({
+/** Mantém filtros do catálogo e autocomplete consistentes. */
+function catalogWhere(params: CatalogParams): Prisma.ProductWhereInput {
+  const where: Prisma.ProductWhereInput = { ...SALEABLE_PRODUCT_WHERE };
+  const and: Prisma.ProductWhereInput[] = [];
+  const terms = normalizedSearchTerms(params.q);
+
+  if (terms.length > 0) {
+    // Cada palavra precisa aparecer em algum campo pesquisável.
+    and.push(
+      ...terms.map((term): Prisma.ProductWhereInput => ({
         OR: [
-          { name: { contains: t, mode: "insensitive" } },
-          { description: { contains: t, mode: "insensitive" } },
-          { activeIngredient: { contains: t, mode: "insensitive" } },
-          { sku: { contains: t, mode: "insensitive" } },
-          { ean: { contains: t, mode: "insensitive" } },
-          { brand: { name: { contains: t, mode: "insensitive" } } },
+          { name: { contains: term, mode: "insensitive" } },
+          { description: { contains: term, mode: "insensitive" } },
+          { activeIngredient: { contains: term, mode: "insensitive" } },
+          { sku: { contains: term, mode: "insensitive" } },
+          { ean: { contains: term, mode: "insensitive" } },
+          { brand: { name: { contains: term, mode: "insensitive" } } },
         ],
-      }));
-    }
+      }))
+    );
   }
   if (params.cat) where.category = { slug: params.cat };
   if (params.brand) where.brand = { slug: params.brand };
   if (params.generic) where.isGeneric = true;
   if (params.promo) where.promoPrice = { not: null };
+
   // Faixa de preço sobre o valor efetivo (promoPrice quando houver, senão price).
-  const priceConds: Prisma.ProductWhereInput[] = [];
   if (params.priceMin != null) {
-    priceConds.push({
+    and.push({
       OR: [
         { promoPrice: { gte: params.priceMin } },
         { promoPrice: null, price: { gte: params.priceMin } },
@@ -187,16 +199,116 @@ export async function searchProducts(params: CatalogParams): Promise<SearchResul
     });
   }
   if (params.priceMax != null) {
-    priceConds.push({
+    and.push({
       OR: [
         { promoPrice: { lte: params.priceMax } },
         { promoPrice: null, price: { lte: params.priceMax } },
       ],
     });
   }
-  if (priceConds.length > 0) {
-    where.AND = [...((where.AND as Prisma.ProductWhereInput[]) ?? []), ...priceConds];
+  if (and.length > 0) where.AND = and;
+  return where;
+}
+
+export type ProductSuggestion = {
+  name: string;
+  slug: string;
+  emoji: string | null;
+  image: string | null;
+  price: number;
+  oldPrice: number | null;
+  category: string;
+};
+
+/**
+ * Consulta dedicada ao autocomplete. Diferente de `searchProducts`, não faz
+ * COUNT, não carrega estoque/reviews e não busca uma janela de 200 registros.
+ */
+export async function getProductSuggestions(
+  query: string,
+  take = 6
+): Promise<ProductSuggestion[]> {
+  if (query.trim().length < 2) return [];
+  const requestedTake = Math.trunc(Number(take));
+  const safeTake = Number.isFinite(requestedTake)
+    ? Math.min(12, Math.max(1, requestedTake))
+    : 6;
+  const normalizedQuery = query.trim();
+  const filters: Prisma.Sql[] = [
+    Prisma.sql`p."active" = TRUE`,
+    Prisma.sql`p."requiresPrescription" = FALSE`,
+  ];
+  for (const term of normalizedSearchTerms(normalizedQuery)) {
+    const pattern = `%${term}%`;
+    filters.push(Prisma.sql`(
+      p."name" ILIKE ${pattern}
+      OR p."description" ILIKE ${pattern}
+      OR p."activeIngredient" ILIKE ${pattern}
+      OR p."sku" ILIKE ${pattern}
+      OR p."ean" ILIKE ${pattern}
+      OR b."name" ILIKE ${pattern}
+    )`);
   }
+
+  const exact = normalizedQuery.toLowerCase();
+  const prefix = `${normalizedQuery}%`;
+  const contains = `%${normalizedQuery}%`;
+  const rows = await prisma.$queryRaw<
+    (Omit<ProductSuggestion, "price" | "oldPrice"> & {
+      price: Prisma.Decimal;
+      oldPrice: Prisma.Decimal | null;
+    })[]
+  >(Prisma.sql`
+    SELECT
+      p."name",
+      p."slug",
+      p."emoji",
+      image."url" AS "image",
+      COALESCE(p."promoPrice", p."price") AS "price",
+      CASE WHEN p."promoPrice" IS NOT NULL THEN p."price" ELSE NULL END AS "oldPrice",
+      c."name" AS "category"
+    FROM "Product" AS p
+    INNER JOIN "Category" AS c ON c."id" = p."categoryId"
+    LEFT JOIN "Brand" AS b ON b."id" = p."brandId"
+    LEFT JOIN LATERAL (
+      SELECT pi."url"
+      FROM "ProductImage" AS pi
+      WHERE pi."productId" = p."id"
+      ORDER BY pi."sort" ASC, pi."id" ASC
+      LIMIT 1
+    ) AS image ON TRUE
+    WHERE ${Prisma.join(filters, " AND ")}
+    ORDER BY
+      CASE
+        WHEN LOWER(p."name") = ${exact} THEN 0
+        WHEN p."name" ILIKE ${prefix} THEN 1
+        WHEN p."name" ILIKE ${contains} THEN 2
+        ELSE 3
+      END,
+      p."ratingCount" DESC,
+      p."name" ASC
+    LIMIT ${safeTake}
+  `);
+  return rows.map((row) => ({
+    ...row,
+    price: moneyToNumber(row.price),
+    oldPrice: row.oldPrice == null ? null : moneyToNumber(row.oldPrice),
+  }));
+}
+
+// Tamanho da janela de ranking por relevância: os N melhores resultados (por
+// avaliação) são re-ranqueados por nome no app. Buscas com mais matches que
+// isso caem na paginação direta do banco nas páginas além da janela.
+const RELEVANCE_WINDOW = 200;
+
+export async function searchProducts(params: CatalogParams): Promise<SearchResult> {
+  const requestedPerPage = Math.trunc(Number(params.perPage ?? 12));
+  const perPage = Number.isFinite(requestedPerPage)
+    ? Math.min(100, Math.max(1, requestedPerPage))
+    : 12;
+  const requestedPage = Math.trunc(Number(params.page ?? 1));
+  const page = Number.isFinite(requestedPage) ? Math.max(1, requestedPage) : 1;
+  const where = catalogWhere(params);
 
   // Modo de ordenação num único discriminante (usado no orderBy e na relevância).
   const sortMode =
@@ -204,17 +316,81 @@ export async function searchProducts(params: CatalogParams): Promise<SearchResul
       ? params.sort
       : "relevancia";
   const orderBy: Prisma.ProductOrderByWithRelationInput =
-    sortMode === "menor"
-      ? { price: "asc" }
-      : sortMode === "maior"
-        ? { price: "desc" }
-        : sortMode === "nome"
-          ? { name: "asc" }
-          : { ratingCount: "desc" };
+    sortMode === "nome"
+      ? { name: "asc" }
+      : { ratingCount: "desc" };
+
+  // O Prisma não expressa ORDER BY COALESCE em `orderBy`. Uma consulta
+  // parametrizada busca somente os IDs e o total da página; os cards continuam
+  // usando o select tipado. Assim promoções são ordenadas pelo preço realmente
+  // cobrado, e não pelo preço de tabela.
+  if (sortMode === "menor" || sortMode === "maior") {
+    const filters: Prisma.Sql[] = [
+      Prisma.sql`p."active" = TRUE`,
+      Prisma.sql`p."requiresPrescription" = FALSE`,
+    ];
+    for (const term of normalizedSearchTerms(params.q)) {
+      const pattern = `%${term}%`;
+      filters.push(Prisma.sql`(
+        p."name" ILIKE ${pattern}
+        OR p."description" ILIKE ${pattern}
+        OR p."activeIngredient" ILIKE ${pattern}
+        OR p."sku" ILIKE ${pattern}
+        OR p."ean" ILIKE ${pattern}
+        OR b."name" ILIKE ${pattern}
+      )`);
+    }
+    if (params.cat) filters.push(Prisma.sql`c."slug" = ${params.cat}`);
+    if (params.brand) filters.push(Prisma.sql`b."slug" = ${params.brand}`);
+    if (params.generic) filters.push(Prisma.sql`p."isGeneric" = TRUE`);
+    if (params.promo) filters.push(Prisma.sql`p."promoPrice" IS NOT NULL`);
+    if (params.priceMin != null) {
+      filters.push(
+        Prisma.sql`COALESCE(p."promoPrice", p."price") >= ${params.priceMin}`
+      );
+    }
+    if (params.priceMax != null) {
+      filters.push(
+        Prisma.sql`COALESCE(p."promoPrice", p."price") <= ${params.priceMax}`
+      );
+    }
+
+    const direction =
+      sortMode === "menor" ? Prisma.sql`ASC` : Prisma.sql`DESC`;
+    const idRows = await prisma.$queryRaw<
+      { id: string; total: number | bigint }[]
+    >(Prisma.sql`
+      SELECT p."id", COUNT(*) OVER()::integer AS "total"
+      FROM "Product" AS p
+      INNER JOIN "Category" AS c ON c."id" = p."categoryId"
+      LEFT JOIN "Brand" AS b ON b."id" = p."brandId"
+      WHERE ${Prisma.join(filters, " AND ")}
+      ORDER BY COALESCE(p."promoPrice", p."price") ${direction},
+               p."name" ASC,
+               p."id" ASC
+      LIMIT ${perPage}
+      OFFSET ${(page - 1) * perPage}
+    `);
+    const ids = idRows.map((row) => row.id);
+    const total =
+      idRows.length > 0 ? Number(idRows[0].total) : await prisma.product.count({ where });
+    const rows = ids.length
+      ? await prisma.product.findMany({
+          where: { id: { in: ids }, ...SALEABLE_PRODUCT_WHERE },
+          select: productCardSelect(params.pharmacyId),
+        })
+      : [];
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const items = ids
+      .map((id) => byId.get(id))
+      .filter((row): row is NonNullable<typeof row> => row != null)
+      .map(toProductCard);
+    return { items, total, page, perPage, pages: Math.ceil(total / perPage) };
+  }
 
   // Relevância: ranqueia por correspondência de NOME (igual > prefixo > contém)
   // sobre uma JANELA dos melhores resultados — antes da paginação — para que um
-  // match exato com poucas avaliações chegue à 1ª página/autocomplete. A janela
+  // match exato com poucas avaliações chegue à 1ª página. A janela
   // é buscada só com id+nome (leve); os cards da página vêm por id em seguida.
   const useRelevance =
     !!params.q &&
@@ -248,7 +424,7 @@ export async function searchProducts(params: CatalogParams): Promise<SearchResul
     const pageIds = win.slice(start, start + perPage).map((w) => w.id);
     const rows = pageIds.length
       ? await prisma.product.findMany({
-          where: { id: { in: pageIds } },
+          where: { id: { in: pageIds }, ...SALEABLE_PRODUCT_WHERE },
           select: productCardSelect(params.pharmacyId),
         })
       : [];
@@ -283,8 +459,8 @@ export async function searchProducts(params: CatalogParams): Promise<SearchResul
 }
 
 export async function getProductBySlug(slug: string, pharmacyId?: string | null) {
-  const product = await prisma.product.findUnique({
-    where: { slug },
+  const product = await prisma.product.findFirst({
+    where: { slug, ...SALEABLE_PRODUCT_WHERE },
     include: {
       category: true,
       brand: true,
@@ -304,7 +480,21 @@ export async function getProductBySlug(slug: string, pharmacyId?: string | null)
   if (!product) return null;
   const { inventory, ...rest } = product;
   const stock = inventory.reduce((sum, i) => sum + i.stock, 0);
-  return { ...rest, stock };
+  return {
+    ...rest,
+    price: moneyToNumber(rest.price),
+    costPrice: rest.costPrice == null ? null : moneyToNumber(rest.costPrice),
+    promoPrice: rest.promoPrice == null ? null : moneyToNumber(rest.promoPrice),
+    stock,
+  };
+}
+
+/** Select mínimo para SEO; evita carregar imagens, reviews e estoque duas vezes. */
+export function getProductMetadataBySlug(slug: string) {
+  return prisma.product.findFirst({
+    where: { slug, ...SALEABLE_PRODUCT_WHERE },
+    select: { name: true, shortDescription: true },
+  });
 }
 
 export async function getRelatedProducts(
@@ -314,7 +504,11 @@ export async function getRelatedProducts(
   pharmacyId?: string | null
 ) {
   const rows = await prisma.product.findMany({
-    where: { active: true, categoryId, id: { not: excludeId } },
+    where: {
+      ...SALEABLE_PRODUCT_WHERE,
+      categoryId,
+      id: { not: excludeId },
+    },
     select: productCardSelect(pharmacyId),
     orderBy: { ratingCount: "desc" },
     take,

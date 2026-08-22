@@ -17,7 +17,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
     return (
       <div className="space-y-4">
         <h2 className="text-2xl font-extrabold">Link inválido</h2>
-        <div className="flex items-center gap-2 rounded-xl bg-danger-500/10 px-4 py-3 text-sm font-medium text-danger-500">
+        <div role="alert" className="flex items-center gap-2 rounded-xl bg-danger-500/10 px-4 py-3 text-sm font-medium text-danger-500">
           <AlertCircle className="size-4 shrink-0" /> Este link de redefinição é
           inválido ou está incompleto.
         </div>
@@ -35,7 +35,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
     return (
       <div className="space-y-4">
         <h2 className="text-2xl font-extrabold">Senha redefinida ✅</h2>
-        <div className="flex items-start gap-2 rounded-xl bg-success-500/10 px-4 py-3 text-sm font-medium text-success-600">
+        <div role="status" className="flex items-start gap-2 rounded-xl bg-success-500/10 px-4 py-3 text-sm font-medium text-success-600">
           <CheckCircle2 className="size-4 shrink-0 translate-y-0.5" />
           Sua senha foi atualizada com sucesso. Agora é só entrar com a nova
           senha.
@@ -54,12 +54,12 @@ export function ResetPasswordForm({ token }: { token: string }) {
       <div className="space-y-1">
         <h2 className="text-2xl font-extrabold">Criar nova senha</h2>
         <p className="text-sm text-muted-foreground">
-          Defina uma senha com pelo menos 8 caracteres.
+          Defina uma senha com 12 a 64 caracteres.
         </p>
       </div>
 
       {state?.error && (
-        <div className="flex items-center gap-2 rounded-xl bg-danger-500/10 px-4 py-3 text-sm font-medium text-danger-500">
+        <div role="alert" className="flex items-center gap-2 rounded-xl bg-danger-500/10 px-4 py-3 text-sm font-medium text-danger-500">
           <AlertCircle className="size-4 shrink-0" /> {state.error}
         </div>
       )}
@@ -73,6 +73,8 @@ export function ResetPasswordForm({ token }: { token: string }) {
             type="password"
             autoComplete="new-password"
             placeholder="••••••••"
+            minLength={12}
+            maxLength={64}
             required
           />
         </Field>
@@ -83,6 +85,8 @@ export function ResetPasswordForm({ token }: { token: string }) {
             type="password"
             autoComplete="new-password"
             placeholder="••••••••"
+            minLength={12}
+            maxLength={64}
             required
           />
         </Field>
@@ -92,6 +96,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           size="lg"
           className="w-full"
           disabled={pending}
+          aria-busy={pending}
         >
           {pending ? (
             <Loader2 className="size-5 animate-spin" />

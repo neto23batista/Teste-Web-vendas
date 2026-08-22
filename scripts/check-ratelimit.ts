@@ -8,6 +8,7 @@
  * instância (fraco na Vercel) — é exatamente isso que queremos descobrir aqui.
  */
 import { rateLimit, rateLimitIsDurable } from "../src/lib/rate-limit";
+import { reportError } from "../src/lib/monitoring";
 
 const ok = (s: string) => console.log(`  \x1b[32mOK\x1b[0m   ${s}`);
 const bad = (s: string) => console.log(`  \x1b[31mFALHA\x1b[0m ${s}`);
@@ -70,6 +71,6 @@ async function main() {
 
 main().catch((err) => {
   bad("Erro ao falar com o Redis:");
-  console.error(err);
+  reportError(err, { operation: "rate-limit.selftest" });
   process.exit(1);
 });

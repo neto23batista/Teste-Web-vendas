@@ -1,7 +1,5 @@
 "use client";
 
-import * as React from "react";
-
 // global-error substitui o layout raiz quando há um erro de nível raiz.
 // É autocontido (estilos inline) — não depende de CSS/providers carregados.
 export default function GlobalError({
@@ -11,10 +9,6 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  React.useEffect(() => {
-    console.error(error);
-  }, [error]);
-
   return (
     <html lang="pt-BR">
       <body

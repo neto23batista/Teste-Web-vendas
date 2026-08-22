@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { Gift, TrendingUp, Sparkles } from "lucide-react";
-import { requireUser } from "@/lib/session";
+import { requireUserPage } from "@/lib/session";
 import { getLoyalty } from "@/lib/account";
 
 export const metadata: Metadata = { title: "Fidelidade" };
 
 export default async function LoyaltyPage() {
-  const user = await requireUser();
+  const user = await requireUserPage("/conta/fidelidade");
   const loyalty = await getLoyalty(user.id);
   const points = loyalty?.points ?? 0;
   const txs = loyalty?.transactions ?? [];

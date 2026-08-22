@@ -19,41 +19,45 @@ import {
   getPromoProducts,
   getProductsByCategory,
 } from "@/lib/products";
-import { getShippingConfig } from "@/lib/settings";
+import { getShippingConfig, getStoreSettings } from "@/lib/settings";
 import { getSelectedPharmacyId } from "@/lib/pharmacy";
 import { jsonLdScript } from "@/lib/utils";
 
 const benefits = [
-  { icon: Truck, title: "Entrega expressa", text: "Receba em casa com rastreio em tempo real." },
-  { icon: ShieldCheck, title: "100% seguro", text: "Pagamento criptografado e dados protegidos por LGPD." },
-  { icon: Stethoscope, title: "Receita validada", text: "Envio e conferência farmacêutica direto no app." },
-  { icon: Clock, title: "Atendimento 24h", text: "Suporte e orientação farmacêutica quando precisar." },
+  { icon: Truck, title: "Acompanhamento do pedido", text: "Consulte o andamento na sua conta." },
+  { icon: ShieldCheck, title: "Controles de segurança", text: "Pagamento processado por provedor especializado e acesso protegido em camadas." },
+  { icon: Stethoscope, title: "Somente venda livre", text: "O canal não vende medicamentos sujeitos a prescrição." },
+  { icon: Clock, title: "Atendimento transparente", text: "Canais e horários ficam publicados no rodapé." },
 ];
 
 export default async function HomePage() {
   const pharmacyId = await getSelectedPharmacyId();
-  const [categories, promos, featured, vitaminas, shipping] = await Promise.all([
+  const [categories, promos, featured, vitaminas, shipping, store] = await Promise.all([
     getCategories(),
     getPromoProducts(10, pharmacyId),
     getFeaturedProducts(10, pharmacyId),
     getProductsByCategory("vitaminas", 10, pharmacyId),
     getShippingConfig(pharmacyId),
+    getStoreSettings(),
   ]);
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Pharmacy",
-    name: "FarmaVida",
+    name: process.env.NEXT_PUBLIC_APP_NAME ?? "FarmaVida",
     description:
-      "Farmácia online com entrega rápida, compra segura e atendimento farmacêutico.",
+      "Farmácia online de medicamentos isentos de prescrição, com catálogo e dados operacionais publicados.",
     url: process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000",
     priceRange: "$$",
-    address: {
-      "@type": "PostalAddress",
-      addressCountry: "BR",
-      addressLocality: "São Paulo",
-      addressRegion: "SP",
-    },
+    ...(store.address
+      ? {
+          address: {
+            "@type": "PostalAddress",
+            streetAddress: store.address,
+            addressCountry: "BR",
+          },
+        }
+      : {}),
   };
 
   return (
@@ -136,8 +140,8 @@ export default async function HomePage() {
           <span className="text-gradient-vivid">em um só lugar</span>
         </h2>
         <p className="mx-auto mt-2 max-w-lg text-muted-foreground">
-          Mais de {categories.length} categorias com entrega rápida e
-          atendimento farmacêutico.
+          Mais de {categories.length} categorias, com prazo calculado para sua
+          região e canais de atendimento publicados.
         </p>
         <Button asChild variant="primary" size="lg" className="group mt-6">
           <Link href="/catalogo">

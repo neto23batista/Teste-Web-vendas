@@ -141,7 +141,7 @@ export default async function CartPage() {
               </Link>
             </Button>
             <p className="text-center text-xs text-muted-foreground">
-              Pagamento seguro · seus dados são protegidos
+              Pagamento online processado pelo provedor, sem armazenar o número completo do cartão
             </p>
           </div>
         </aside>

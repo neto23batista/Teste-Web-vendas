@@ -1,3 +1,5 @@
+import { moneyToCents, type MoneyValue } from "@/lib/money";
+
 /**
  * Leitura de extrato bancário (OFX e CSV) e casamento com os pagamentos do
  * sistema — a base da conciliação bancária. Tudo puro (sem IO), testável.
@@ -154,7 +156,7 @@ export function parseStatement(text: string): StatementTx[] {
 
 export type MatchCandidate = {
   id: string;
-  amount: number;
+  amount: MoneyValue;
   /** Dia do pagamento no formato yyyy-mm-dd. */
   date: string;
 };
@@ -166,31 +168,43 @@ const diffDays = (a: string, b: string): number =>
 /**
  * Casa lançamentos de crédito do extrato com pagamentos do sistema:
  * mesmo valor (tolerância de 1 centavo) e data dentro da janela (± dias).
- * Cada pagamento casa com no máximo um lançamento; empate vai para a data
- * mais próxima. Retorna índice do lançamento → id do pagamento.
+ * Cada pagamento casa com no máximo um lançamento; vence a data mais próxima,
+ * mas empate na melhor distância fica pendente para revisão manual. Retorna o
+ * índice do lançamento → id do pagamento.
  */
 export function matchStatement(
-  txs: StatementTx[],
+  txs: Array<Omit<StatementTx, "amount"> & { amount: MoneyValue }>,
   payments: MatchCandidate[],
   windowDays = 3
 ): Map<number, string> {
   const matches = new Map<number, string>();
   const used = new Set<string>();
   txs.forEach((tx, i) => {
-    if (tx.amount <= 0) return;
-    let best: MatchCandidate | null = null;
-    let bestDiff = Infinity;
-    for (const p of payments) {
-      if (used.has(p.id)) continue;
-      if (Math.abs(p.amount - tx.amount) > 0.01) continue;
-      const d = diffDays(tx.date, p.date);
-      if (d > windowDays || d >= bestDiff) continue;
-      best = p;
-      bestDiff = d;
-    }
-    if (best) {
-      matches.set(i, best.id);
-      used.add(best.id);
+    const txCents = moneyToCents(tx.amount, { allowNegative: true });
+    if (txCents === null || txCents <= 0) return;
+    const eligible = payments
+      .filter(
+        (p) => {
+          const paymentCents = moneyToCents(p.amount, { allowNegative: true });
+          return (
+            !used.has(p.id) &&
+            paymentCents !== null &&
+            Math.abs(paymentCents - txCents) <= 1 &&
+            diffDays(tx.date, p.date) <= windowDays
+          );
+        }
+      )
+      .map((payment) => ({ payment, distance: diffDays(tx.date, payment.date) }))
+      .sort((a, b) => a.distance - b.distance);
+    const best = eligible[0];
+    // Dois pagamentos igualmente próximos, com o mesmo valor, são ambíguos:
+    // não escolha pela ordem do array. A conciliação precisa de revisão manual.
+    if (
+      best &&
+      eligible.filter((entry) => entry.distance === best.distance).length === 1
+    ) {
+      matches.set(i, best.payment.id);
+      used.add(best.payment.id);
     }
   });
   return matches;

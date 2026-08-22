@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Package } from "lucide-react";
-import { requireUser } from "@/lib/session";
+import { requireUserPage } from "@/lib/session";
 import { getUserOrders } from "@/lib/account";
 import { OrderCard } from "@/components/account/order-card";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = { title: "Meus pedidos" };
 
 export default async function OrdersPage() {
-  const user = await requireUser();
+  const user = await requireUserPage("/conta/pedidos");
   const orders = await getUserOrders(user.id);
 
   return (

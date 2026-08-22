@@ -4,6 +4,7 @@ import { getReviewsByApproval } from "@/lib/admin";
 import { ReviewModeration } from "@/components/admin/review-moderation";
 import { StarRating } from "@/components/store/star-rating";
 import { cn } from "@/lib/utils";
+import { requireArea } from "@/lib/session";
 
 export const metadata = { title: "Avaliações" };
 
@@ -17,6 +18,7 @@ export default async function AdminReviewsPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  await requireArea("avaliacoes");
   const sp = await searchParams;
   const approved = sp.status === "aprovadas";
   const reviews = await getReviewsByApproval(approved);

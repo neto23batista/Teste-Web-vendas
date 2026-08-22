@@ -8,9 +8,9 @@ import { importProducts, type ImportResult } from "@/actions/admin-products";
 import { Button } from "@/components/ui/button";
 
 const TEMPLATE_HEADER =
-  "nome,sku,ean,preco,promo,estoque,categoria,marca,principio_ativo,descricao,generico";
+  "nome,sku,ean,preco,promo,estoque,categoria,marca,principio_ativo,descricao,generico,tarja";
 const TEMPLATE_ROWS = [
-  'Dipirona 500mg 10 comprimidos,DIP500,7891234567890,9.90,7.90,50,Medicamentos,EMS,Dipirona sódica,"Analgésico e antitérmico",nao,sim',
+  'Dipirona 500mg 10 comprimidos,DIP500,7891234567890,9.90,7.90,50,Medicamentos,EMS,Dipirona sódica,"Analgésico e antitérmico",nao,nao',
   "Protetor Solar FPS 50,PROT50,7890000000001,49.90,,30,Dermocosméticos,Nivea,,Proteção UVA/UVB,nao,nao",
 ];
 
@@ -67,8 +67,8 @@ export function ProductImport() {
               className="block w-full cursor-pointer rounded-xl border border-border bg-background text-sm file:mr-4 file:cursor-pointer file:border-0 file:bg-brand-600 file:px-4 file:py-2.5 file:font-semibold file:text-white hover:file:bg-brand-700"
             />
             <p className="mt-2 text-xs text-muted-foreground">
-              Máx. 2 MB. A primeira linha deve ser o cabeçalho. Categoria e marca
-              precisam já existir no sistema (busca por nome ou slug).
+              Máx. 2 MB e 2.000 linhas. A primeira linha deve ser o cabeçalho.
+              Categoria e marca precisam já existir no sistema (busca por nome ou slug).
             </p>
           </div>
 

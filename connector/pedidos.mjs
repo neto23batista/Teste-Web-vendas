@@ -5,6 +5,7 @@
 
 import { inovafarma, farmavida } from "./client.mjs";
 import { pedidoParaVenda } from "./mapeadores.mjs";
+import { safeErrorMessage } from "./security.mjs";
 
 export async function exportarPedidos() {
   const data = await farmavida("GET", "/api/integracao/pedidos");
@@ -21,10 +22,10 @@ export async function exportarPedidos() {
         idVenda,
       });
       exportados++;
-      console.log(`[pedidos] ${pedido.numero} → venda ${idVenda ?? "(sem id)"} ✔`);
+      console.log("[pedidos] pedido exportado com sucesso");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[pedidos] ${pedido.numero} FALHOU: ${msg}`);
+      const msg = safeErrorMessage(err);
+      console.error(`[pedidos] exportação falhou: ${msg}`);
       // Reporta o erro (best-effort) — o FarmaVida registra e re-oferece depois.
       try {
         await farmavida("POST", `/api/integracao/pedidos/${pedido.numero}/resultado`, {

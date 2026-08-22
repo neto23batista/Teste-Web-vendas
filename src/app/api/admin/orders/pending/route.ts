@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/session";
+import { assertArea } from "@/lib/session";
 import { resolveUnitFilter } from "@/lib/admin";
 
 export const runtime = "nodejs";
@@ -14,8 +14,9 @@ export const dynamic = "force-dynamic";
  * Só admin lê.
  */
 export async function GET(req: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "ADMIN") {
+  try {
+    await assertArea("pedidos");
+  } catch {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

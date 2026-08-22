@@ -40,7 +40,8 @@ export function CouponRowActions({
         onClick={toggle}
         disabled={pending}
         title={active ? "Desativar" : "Ativar"}
-        className="grid size-9 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted"
+        aria-label={`${active ? "Desativar" : "Ativar"} cupom ${code}`}
+        className="grid size-11 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted"
       >
         {pending ? (
           <Loader2 className="size-4 animate-spin" />
@@ -53,7 +54,8 @@ export function CouponRowActions({
       <Link
         href={`/admin/cupons/${id}`}
         title="Editar"
-        className="grid size-9 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-brand-600"
+        aria-label={`Editar cupom ${code}`}
+        className="grid size-11 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-brand-600"
       >
         <Pencil className="size-4" />
       </Link>
@@ -61,7 +63,8 @@ export function CouponRowActions({
         onClick={remove}
         disabled={pending}
         title="Excluir"
-        className="grid size-9 place-items-center rounded-lg text-muted-foreground transition hover:bg-danger-500/10 hover:text-danger-500"
+        aria-label={`Excluir cupom ${code}`}
+        className="grid size-11 place-items-center rounded-lg text-muted-foreground transition hover:bg-danger-500/10 hover:text-danger-500"
       >
         <Trash2 className="size-4" />
       </button>

@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { requireUser } from "@/lib/session";
+import { requireUserPage } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { AddressBook } from "@/components/account/address-book";
 
 export const metadata: Metadata = { title: "Endereços" };
 
 export default async function AddressesPage() {
-  const user = await requireUser();
+  const user = await requireUserPage("/conta/enderecos");
   const rows = await prisma.address.findMany({
     where: { userId: user.id },
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],

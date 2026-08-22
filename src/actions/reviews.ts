@@ -2,7 +2,7 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 
 export type ReviewState = { ok?: boolean; error?: string } | undefined;
 
@@ -17,8 +17,12 @@ export async function submitReview(
   _prev: ReviewState,
   formData: FormData
 ): Promise<ReviewState> {
-  const user = await getCurrentUser();
-  if (!user) return { error: "Faça login para avaliar este produto." };
+  let user;
+  try {
+    user = await requireUser();
+  } catch {
+    return { error: "Faça login para avaliar este produto." };
+  }
 
   const rating = Math.round(Number(formData.get("rating")));
   if (!Number.isFinite(rating) || rating < 1 || rating > 5) {

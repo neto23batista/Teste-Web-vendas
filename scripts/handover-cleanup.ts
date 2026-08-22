@@ -1,7 +1,7 @@
 // Limpeza de HANDOVER: prepara o banco para entrega aos novos donos.
 //
 // O que faz (nesta ordem):
-//   1. BACKUP completo de todas as tabelas em backups/pre-handover-<data>.json
+//   1. Valida confirmações fortes e o banco-alvo ANTES de qualquer leitura/escrita.
 //   2. Apaga TODOS os dados de movimento/demonstração: pedidos, pagamentos,
 //      receitas, avaliações, favoritos, assinaturas, carrinhos, fidelidade,
 //      endereços, cupons, auditoria e TODOS os usuários (incluindo os demo).
@@ -10,149 +10,156 @@
 //   4. Remove faixas de CEP demo (roteamento cai na matriz até configurarem) e
 //      limpa CNPJ/farmacêutico demo dos Settings.
 //   5. Cria UM admin de primeiro acesso (matriz, escopo global) com senha
-//      aleatória impressa no final — os novos donos devem trocá-la.
+//      de alta entropia. A senha não é impressa sem opt-in separado.
 //
-// Uso: npx tsx scripts/handover-cleanup.ts
+// Uso: consulte docs/OPERATIONS.md. A execução falha fechada por padrão.
 import "dotenv/config";
-import fs from "node:fs";
-import path from "node:path";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
+import { reportError } from "../src/lib/monitoring";
+import { enqueueStorageDeletions } from "../src/lib/storage-deletions";
+import {
+  assertHandoverCleanupAllowed,
+  handoverPasswordMode,
+} from "../src/lib/handover-safety";
 
 const prisma = new PrismaClient();
 
-async function backupAll(): Promise<string> {
-  const dump: Record<string, unknown> = {};
-  const tables = {
-    user: () => prisma.user.findMany(),
-    address: () => prisma.address.findMany(),
-    passwordResetToken: () => prisma.passwordResetToken.findMany(),
-    category: () => prisma.category.findMany(),
-    brand: () => prisma.brand.findMany(),
-    product: () => prisma.product.findMany(),
-    productImage: () => prisma.productImage.findMany(),
-    cart: () => prisma.cart.findMany(),
-    cartItem: () => prisma.cartItem.findMany(),
-    order: () => prisma.order.findMany(),
-    orderItem: () => prisma.orderItem.findMany(),
-    payment: () => prisma.payment.findMany(),
-    prescription: () => prisma.prescription.findMany(),
-    loyaltyAccount: () => prisma.loyaltyAccount.findMany(),
-    loyaltyTransaction: () => prisma.loyaltyTransaction.findMany(),
-    coupon: () => prisma.coupon.findMany(),
-    review: () => prisma.review.findMany(),
-    favorite: () => prisma.favorite.findMany(),
-    setting: () => prisma.setting.findMany(),
-    pharmacy: () => prisma.pharmacy.findMany(),
-    pharmacyCepRange: () => prisma.pharmacyCepRange.findMany(),
-    inventory: () => prisma.inventory.findMany(),
-    subscription: () => prisma.subscription.findMany(),
-    auditLog: () => prisma.auditLog.findMany(),
-  } as const;
-  for (const [name, fetch] of Object.entries(tables)) {
-    dump[name] = await fetch().catch(() => []);
-  }
-  const dir = path.join(process.cwd(), "backups");
-  fs.mkdirSync(dir, { recursive: true });
-  const file = path.join(
-    dir,
-    `pre-handover-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`
-  );
-  fs.writeFileSync(file, JSON.stringify(dump, null, 1), "utf8");
-  return file;
-}
-
 async function main() {
-  console.log("💾 Backup completo antes de qualquer exclusão…");
-  const backupFile = await backupAll();
-  console.log(`   → ${backupFile}`);
+  assertHandoverCleanupAllowed(process.env);
+  const passwordMode = handoverPasswordMode(process.env);
+  const password =
+    passwordMode === "provided"
+      ? process.env.HANDOVER_OWNER_PASSWORD!
+      : crypto.randomBytes(24).toString("base64url");
+  const passwordHash = await bcrypt.hash(password, 12);
 
-  console.log("🧹 Apagando dados de movimento/demonstração…");
-  await prisma.auditLog.deleteMany();
-  await prisma.subscription.deleteMany().catch(() => {});
-  await prisma.favorite.deleteMany().catch(() => {});
-  await prisma.review.deleteMany();
-  await prisma.prescription.deleteMany();
-  await prisma.payment.deleteMany();
-  await prisma.order.deleteMany(); // OrderItem cai em cascata
-  await prisma.loyaltyTransaction.deleteMany();
-  await prisma.loyaltyAccount.deleteMany();
-  await prisma.cart.deleteMany(); // CartItem cai em cascata
-  await prisma.address.deleteMany();
-  await prisma.passwordResetToken.deleteMany();
-  await prisma.coupon.deleteMany();
-  await prisma.user.deleteMany();
+  // Não criamos dump JSON: ele copiava PII, hashes, tokens e dados de pagamento
+  // para o workspace. Backup/restore deve usar o procedimento criptografado da
+  // infraestrutura, com retenção e acesso controlados.
 
-  console.log("📦 Escolhendo 3 produtos de amostra…");
-  const matriz = await prisma.pharmacy.findFirst({ where: { type: "MATRIZ" } });
-  if (!matriz) throw new Error("Matriz não encontrada — abortando.");
+  console.log("🧹 Executando limpeza atômica de dados de demonstração…");
+  const summary = await prisma.$transaction(
+    async (tx) => {
+      const matriz = await tx.pharmacy.findFirst({
+        where: { type: "MATRIZ" },
+        select: { id: true },
+      });
+      if (!matriz) throw new Error("Matriz não encontrada — transação abortada.");
 
-  let keepers = await prisma.product.findMany({
-    where: {
-      active: true,
-      requiresPrescription: false,
-      inventory: { some: { pharmacyId: matriz.id, stock: { gt: 0 } } },
+      // Todos os efeitos no PostgreSQL vivem na MESMA transação. Qualquer falha
+      // desfaz o conjunto inteiro, em vez de deixar uma base meio apagada.
+      const prescriptionFiles = await tx.prescription.findMany({
+        select: { fileUrl: true },
+      });
+      await enqueueStorageDeletions(
+        tx,
+        prescriptionFiles.map(({ fileUrl }) => fileUrl)
+      );
+      await tx.auditLog.deleteMany();
+      await tx.subscription.deleteMany();
+      await tx.favorite.deleteMany();
+      await tx.review.deleteMany();
+      await tx.prescription.deleteMany();
+      await tx.bankTransaction.deleteMany();
+      await tx.payment.deleteMany();
+      await tx.order.deleteMany(); // OrderItem/OrderExport caem em cascata
+      await tx.loyaltyTransaction.deleteMany();
+      await tx.loyaltyAccount.deleteMany();
+      await tx.cart.deleteMany(); // CartItem cai em cascata
+      await tx.address.deleteMany();
+      await tx.passwordResetToken.deleteMany();
+      await tx.coupon.deleteMany();
+      await tx.expense.deleteMany();
+      await tx.syncRun.deleteMany();
+      await tx.courier.deleteMany();
+      await tx.user.deleteMany();
+
+      // Nunca completa a amostra com produto regulado. Se houver menos de três
+      // produtos MIP ativos, mantém somente os disponíveis — inclusive zero.
+      const keepers = await tx.product.findMany({
+        where: { active: true, requiresPrescription: false },
+        orderBy: [{ ratingCount: "desc" }, { createdAt: "asc" }],
+        take: 3,
+        select: { id: true, name: true },
+      });
+      const keepIds = keepers.map((product) => product.id);
+      const removed = await tx.product.deleteMany({
+        where: { id: { notIn: keepIds } },
+      });
+      await tx.product.updateMany({
+        where: { id: { in: keepIds } },
+        data: { rating: 0, ratingCount: 0 },
+      });
+      await tx.brand.deleteMany({ where: { products: { none: {} } } });
+
+      await tx.pharmacyCepRange.deleteMany();
+      await tx.setting.deleteMany({
+        where: {
+          key: {
+            in: [
+              "pharmacy_cnpj",
+              "pharmacist",
+              "store.legalName",
+              "store.cnpj",
+              "store.phone",
+              "store.whatsapp",
+              "store.email",
+              "store.address",
+              "store.hours",
+              "store.pharmacistName",
+              "store.pharmacistCrf",
+              "store.sanitaryLicense",
+              "store.afe",
+              "store.ae",
+            ],
+          },
+        },
+      });
+      await tx.pharmacy.updateMany({
+        data: { cnpj: null, pharmacistName: null, pharmacistCrf: null },
+      });
+
+      await tx.user.create({
+        data: {
+          name: "Administrador",
+          email: "admin@farmavida.local",
+          passwordHash,
+          role: "ADMIN",
+          staffProfile: "OWNER",
+          pharmacyId: matriz.id,
+        },
+      });
+
+      return {
+        keepers,
+        removed: removed.count,
+        products: await tx.product.count(),
+        users: await tx.user.count(),
+      };
     },
-    orderBy: { ratingCount: "desc" },
-    take: 3,
-    select: { id: true, name: true },
-  });
-  if (keepers.length < 3) {
-    keepers = await prisma.product.findMany({
-      take: 3,
-      select: { id: true, name: true },
-    });
-  }
-  const keepIds = keepers.map((k) => k.id);
+    { maxWait: 10_000, timeout: 120_000 }
+  );
 
-  const removed = await prisma.product.deleteMany({
-    where: { id: { notIn: keepIds } },
-  });
-  // Notas/contagens do seed eram fictícias — os novos donos partem do zero.
-  await prisma.product.updateMany({
-    where: { id: { in: keepIds } },
-    data: { rating: 0, ratingCount: 0 },
-  });
-  await prisma.brand.deleteMany({ where: { products: { none: {} } } });
-
-  console.log("🗺️  Removendo faixas de CEP demo e dados regulatórios fake…");
-  await prisma.pharmacyCepRange.deleteMany();
-  await prisma.setting.updateMany({
-    where: { key: "pharmacy_cnpj" },
-    data: { value: "" },
-  });
-  await prisma.setting.updateMany({
-    where: { key: "pharmacist" },
-    data: { value: "" },
-  });
-
-  console.log("👤 Criando o admin de primeiro acesso…");
-  const password = `Farma@${crypto.randomBytes(4).toString("hex")}`;
-  await prisma.user.create({
-    data: {
-      name: "Administrador",
-      email: "admin@farmavida.local",
-      passwordHash: await bcrypt.hash(password, 10),
-      role: "ADMIN",
-      pharmacyId: matriz.id, // matriz = escopo global
-    },
-  });
-
-  const products = await prisma.product.count();
-  const users = await prisma.user.count();
   console.log("\n✅ Handover pronto:");
-  console.log(`   Produtos mantidos (${products}): ${keepers.map((k) => k.name).join(" · ")}`);
-  console.log(`   Produtos removidos: ${removed.count}`);
-  console.log(`   Usuários: ${users} (apenas o admin de primeiro acesso)`);
-  console.log(`   Login inicial → admin@farmavida.local / ${password}`);
+  console.log(
+    `   Produtos mantidos (${summary.products}): ${summary.keepers.map((product) => product.name).join(" · ") || "nenhum MIP ativo disponível"}`
+  );
+  console.log(`   Produtos removidos: ${summary.removed}`);
+  console.log(`   Usuários: ${summary.users} (apenas o admin de primeiro acesso)`);
+  console.log("   Login inicial → admin@farmavida.local");
+  if (passwordMode === "generate-and-print") {
+    console.log(`   Senha inicial (exibição única autorizada): ${password}`);
+  } else {
+    console.log("   Senha inicial recebida por HANDOVER_OWNER_PASSWORD (não exibida). ");
+  }
   console.log("   ⚠️  Troque esta senha no primeiro acesso (Minha conta → Meus dados).");
-  console.log(`   Backup salvo em: ${backupFile}`);
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    reportError(e, { operation: "handover.cleanup" });
     process.exit(1);
   })
   .finally(async () => {

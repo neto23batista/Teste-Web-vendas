@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { centsToNumber, moneyToCents, percentageOfCents } from "@/lib/money";
 
 export type CouponResult =
   | { code: string; discount: number; usageLimit: number | null }
@@ -6,7 +7,7 @@ export type CouponResult =
 
 export async function validateCoupon(
   rawCode: string,
-  subtotal: number
+  subtotalCents: number
 ): Promise<CouponResult> {
   const code = rawCode.trim().toUpperCase();
   if (!code) return { error: "Informe um cupom." };
@@ -17,22 +18,28 @@ export async function validateCoupon(
     return { error: "Cupom expirado." };
   if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit)
     return { error: "Cupom esgotado." };
-  if (subtotal < coupon.minTotal)
+  const minTotalCents = moneyToCents(coupon.minTotal);
+  const valueCents = moneyToCents(coupon.value);
+  if (minTotalCents === null || valueCents === null) {
+    return { error: "Cupom com valor inválido." };
+  }
+  if (subtotalCents < minTotalCents)
     return {
-      error: `Válido para compras acima de ${coupon.minTotal.toLocaleString(
+      error: `Válido para compras acima de ${centsToNumber(minTotalCents).toLocaleString(
         "pt-BR",
         { style: "currency", currency: "BRL" }
       )}.`,
     };
 
-  const discount =
+  const discountCents =
     coupon.type === "PERCENT"
-      ? (subtotal * coupon.value) / 100
-      : Math.min(coupon.value, subtotal);
+      ? percentageOfCents(subtotalCents, coupon.value)
+      : Math.min(valueCents, subtotalCents);
+  if (discountCents === null) return { error: "Cupom com valor inválido." };
 
   return {
     code,
-    discount: Math.round(discount * 100) / 100,
+    discount: centsToNumber(discountCents),
     usageLimit: coupon.usageLimit,
   };
 }

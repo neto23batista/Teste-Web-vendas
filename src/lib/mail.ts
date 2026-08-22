@@ -6,7 +6,16 @@
 // Best-effort: nunca lança — uma falha de e-mail não deve quebrar o fluxo do
 // usuário (cadastro, pedido, reset). Retorna true só quando entregou ao provedor.
 
-type MailInput = { to: string; subject: string; html: string; text?: string };
+import { reportError } from "@/lib/monitoring";
+
+type MailInput = {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  /** Chave interna estável para retry seguro no provedor (máx. 256 ASCII). */
+  idempotencyKey?: string;
+};
 
 export function mailConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM);
@@ -26,19 +35,28 @@ export async function sendMail({
   subject,
   html,
   text,
+  idempotencyKey,
 }: MailInput): Promise<boolean> {
   if (!mailConfigured()) {
-    // Em dev, deixamos o rastro no log para inspeção (ex.: link de reset).
-    console.info(`[mail] (sem provedor) → ${to} · "${subject}"`);
+    // Não registre destinatário nem corpo: mensagens de reset contêm dados
+    // pessoais e tokens de uso único.
+    console.info("[mail] provedor não configurado; mensagem não enviada");
     return false;
   }
 
   try {
+    const safeIdempotencyKey =
+      idempotencyKey && /^[A-Za-z0-9/_:.-]{1,256}$/.test(idempotencyKey)
+        ? idempotencyKey
+        : null;
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
         "Content-Type": "application/json",
+        ...(safeIdempotencyKey
+          ? { "Idempotency-Key": safeIdempotencyKey }
+          : {}),
       },
       body: JSON.stringify({
         from: process.env.MAIL_FROM,
@@ -47,14 +65,19 @@ export async function sendMail({
         html,
         text: text ?? html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
       }),
+      signal: AbortSignal.timeout(5_000),
     });
     if (!res.ok) {
-      console.error(`[mail] Resend ${res.status}: ${await res.text()}`);
+      // O corpo de erro do provedor pode repetir destinatário/conteúdo.
+      // Status + serviço bastam para alerta sem copiar PII para os logs.
+      reportError(new Error(`Resend request failed (${res.status})`), {
+        service: "mail",
+      });
       return false;
     }
     return true;
   } catch (err) {
-    console.error("[mail] erro ao enviar:", err);
+    reportError(err, { service: "mail" });
     return false;
   }
 }

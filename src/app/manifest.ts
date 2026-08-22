@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "FarmaVida — Farmácia online",
     short_name: "FarmaVida",
     description:
-      "Farmácia online com entrega rápida, compra segura e atendimento farmacêutico.",
+      "Farmácia online de medicamentos isentos de prescrição, com catálogo, pedidos e entrega.",
     start_url: "/",
     display: "standalone",
     // Fundo da splash do PWA acompanha o tema padrão (claro).

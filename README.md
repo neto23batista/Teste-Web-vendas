@@ -8,7 +8,7 @@ E-commerce de farmácia com **cara de app premium** — **Next.js 16 + React 19 
 - **Tailwind CSS v4** + UI kit próprio sobre **Radix** · ícones **lucide-react** · animações **framer-motion** · toasts **sonner**
 - **Prisma 6** → **PostgreSQL** (Neon serverless; conexão *pooled* na app + *direta* nas migrations)
 - **Auth.js v5** (credentials, papéis CUSTOMER/ADMIN)
-- **PagBank** (pagamento) · **recharts** (gráficos do admin)
+- **Stripe** (cartão e Pix, quando habilitado) · **recharts** (gráficos do admin)
 
 ## Pré-requisitos
 
@@ -21,7 +21,9 @@ E-commerce de farmácia com **cara de app premium** — **Next.js 16 + React 19 
 npm install
 cp .env.example .env        # cole DATABASE_URL + DATABASE_URL_UNPOOLED (Neon) e gere AUTH_SECRET (npx auth secret)
 npm run db:migrate          # aplica as migrations (cria as tabelas)
-npm run db:seed             # SÓ em banco de desenvolvimento — NUNCA em produção (recria demos e apaga dados reais)
+# SOMENTE com PostgreSQL local descartável; exige confirmação explícita:
+$env:ALLOW_DESTRUCTIVE_SEED="I_UNDERSTAND_THIS_WILL_DELETE_DATA" # PowerShell
+npm run db:seed
 npm run dev                 # http://localhost:3000
 ```
 
@@ -33,7 +35,7 @@ npm run dev                 # http://localhost:3000
 | `npm run build` / `start` | Build e execução de produção |
 | `npm run lint` / `typecheck` | ESLint / checagem de tipos |
 | `npm run db:migrate` | Aplica migrations (Prisma) |
-| `npm run db:seed` | Popula dados demo (**apenas** banco de desenvolvimento) |
+| `npm run db:seed` | Recria dados demo; exige confirmação explícita e recusa produção/hosts remotos |
 | `npm run db:studio` | Abre o Prisma Studio |
 | `npm test` | Testes unitários (Vitest) |
 | `npm run test:e2e` | Testes de navegador (Playwright) — fluxo completo roda no CI |
@@ -56,20 +58,30 @@ prisma/             schema.prisma, seed.ts
 
 O banco de produção é entregue **limpo** (sem dados de demonstração), com um único
 administrador inicial — `admin@farmavida.local` — cuja senha é entregue **fora do
-repositório**. Troque-a no primeiro acesso (*Minha conta → Meus dados*) e cadastre
-os demais usuários pelo próprio painel. Admin entra direto em `/admin`; cliente vai
-para `/conta`.
+repositório**. Troque-a no primeiro acesso (*Minha conta → Segurança*) e cadastre
+os demais usuários pelo próprio painel. Na loja pública, o primeiro login
+administrativo é direcionado ao cadastro de MFA antes de liberar `/admin`;
+clientes seguem para `/conta`.
 
-## Pagamento (PagBank)
+## Pagamento (Stripe)
 
-O checkout está integrado ao PagBank (PIX nativo com QR na página do pedido + página de pagamento hospedada para cartão + webhook). **Sem um token válido** no `.env` (`PAGBANK_TOKEN`), o fluxo cai num **pagamento simulado** na página do pedido — útil para demonstração. Com o token, o PIX mostra QR/copia-e-cola no site e o cartão redireciona à página do PagBank; o webhook confirma o pedido.
+O checkout usa Stripe: cartão pela página hospedada e Pix nativo quando a conta
+tem essa capability habilitada. Configure `STRIPE_SECRET_KEY` e
+`STRIPE_WEBHOOK_SECRET` no secret manager e teste a conexão no painel. Sem
+credenciais válidas, pagamentos online ficam indisponíveis.
+
+## Política de catálogo
+
+O canal é **MIP-only**: produtos classificados com `requiresPrescription=true`
+ficam inativos e são excluídos do catálogo, busca, favoritos, assinaturas e
+sitemap. O sistema não recebe nem valida novas receitas.
 
 ## Deploy
 
 Hospedado na **Vercel** (deploy automático a cada push na `main`).
 
 1. **Banco:** **PostgreSQL na Neon**. Use a integração **Storage → Neon** da Vercel — ela injeta `DATABASE_URL` (pooled) e `DATABASE_URL_UNPOOLED` (direta) automaticamente no ambiente.
-2. **App:** importe o repositório na Vercel e configure as demais variáveis do `.env.example` (`AUTH_SECRET`, `AUTH_TRUST_HOST`, `NEXT_PUBLIC_BASE_URL`, `PAGBANK_TOKEN`, etc.).
+2. **App:** importe o repositório na Vercel e configure as demais variáveis do `.env.example` (`AUTH_SECRET`, `AUTH_TRUST_HOST`, `NEXT_PUBLIC_BASE_URL`, `STRIPE_SECRET_KEY`, etc.).
 3. **Migrations:** após o deploy do código, rode `npm run db:migrate:deploy` (= `prisma migrate deploy`) apontando para a Neon. O build **não** depende do banco.
 4. `npm run build` já gera o Prisma Client (também no `postinstall`).
 

@@ -5,15 +5,37 @@ const PORT = 3210;
 // já em execução (ex.: o build de produção), reusado com PW_NO_SERVER=1.
 const BASE_URL = process.env.PW_BASE_URL || `http://localhost:${PORT}`;
 const isCI = !!process.env.CI;
+const WRITE_CONFIRMATION = "I_UNDERSTAND_THIS_IS_A_DISPOSABLE_DATABASE";
+const writesRequested = process.env.E2E_ALLOW_WRITES;
+const allowWrites = writesRequested === WRITE_CONFIRMATION;
+const e2eDatabaseUrl = process.env.E2E_DATABASE_URL;
+
+if (writesRequested && !allowWrites) {
+  throw new Error(
+    `E2E_ALLOW_WRITES deve ser exatamente ${WRITE_CONFIRMATION}.`
+  );
+}
+
+if (allowWrites && !e2eDatabaseUrl) {
+  throw new Error(
+    "Testes E2E de escrita exigem E2E_DATABASE_URL apontando para um banco descartável."
+  );
+}
+
+if (allowWrites && process.env.PW_NO_SERVER) {
+  throw new Error(
+    "Testes E2E de escrita não podem reutilizar servidor externo (PW_NO_SERVER)."
+  );
+}
 
 /**
  * Config de E2E.
  * - Local: usa o Microsoft Edge do sistema (`channel: "msedge"`) para NÃO
  *   baixar o Chromium — mesmo binário do scripts/shot.cjs. ATENÇÃO: o banco
- *   local é o MESMO Postgres/Neon de produção; specs que ESCREVEM (pedido,
- *   salvar perfil) só rodam com E2E_ALLOW_WRITES=1.
+ *   local deve ser separado de produção; specs que ESCREVEM (pedido, salvar
+ *   perfil) exigem confirmação explícita e E2E_DATABASE_URL descartável.
  * - CI: Chromium baixado pelo Playwright + Postgres de serviço descartável
- *   (migrado e semeado no workflow), onde E2E_ALLOW_WRITES=1 é seguro.
+ *   (migrado e semeado no workflow), com a confirmação explícita habilitada.
  */
 export default defineConfig({
   testDir: "./e2e",
@@ -46,5 +68,12 @@ export default defineConfig({
         url: BASE_URL,
         reuseExistingServer: !isCI,
         timeout: 240_000,
+        env: e2eDatabaseUrl
+          ? {
+              DATABASE_URL: e2eDatabaseUrl,
+              DATABASE_URL_UNPOOLED:
+                process.env.E2E_DATABASE_URL_UNPOOLED ?? e2eDatabaseUrl,
+            }
+          : undefined,
       },
 });

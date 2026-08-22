@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 import { addToCart } from "@/actions/cart";
 
 /**
@@ -11,8 +11,12 @@ import { addToCart } from "@/actions/cart";
  * de vista de estoque — apenas repõe quantidades no carrinho.
  */
 export async function reorder(orderNumber: string) {
-  const user = await getCurrentUser();
-  if (!user) return { ok: false as const, error: "Entre na sua conta para recomprar." };
+  let user;
+  try {
+    user = await requireUser();
+  } catch {
+    return { ok: false as const, error: "Entre na sua conta para recomprar." };
+  }
 
   const order = await prisma.order.findUnique({
     where: { number: orderNumber },

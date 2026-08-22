@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import {
   getProductBySlug,
+  getProductMetadataBySlug,
   getRelatedProducts,
 } from "@/lib/products";
 import { getUserSubscriptionFor } from "@/lib/subscriptions";
@@ -36,7 +37,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const product = await getProductBySlug(slug);
+  const product = await getProductMetadataBySlug(slug);
   if (!product) return { title: "Produto não encontrado" };
   return {
     title: product.name,
@@ -260,8 +261,8 @@ export default async function ProductPage({
           <div className="grid grid-cols-3 gap-3">
             {[
               { icon: Truck, label: "Entrega rápida" },
-              { icon: ShieldCheck, label: "Compra segura" },
-              { icon: RefreshCw, label: "Troca fácil" },
+              { icon: ShieldCheck, label: "Pagamento via provedor" },
+              { icon: RefreshCw, label: "Política de troca publicada" },
             ].map(({ icon: Icon, label }) => (
               <RevealItem
                 key={label}

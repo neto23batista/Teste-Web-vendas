@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mail";
 import { getStoreSettings } from "@/lib/settings";
+import { reportError } from "@/lib/monitoring";
 
 /**
  * E-mails que recebem avisos operacionais de uma unidade: os admins vinculados
@@ -43,6 +44,6 @@ export async function notifyUnit(
       )
     );
   } catch (err) {
-    console.error("[notifyUnit] falha ao notificar a unidade:", err);
+    reportError(err, { operation: "notification.unit" });
   }
 }

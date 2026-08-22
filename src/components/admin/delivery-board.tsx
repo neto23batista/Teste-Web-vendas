@@ -38,26 +38,38 @@ export function DeliveryBoard({
 }) {
   const router = useRouter();
   const [pending, start] = React.useTransition();
+  const [activeOperation, setActiveOperation] = React.useState<string | null>(null);
   const [picked, setPicked] = React.useState<Record<string, string>>({});
   const formRef = React.useRef<HTMLFormElement>(null);
   const ativos = couriers.filter((c) => c.active);
 
-  function run(fn: () => Promise<{ ok: boolean; error?: string }>, sucesso: string) {
+  function run(
+    operation: string,
+    fn: () => Promise<{ ok: boolean; error?: string }>,
+    sucesso: string
+  ) {
+    setActiveOperation(operation);
     start(async () => {
-      const res = await fn();
-      if (res.ok) {
-        toast.success(sucesso);
-        router.refresh();
-      } else {
-        toast.error(res.error ?? "Não foi possível concluir.");
+      try {
+        const res = await fn();
+        if (res.ok) {
+          toast.success(sucesso);
+          router.refresh();
+        } else {
+          toast.error(res.error ?? "Não foi possível concluir.");
+        }
+      } catch {
+        toast.error("Não foi possível concluir. Tente novamente.");
+      } finally {
+        setActiveOperation(null);
       }
     });
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-busy={pending}>
       {/* Prontos para sair */}
-      <section className="space-y-3 rounded-2xl border border-border bg-card p-5">
+      <section className="space-y-3 rounded-2xl border border-border bg-card p-4 sm:p-5">
         <h2 className="flex items-center gap-2 font-bold">
           <Truck className="size-5 text-brand-600 dark:text-brand-400" /> Prontos para sair (
           {prontos.length})
@@ -69,19 +81,28 @@ export function DeliveryBoard({
         ) : (
           <div className="divide-y divide-border">
             {prontos.map((o) => (
-              <div key={o.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <div
+                key={o.id}
+                className="grid gap-3 py-4 md:grid-cols-[minmax(0,1fr)_minmax(18rem,auto)] md:items-center"
+              >
                 <div className="min-w-0">
                   <p className="text-sm font-semibold">
                     {o.number} · {formatBRL(o.total)}
                   </p>
-                  <p className="truncate text-xs text-muted-foreground">{o.address ?? "sem endereço"}</p>
+                  <p className="break-words text-xs text-muted-foreground">
+                    {o.address ?? "sem endereço"}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <label htmlFor={`courier-${o.id}`} className="sr-only">
+                    Entregador do pedido {o.number}
+                  </label>
                   <select
+                    id={`courier-${o.id}`}
                     value={picked[o.id] ?? ""}
                     onChange={(e) => setPicked((p) => ({ ...p, [o.id]: e.target.value }))}
                     disabled={pending || ativos.length === 0}
-                    className="h-10 rounded-xl border border-border bg-card px-3 text-sm font-semibold outline-none focus:border-brand-400"
+                    className="h-11 min-w-0 w-full rounded-xl border border-border bg-card px-3 text-sm font-semibold outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
                   >
                     <option value="">Escolher entregador…</option>
                     {ativos.map((c) => (
@@ -93,10 +114,21 @@ export function DeliveryBoard({
                   <Button
                     variant="primary"
                     size="sm"
+                    className="h-11 w-full sm:w-auto"
                     disabled={pending || !picked[o.id]}
-                    onClick={() => run(() => dispatchOrder(o.id, picked[o.id]), "Pedido saiu para entrega.")}
+                    onClick={() =>
+                      run(
+                        `dispatch:${o.id}`,
+                        () => dispatchOrder(o.id, picked[o.id]),
+                        "Pedido saiu para entrega."
+                      )
+                    }
                   >
-                    {pending ? <Loader2 className="size-4 animate-spin" /> : <Truck className="size-4" />}
+                    {activeOperation === `dispatch:${o.id}` ? (
+                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Truck className="size-4" aria-hidden="true" />
+                    )}
                     Despachar
                   </Button>
                 </div>
@@ -112,14 +144,17 @@ export function DeliveryBoard({
       </section>
 
       {/* Em rota */}
-      <section className="space-y-3 rounded-2xl border border-border bg-card p-5">
+      <section className="space-y-3 rounded-2xl border border-border bg-card p-4 sm:p-5">
         <h2 className="font-bold">Em rota ({emRota.length})</h2>
         {emRota.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma entrega em rota.</p>
         ) : (
           <div className="divide-y divide-border">
             {emRota.map((o) => (
-              <div key={o.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <div
+                key={o.id}
+                className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+              >
                 <div className="min-w-0">
                   <p className="text-sm font-semibold">
                     {o.number} · {formatBRL(o.total)}
@@ -132,10 +167,24 @@ export function DeliveryBoard({
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-11 w-full sm:w-auto"
                   disabled={pending}
-                  onClick={() => run(() => markDelivered(o.id), "Entrega confirmada.")}
+                  onClick={() =>
+                    run(
+                      `deliver:${o.id}`,
+                      () => markDelivered(o.id),
+                      "Entrega confirmada."
+                    )
+                  }
                 >
-                  {pending ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4 text-success-600" />}
+                  {activeOperation === `deliver:${o.id}` ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <CheckCircle2
+                      className="size-4 text-success-600"
+                      aria-hidden="true"
+                    />
+                  )}
                   Confirmar entrega
                 </Button>
               </div>
@@ -145,25 +194,32 @@ export function DeliveryBoard({
       </section>
 
       {/* Entregadores */}
-      <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
+      <section className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
         <h2 className="flex items-center gap-2 font-bold">
           <UserPlus className="size-5 text-brand-600 dark:text-brand-400" /> Entregadores
         </h2>
         <form
           ref={formRef}
-          action={(fd) =>
+          action={(fd) => {
+            setActiveOperation("create-courier");
             start(async () => {
-              const res = await createCourier(fd);
-              if (res.ok) {
-                toast.success("Entregador cadastrado.");
-                formRef.current?.reset();
-                router.refresh();
-              } else {
-                toast.error(res.error ?? "Falha ao cadastrar.");
+              try {
+                const res = await createCourier(fd);
+                if (res.ok) {
+                  toast.success("Entregador cadastrado.");
+                  formRef.current?.reset();
+                  router.refresh();
+                } else {
+                  toast.error(res.error ?? "Falha ao cadastrar.");
+                }
+              } catch {
+                toast.error("Falha ao cadastrar. Tente novamente.");
+              } finally {
+                setActiveOperation(null);
               }
-            })
-          }
-          className="grid gap-3 sm:grid-cols-4"
+            });
+          }}
+          className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
         >
           <Field label="Nome" htmlFor="name">
             <Input id="name" name="name" placeholder="João Motoboy" required />
@@ -187,6 +243,9 @@ export function DeliveryBoard({
           </Field>
           <div className="flex items-end">
             <Button type="submit" variant="primary" className="w-full" disabled={pending}>
+              {activeOperation === "create-courier" && (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              )}
               Cadastrar
             </Button>
           </div>
@@ -194,7 +253,10 @@ export function DeliveryBoard({
 
         <div className="divide-y divide-border">
           {couriers.map((c) => (
-            <div key={c.id} className="flex items-center justify-between gap-3 py-2.5">
+            <div
+              key={c.id}
+              className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
               <div className="min-w-0">
                 <p className="text-sm font-semibold">
                   {c.name}
@@ -212,10 +274,22 @@ export function DeliveryBoard({
               <Button
                 variant="outline"
                 size="sm"
+                className="h-11 w-full sm:w-auto"
                 disabled={pending}
-                onClick={() => run(() => toggleCourier(c.id), c.active ? "Entregador desativado." : "Entregador ativado.")}
+                onClick={() =>
+                  run(
+                    `courier:${c.id}`,
+                    () => toggleCourier(c.id),
+                    c.active ? "Entregador desativado." : "Entregador ativado."
+                  )
+                }
               >
-                <Power className="size-4" /> {c.active ? "Desativar" : "Ativar"}
+                {activeOperation === `courier:${c.id}` ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Power className="size-4" aria-hidden="true" />
+                )}
+                {c.active ? "Desativar" : "Ativar"}
               </Button>
             </div>
           ))}

@@ -1,9 +1,9 @@
 /**
  * Geração do QR Code PIX a partir do copia-e-cola (payload EMV).
  *
- * O copia-e-cola (`qr.text` do PagBank) é a fonte da verdade e está SEMPRE
+ * O payload copia-e-cola retornado pelo Stripe é a fonte da verdade e está
  * presente — então o QR é gerado aqui, no servidor, em vez de depender do
- * PagBank devolver um link de imagem PNG (que às vezes não vem). Assim a tela
+ * provedor devolver um link de imagem PNG. Assim a tela
  * de pagamento sempre mostra um QR escaneável.
  *
  * Roda só no servidor (import de `qrcode`, lib Node). Retorna o PNG em base64

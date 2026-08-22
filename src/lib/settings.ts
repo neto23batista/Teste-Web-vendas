@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_SHIPPING_CONFIG, type ShippingConfig } from "@/lib/shipping";
+import { moneyToNumber } from "@/lib/money";
 
 // Configurações da loja (tabela Setting, chave/valor). Lidas de uma vez e
 // cacheadas sob a tag "settings" — salvar em /admin/configuracoes revalida.
@@ -38,6 +39,7 @@ Entre em contato pelo WhatsApp ou e-mail de atendimento informando o número do 
 export type StoreSettings = {
   shipping: ShippingConfig;
   returnPolicy: string;
+  legalName: string;
   cnpj: string;
   phone: string;
   whatsapp: string;
@@ -46,6 +48,9 @@ export type StoreSettings = {
   hours: string;
   pharmacistName: string;
   pharmacistCrf: string;
+  sanitaryLicense: string;
+  afe: string;
+  ae: string;
 };
 
 function num(value: string | undefined, fallback: number): number {
@@ -68,6 +73,7 @@ export async function getStoreSettings(): Promise<StoreSettings> {
       defaultKm: num(s["shipping.defaultKm"], DEFAULT_SHIPPING_CONFIG.defaultKm),
     },
     returnPolicy: s["store.returnPolicy"] || DEFAULT_RETURN_POLICY,
+    legalName: s["store.legalName"] || "",
     cnpj: s["store.cnpj"] || process.env.NEXT_PUBLIC_CNPJ || "",
     phone: s["store.phone"] || "",
     whatsapp: s["store.whatsapp"] || "",
@@ -75,13 +81,12 @@ export async function getStoreSettings(): Promise<StoreSettings> {
     address: s["store.address"] || "",
     hours: s["store.hours"] || "",
     pharmacistName:
-      s["store.pharmacistName"] ||
-      process.env.NEXT_PUBLIC_PHARMACIST_NAME ||
-      "Responsável Técnico(a) a definir",
+      s["store.pharmacistName"] || process.env.NEXT_PUBLIC_PHARMACIST_NAME || "",
     pharmacistCrf:
-      s["store.pharmacistCrf"] ||
-      process.env.NEXT_PUBLIC_PHARMACIST_CRF ||
-      "CRF/UF 00000",
+      s["store.pharmacistCrf"] || process.env.NEXT_PUBLIC_PHARMACIST_CRF || "",
+    sanitaryLicense: s["store.sanitaryLicense"] || "",
+    afe: s["store.afe"] || "",
+    ae: s["store.ae"] || "",
   };
 }
 
@@ -101,21 +106,15 @@ export type PaymentSettings = {
 };
 
 /**
- * Credenciais de pagamento (Stripe). A secret key salva em /admin/configuracoes
- * tem prioridade; sem ela, cai nas envs STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET.
- * Propositalmente FORA de StoreSettings: só o servidor e a tela de
- * configurações do admin podem ver as chaves.
+ * Credenciais de pagamento (Stripe). Segredos vêm exclusivamente do ambiente/
+ * secret manager; nunca são persistidos na tabela genérica Setting.
  */
 export async function getPaymentSettings(): Promise<PaymentSettings> {
   const s = await getRawSettings().catch(
     () => ({}) as Record<string, string>
   );
-  const secretKey =
-    (s["stripe.secretKey"] ?? "").trim() || process.env.STRIPE_SECRET_KEY || "";
-  const webhookSecret =
-    (s["stripe.webhookSecret"] ?? "").trim() ||
-    process.env.STRIPE_WEBHOOK_SECRET ||
-    "";
+  const secretKey = process.env.STRIPE_SECRET_KEY?.trim() || "";
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim() || "";
   return {
     stripeSecretKey: secretKey,
     stripeWebhookSecret: webhookSecret,
@@ -125,10 +124,44 @@ export async function getPaymentSettings(): Promise<PaymentSettings> {
 }
 
 export type RegulatoryInfo = {
+  legalName: string;
   cnpj: string;
   pharmacistName: string;
   pharmacistCrf: string;
+  sanitaryLicense: string;
+  afe: string;
+  ae: string;
 };
+
+export type RegulatoryDisclosure = RegulatoryInfo & {
+  address: string;
+  hours: string;
+  phone: string;
+};
+
+const REQUIRED_REGULATORY_FIELDS: {
+  key: keyof RegulatoryDisclosure;
+  label: string;
+}[] = [
+  { key: "legalName", label: "razão social" },
+  { key: "cnpj", label: "CNPJ" },
+  { key: "address", label: "endereço completo" },
+  { key: "hours", label: "horário de funcionamento" },
+  { key: "phone", label: "telefone" },
+  { key: "pharmacistName", label: "responsável técnico" },
+  { key: "pharmacistCrf", label: "CRF" },
+  { key: "sanitaryLicense", label: "licença sanitária" },
+  { key: "afe", label: "AFE" },
+];
+
+/** Campos obrigatórios para a divulgação da operação remota (AE é condicional). */
+export function missingRegulatoryDisclosure(
+  disclosure: RegulatoryDisclosure
+): string[] {
+  return REQUIRED_REGULATORY_FIELDS.filter(
+    ({ key }) => !disclosure[key].trim()
+  ).map(({ label }) => label);
+}
 
 /**
  * Dados regulatórios (CNPJ + responsável técnico) da UNIDADE selecionada, com
@@ -141,9 +174,13 @@ export async function getRegulatoryInfo(
 ): Promise<RegulatoryInfo> {
   const g = await getStoreSettings();
   const base: RegulatoryInfo = {
+    legalName: g.legalName,
     cnpj: g.cnpj,
     pharmacistName: g.pharmacistName,
     pharmacistCrf: g.pharmacistCrf,
+    sanitaryLicense: g.sanitaryLicense,
+    afe: g.afe,
+    ae: g.ae,
   };
   if (!pharmacyId) return base;
   const ph = await prisma.pharmacy
@@ -153,6 +190,7 @@ export async function getRegulatoryInfo(
     })
     .catch(() => null);
   return {
+    ...base,
     cnpj: ph?.cnpj?.trim() || base.cnpj,
     pharmacistName: ph?.pharmacistName?.trim() || base.pharmacistName,
     pharmacistCrf: ph?.pharmacistCrf?.trim() || base.pharmacistCrf,
@@ -177,7 +215,13 @@ export async function getShippingConfig(
       select: { shippingFreeMin: true },
     })
     .catch(() => null);
-  return { ...base, freeMin: ph?.shippingFreeMin ?? base.freeMin };
+  return {
+    ...base,
+    freeMin:
+      ph?.shippingFreeMin == null
+        ? base.freeMin
+        : moneyToNumber(ph.shippingFreeMin),
+  };
 }
 
 /**
@@ -196,7 +240,13 @@ export async function resolveKm(
   const n = parseInt(digits.slice(0, 8), 10);
   const range = await prisma.pharmacyCepRange
     .findFirst({
-      where: { pharmacyId, start: { lte: n }, end: { gte: n }, km: { not: null } },
+      where: {
+        pharmacyId,
+        archivedAt: null,
+        start: { lte: n },
+        end: { gte: n },
+        km: { not: null },
+      },
       orderBy: { km: "asc" },
       select: { km: true },
     })

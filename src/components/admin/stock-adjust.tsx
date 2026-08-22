@@ -29,7 +29,7 @@ export function StockAdjust({
         onClick={() => change(-1)}
         disabled={pending || stock <= 0}
         aria-label="Remover 1"
-        className="grid size-9 place-items-center rounded-l-xl text-muted-foreground transition hover:bg-muted disabled:opacity-40"
+        className="grid size-11 place-items-center rounded-l-xl text-muted-foreground transition hover:bg-muted disabled:opacity-40"
       >
         <Minus className="size-4" />
       </button>
@@ -40,14 +40,14 @@ export function StockAdjust({
         onClick={() => change(1)}
         disabled={pending}
         aria-label="Adicionar 1"
-        className="grid size-9 place-items-center text-muted-foreground transition hover:bg-muted"
+        className="grid size-11 place-items-center text-muted-foreground transition hover:bg-muted"
       >
         <Plus className="size-4" />
       </button>
       <button
         onClick={() => change(10)}
         disabled={pending}
-        className="rounded-r-xl border-l border-border px-2.5 text-xs font-bold text-brand-600 transition hover:bg-muted dark:text-brand-400"
+        className="min-h-11 rounded-r-xl border-l border-border px-2.5 text-xs font-bold text-brand-600 transition hover:bg-muted dark:text-brand-400"
       >
         +10
       </button>

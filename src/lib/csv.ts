@@ -82,7 +82,12 @@ export function parseCsvRecords(text: string): Record<string, string>[] {
  */
 export function toCsv(rows: (string | number | null | undefined)[][]): string {
   const escape = (v: string | number | null | undefined) => {
-    const s = v == null ? "" : String(v);
+    const raw = v == null ? "" : String(v);
+    // Excel/LibreOffice interpretam texto iniciado por estes caracteres como
+    // fórmula. Números reais continuam numéricos; apenas strings não confiáveis
+    // recebem o apóstrofo neutralizador, inclusive após espaços/controles.
+    const s =
+      typeof v === "string" && /^\s*[=+\-@]/.test(raw) ? `'${raw}` : raw;
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return rows.map((r) => r.map(escape).join(",")).join("\r\n");

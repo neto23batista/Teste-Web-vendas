@@ -44,6 +44,7 @@ export function StickyBuyBar({
 
   return (
     <div
+      data-sticky-buy-bar
       className="glass-surface fixed inset-x-3 bottom-[5.25rem] z-40 flex items-center gap-3 rounded-2xl p-3 shadow-[var(--shadow-card)] md:hidden"
       style={{ marginBottom: "env(safe-area-inset-bottom)" }}
     >

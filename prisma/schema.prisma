@@ -19,7 +19,7 @@ enum Role {
 }
 
 /// Perfil operacional do staff (só faz sentido quando role = ADMIN).
-/// null = OWNER (dono/gerente, acesso total) — mantém as contas antigas intactas.
+/// null nunca concede privilégios administrativos.
 enum StaffProfile {
   OWNER
   PHARMACIST
@@ -37,7 +37,7 @@ enum OrderStatus {
 }
 
 enum PaymentProvider {
-  PAGBANK
+  STRIPE
   PIX
   CASH
 }
@@ -46,6 +46,8 @@ enum PaymentStatus {
   PENDING
   APPROVED
   REJECTED
+  REFUND_PENDING
+  REFUND_FAILED
   REFUNDED
 }
 
@@ -71,37 +73,88 @@ enum SubscriptionStatus {
   CANCELED
 }
 
+enum NotificationDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
+enum StorageDeletionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum PolicyKind {
+  TERMS_ACCEPTANCE
+  PRIVACY_ACKNOWLEDGEMENT
+}
+
 // ─────────────────────────── Usuário ───────────────────────────
 model User {
-  id           String        @id @default(cuid())
-  name         String
-  email        String        @unique
-  passwordHash String
-  role         Role          @default(CUSTOMER)
-  /// Perfil operacional do staff. null (contas antigas) = OWNER, acesso total.
-  staffProfile StaffProfile?
-  cpf          String?
-  phone        String?
+  id                 String        @id @default(cuid())
+  name               String
+  email              String        @unique
+  passwordHash       String
+  role               Role          @default(CUSTOMER)
+  /// Perfil operacional do staff. null sempre falha fechado.
+  staffProfile       StaffProfile?
+  cpf                String?
+  phone              String?
+  /// Versão persistente do login: qualquer incremento invalida todos os JWTs antigos.
+  sessionVersion     Int           @default(0)
+  /// Segredo TOTP cifrado com AES-GCM. Nunca é enviado ao cliente após a ativação.
+  mfaSecretEncrypted String?       @db.Text
+  mfaEnabledAt       DateTime?
   // Unidade à qual um admin pertence. Null em clientes. Admin cuja unidade é
   // MATRIZ tem escopo "global" (vê/gere todas as unidades).
   pharmacyId   String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  addresses     Address[]
-  orders        Order[]
-  reviews       Review[]
-  prescriptions Prescription[]
-  loyalty       LoyaltyAccount?
-  carts         Cart[]
-  resetTokens   PasswordResetToken[]
-  favorites     Favorite[]
-  auditLogs     AuditLog[]
-  subscriptions Subscription[]
-  pharmacy      Pharmacy?            @relation(fields: [pharmacyId], references: [id])
+  addresses         Address[]
+  orders            Order[]
+  reviews           Review[]
+  prescriptions     Prescription[]
+  loyalty           LoyaltyAccount?
+  carts             Cart[]
+  resetTokens       PasswordResetToken[]
+  favorites         Favorite[]
+  auditLogs         AuditLog[]
+  subscriptions     Subscription[]
+  mfaRecoveryCodes  MfaRecoveryCode[]
+  policyAcceptances PolicyAcceptance[]
+  pharmacy          Pharmacy?            @relation(fields: [pharmacyId], references: [id])
 
   @@index([role])
   @@index([pharmacyId])
+}
+
+model MfaRecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String    @unique
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+}
+
+model PolicyAcceptance {
+  id         String     @id @default(cuid())
+  userId     String
+  kind       PolicyKind
+  version    String
+  acceptedAt DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, version])
+  @@index([userId, acceptedAt])
 }
 
 model PasswordResetToken {
@@ -165,10 +218,10 @@ model Product {
   emoji                String?
   sku                  String?  @unique
   ean                  String?
-  price                Float
+  price                Decimal  @db.Decimal(12, 2)
   /// Custo de aquisição — base do CMV, da margem e da curva ABC por valor.
-  costPrice            Float?
-  promoPrice           Float?
+  costPrice            Decimal? @db.Decimal(12, 2)
+  promoPrice           Decimal? @db.Decimal(12, 2)
   requiresPrescription Boolean  @default(false)
   isGeneric            Boolean  @default(false)
   activeIngredient     String?
@@ -250,25 +303,46 @@ model Order {
   // campo, então fica sempre false nos pedidos novos. Mantido só pelo histórico
   // (pedidos antigos). NÃO usar como filtro de "pedido com receita".
   requiresPrescription Boolean     @default(false)
-  subtotal             Float
-  discount             Float       @default(0)
-  shipping             Float       @default(0)
-  total                Float
+  subtotal             Decimal     @db.Decimal(12, 2)
+  discount             Decimal     @default(0) @db.Decimal(12, 2)
+  shipping             Decimal     @default(0) @db.Decimal(12, 2)
+  total                Decimal     @db.Decimal(12, 2)
   // Modalidade de entrega escolhida no checkout: "standard" (frete padrão) ou
-  // "express" (Entrega Rápida 30–40 min, taxa fixa + por km).
+  // "express" (prioridade operacional, taxa fixa + por km; sem promessa fixa).
   deliveryMethod       String      @default("standard")
   paymentMethod        String?
   couponCode           String?
+  // Chave opaca da tentativa de checkout. Impede que dois POSTs concorrentes
+  // do mesmo formulário criem/cobrem pedidos diferentes.
+  checkoutKey          String?     @unique
   addressId            String?
+  // Identificação fiscal/operacional congelada. Uso restrito ao pedido;
+  // nunca reutilizar estes snapshots para marketing.
+  customerName         String
+  customerEmail        String
+  customerCpf          String?
+  customerPhone        String?
+  // Retrato imutável do destino no momento da compra. A relação com Address
+  // continua opcional para conveniência, mas nunca é a fonte do histórico.
+  shippingRecipient    String
+  shippingZip          String
+  shippingStreet       String
+  shippingNumber       String
+  shippingComplement   String?
+  shippingDistrict     String
+  shippingCity         String
+  shippingState        String
   // Unidade que atende o pedido (roteada por CEP, matriz como fallback).
   // Nullable só por compatibilidade com a migração; sempre populada na criação.
   pharmacyId           String?
   notes                String?     @db.Text
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
+  // Arquivamento preserva o histórico fiscal/financeiro e é reversível.
+  archivedAt           DateTime?
 
   user         User      @relation(fields: [userId], references: [id])
-  address      Address?  @relation(fields: [addressId], references: [id])
+  address      Address?  @relation(fields: [addressId], references: [id], onDelete: SetNull)
   pharmacy     Pharmacy? @relation(fields: [pharmacyId], references: [id])
   // Entrega: entregador designado e marcos de saída/entrega.
   courierId    String?
@@ -285,6 +359,7 @@ model Order {
   @@index([userId])
   @@index([status])
   @@index([pharmacyId])
+  @@index([archivedAt, createdAt])
 }
 
 model OrderItem {
@@ -292,7 +367,7 @@ model OrderItem {
   orderId   String
   productId String?
   name      String
-  price     Float
+  price     Decimal @db.Decimal(12, 2)
   qty       Int
 
   order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -302,15 +377,21 @@ model OrderItem {
 }
 
 model Payment {
-  id         String          @id @default(cuid())
-  orderId    String          @unique
-  provider   PaymentProvider @default(PAGBANK)
-  status     PaymentStatus   @default(PENDING)
-  externalId String?
-  amount     Float
-  raw        Json?
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  id                String          @id @default(cuid())
+  orderId           String          @unique
+  provider          PaymentProvider @default(STRIPE)
+  status            PaymentStatus   @default(PENDING)
+  externalId        String?
+  refundId          String?         @unique
+  refundError       String?         @db.Text
+  refundRequestedAt DateTime?
+  refundedAt        DateTime?
+  failureReason     String?         @db.Text
+  failedAt          DateTime?
+  amount            Decimal         @db.Decimal(12, 2)
+  raw               Json?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   order  Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
   bankTx BankTransaction?
@@ -359,8 +440,8 @@ model Coupon {
   id         String     @id @default(cuid())
   code       String     @unique
   type       CouponType @default(PERCENT)
-  value      Float
-  minTotal   Float      @default(0)
+  value      Decimal    @db.Decimal(12, 2)
+  minTotal   Decimal    @default(0) @db.Decimal(12, 2)
   expiresAt  DateTime?
   active     Boolean    @default(true)
   usageLimit Int?
@@ -423,17 +504,20 @@ model Pharmacy {
   whatsapp             String?
   hours                String?
   // Frete por unidade: override do frete global (Setting). null = usa o global.
-  shippingFlat         Float?
-  shippingFreeMin      Float?
+  shippingFlat         Decimal?     @db.Decimal(12, 2)
+  shippingFreeMin      Decimal?     @db.Decimal(12, 2)
   // Dados regulatórios (ANVISA) por unidade: override do global. null = global.
   cnpj                 String?
   pharmacistName       String?
   pharmacistCrf        String?
   // Integração InovaFarma: hash SHA-256 do token do conector desta unidade.
   // O token em claro só é exibido uma vez, ao ser gerado no admin.
-  integrationTokenHash String?
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  integrationTokenHash       String?   @unique
+  integrationTokenLastUsedAt DateTime?
+  integrationTokenRotatedAt  DateTime?
+  archivedAt                 DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
 
   inventory    Inventory[]
   cepRanges    PharmacyCepRange[]
@@ -447,6 +531,7 @@ model Pharmacy {
   bankTx       BankTransaction[]
 
   @@index([type])
+  @@index([active, archivedAt])
 }
 
 // ─────────────────────── Entregas ───────────────────────
@@ -484,7 +569,7 @@ model Expense {
   pharmacyId  String?
   category    ExpenseCategory @default(OTHER)
   description String
-  amount      Float
+  amount      Decimal         @db.Decimal(12, 2)
   paidAt      DateTime
   createdAt   DateTime        @default(now())
 
@@ -501,7 +586,7 @@ model BankTransaction {
   pharmacyId  String?
   date        DateTime
   description String
-  amount      Float
+  amount      Decimal  @db.Decimal(12, 2)
   /// Identificador do lançamento no extrato (FITID no OFX) — evita reimportar.
   externalId  String?  @unique
   paymentId   String?  @unique
@@ -570,6 +655,7 @@ model PharmacyCepRange {
   pharmacyId String
   start      Int
   end        Int
+  archivedAt DateTime?
   // Distância (km) da unidade até esta faixa de CEP — usada no frete por km.
   // null = distância desconhecida (cai no default do frete).
   km         Float?
@@ -577,6 +663,7 @@ model PharmacyCepRange {
   pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
 
   @@index([pharmacyId])
+  @@index([archivedAt])
 }
 
 // Estoque de um produto numa unidade. Fonte da verdade do estoque (substitui
@@ -617,13 +704,53 @@ model Subscription {
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  notifications SubscriptionNotification[]
 
   @@unique([userId, productId])
   @@index([status, nextDueAt])
 }
 
+/// Caixa de saída durável dos lembretes de assinatura. A unicidade por ciclo
+/// impede que duas execuções concorrentes do cron enviem o mesmo lembrete.
+model SubscriptionNotification {
+  id             String                     @id @default(cuid())
+  subscriptionId String
+  dueAt          DateTime
+  status         NotificationDeliveryStatus @default(PENDING)
+  attempts       Int                        @default(0)
+  nextAttemptAt  DateTime                   @default(now())
+  claimedAt      DateTime?
+  sentAt         DateTime?
+  lastError      String?                    @db.Text
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, dueAt])
+  @@index([status, nextAttemptAt])
+}
+
+/// Caixa de saída durável para apagar documentos privados depois que a
+/// transação de banco confirma a remoção dos dados pessoais correspondentes.
+model StorageDeletionTask {
+  id            String                @id @default(cuid())
+  storageKey    String                @unique @db.Text
+  status        StorageDeletionStatus @default(PENDING)
+  attempts      Int                   @default(0)
+  nextAttemptAt DateTime              @default(now())
+  claimedAt     DateTime?
+  completedAt   DateTime?
+  lastError     String?               @db.Text
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([status, nextAttemptAt])
+}
+
 // Trilha de auditoria das ações do admin. userEmail é um snapshot (sobrevive à
-// exclusão/anonimização do usuário). Best-effort: gravado fora do caminho crítico.
+// exclusão/anonimização do usuário). Mutações críticas gravam a ação de forma
+// síncrona; o erro é observável e nunca fica escondido em trabalho pós-resposta.
 model AuditLog {
   id         String   @id @default(cuid())
   userId     String?

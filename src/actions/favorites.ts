@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
+import { SALEABLE_PRODUCT_WHERE } from "@/lib/product-policy";
 
 /**
  * Espelha o favorito na conta do usuário (no-op silencioso para visitantes).
@@ -12,6 +13,11 @@ export async function toggleFavorite(productId: string, fav: boolean) {
   if (!user) return { ok: true };
   try {
     if (fav) {
+      const saleable = await prisma.product.findFirst({
+        where: { id: productId, ...SALEABLE_PRODUCT_WHERE },
+        select: { id: true },
+      });
+      if (!saleable) return { ok: false };
       await prisma.favorite.upsert({
         where: { userId_productId: { userId: user.id, productId } },
         create: { userId: user.id, productId },
@@ -43,7 +49,7 @@ export async function mergeFavorites(localIds: string[]) {
     if (ids.length > 0) {
       // Só produtos que existem (ids antigos/dev podem não existir mais).
       const valid = await prisma.product.findMany({
-        where: { id: { in: ids } },
+        where: { id: { in: ids }, ...SALEABLE_PRODUCT_WHERE },
         select: { id: true },
       });
       if (valid.length > 0) {

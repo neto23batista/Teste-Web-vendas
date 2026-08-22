@@ -1,18 +1,19 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Repeat, BellRing } from "lucide-react";
-import { requireUser } from "@/lib/session";
+import { requireUserPage } from "@/lib/session";
 import { getUserSubscriptions } from "@/lib/subscriptions";
 import {
   SubscriptionCard,
   type SubscriptionCardData,
 } from "@/components/account/subscription-card";
 import { Button } from "@/components/ui/button";
+import { moneyToNumber } from "@/lib/money";
 
 export const metadata: Metadata = { title: "Minhas assinaturas" };
 
 export default async function SubscriptionsPage() {
-  const user = await requireUser();
+  const user = await requireUserPage("/conta/assinaturas");
   const subs = await getUserSubscriptions(user.id);
 
   const cards: SubscriptionCardData[] = subs.map((s) => ({
@@ -30,8 +31,8 @@ export default async function SubscriptionsPage() {
       slug: s.product.slug,
       emoji: s.product.emoji,
       image: s.product.images[0]?.url ?? null,
-      price: s.product.promoPrice ?? s.product.price,
-      active: s.product.active,
+      price: moneyToNumber(s.product.promoPrice ?? s.product.price),
+      active: s.product.active && !s.product.requiresPrescription,
     },
   }));
 

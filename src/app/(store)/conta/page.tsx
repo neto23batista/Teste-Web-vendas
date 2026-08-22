@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Gift, Package, Clock, ArrowRight, ShoppingBag } from "lucide-react";
-import { requireUser } from "@/lib/session";
+import { requireUserPage } from "@/lib/session";
 import { getAccountSummary, getUserOrders } from "@/lib/account";
 import { OrderCard } from "@/components/account/order-card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = { title: "Minha conta" };
 
 export default async function AccountHome() {
-  const user = await requireUser();
+  const user = await requireUserPage("/conta");
   const [summary, orders] = await Promise.all([
     getAccountSummary(user.id),
     getUserOrders(user.id, 3),

@@ -13,7 +13,10 @@ import { OrderTransfer } from "@/components/admin/order-transfer";
 import { ProductImage } from "@/components/store/product-image";
 import { PrintButton } from "@/components/admin/print-button";
 import { OrderNotes } from "@/components/admin/order-notes";
-import { DeleteOrderButton } from "@/components/admin/delete-order-button";
+import { OrderArchiveButton } from "@/components/admin/order-archive-button";
+import { allowedOrderTransitions } from "@/lib/orders";
+import { RetryRefundButton } from "@/components/admin/retry-refund-button";
+import { moneyToNumber } from "@/lib/money";
 
 export const metadata = { title: "Pedido" };
 
@@ -30,8 +33,12 @@ export default async function AdminOrderDetail({
     getCurrentUser(),
   ]);
   if (!order) notFound();
-  // Excluir definitivamente é ação do dono/gerente (OWNER).
+  // Arquivar/restaurar o histórico é ação do dono/gerente (OWNER).
   const isOwner = isOwnerProfile(user?.staffProfile);
+  const subtotal = moneyToNumber(order.subtotal);
+  const discount = moneyToNumber(order.discount);
+  const shipping = moneyToNumber(order.shipping);
+  const total = moneyToNumber(order.total);
 
   // Transferência: só faz sentido enquanto a unidade ainda trata o pedido.
   const canTransfer =
@@ -73,6 +80,11 @@ export default async function AdminOrderDetail({
           </Link>
           <h1 className="mt-2 flex items-center gap-3 text-2xl font-extrabold">
             {order.number} <StatusBadge status={order.status} />
+            {order.archivedAt && (
+              <span className="rounded-full bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">
+                Arquivado
+              </span>
+            )}
           </h1>
           <p className="text-sm text-muted-foreground">
             {new Date(order.createdAt).toLocaleString("pt-BR")}
@@ -91,40 +103,44 @@ export default async function AdminOrderDetail({
                 <ProductImage emoji={it.product?.emoji} name={it.name} className="size-12 rounded-xl" emojiClassName="text-xl" />
                 <div className="flex-1">
                   <p className="text-sm font-semibold">{it.name}</p>
-                  <p className="text-xs text-muted-foreground">{it.qty} × {formatBRL(it.price)}</p>
+                  <p className="text-xs text-muted-foreground">{it.qty} × {formatBRL(moneyToNumber(it.price))}</p>
                 </div>
-                <p className="font-bold">{formatBRL(it.price * it.qty)}</p>
+                <p className="font-bold">{formatBRL(moneyToNumber(it.price) * it.qty)}</p>
               </div>
             ))}
           </div>
           <dl className="space-y-1 border-t border-border pt-3 text-sm">
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Subtotal</dt>
-              <dd>{formatBRL(order.subtotal)}</dd>
+              <dd>{formatBRL(subtotal)}</dd>
             </div>
-            {order.discount > 0 && (
+            {discount > 0 && (
               <div className="flex justify-between text-success-600">
                 <dt>Desconto {order.couponCode ? `(${order.couponCode})` : ""}</dt>
-                <dd>- {formatBRL(order.discount)}</dd>
+                <dd>- {formatBRL(discount)}</dd>
               </div>
             )}
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Frete</dt>
-              <dd>{order.shipping === 0 ? "Grátis" : formatBRL(order.shipping)}</dd>
+              <dd>{shipping === 0 ? "Grátis" : formatBRL(shipping)}</dd>
             </div>
             <div className="flex justify-between border-t border-border pt-2 text-base font-extrabold">
               <dt>Total</dt>
-              <dd className="text-brand-700 dark:text-brand-400">{formatBRL(order.total)}</dd>
+              <dd className="text-brand-700 dark:text-brand-400">{formatBRL(total)}</dd>
             </div>
           </dl>
         </section>
 
         {/* Lateral */}
         <aside className="space-y-4">
-          <div className="space-y-3 rounded-2xl border border-border bg-card p-5 print:hidden">
+          {!order.archivedAt && <div className="space-y-3 rounded-2xl border border-border bg-card p-5 print:hidden">
             <h2 className="font-bold">Atualizar status</h2>
-            <OrderStatusControl id={order.id} current={order.status} />
-          </div>
+            <OrderStatusControl
+              id={order.id}
+              current={order.status}
+              allowed={allowedOrderTransitions(order.status, order.paymentMethod)}
+            />
+          </div>}
 
           {pharmacies.length > 1 &&
             (canTransfer && transferTargets.length > 0 ? (
@@ -146,26 +162,25 @@ export default async function AdminOrderDetail({
             <p className="flex items-center gap-2 font-bold">
               <User className="size-4 text-brand-600 dark:text-brand-400" /> Cliente
             </p>
-            <p>{order.user.name}</p>
-            <p className="text-muted-foreground">{order.user.email}</p>
-            {order.user.phone && <p className="text-muted-foreground">{order.user.phone}</p>}
+            <p>{order.customerName}</p>
+            {order.customerEmail && <p className="text-muted-foreground">{order.customerEmail}</p>}
+            {order.customerPhone && <p className="text-muted-foreground">{order.customerPhone}</p>}
           </div>
 
-          {order.address && (
-            <div className="space-y-2 rounded-2xl border border-border bg-card p-5 text-sm">
+          <div className="space-y-2 rounded-2xl border border-border bg-card p-5 text-sm">
               <p className="flex items-center gap-2 font-bold">
                 <MapPin className="size-4 text-brand-600 dark:text-brand-400" /> Entrega
               </p>
               <p className="text-muted-foreground">
-                {order.address.street}, {order.address.number}
-                {order.address.complement ? ` - ${order.address.complement}` : ""}
+                {order.shippingRecipient}<br />
+                {order.shippingStreet}, {order.shippingNumber}
+                {order.shippingComplement ? ` - ${order.shippingComplement}` : ""}
                 <br />
-                {order.address.district}, {order.address.city}/{order.address.state}
+                {order.shippingDistrict}, {order.shippingCity}/{order.shippingState}
                 <br />
-                CEP {order.address.zip}
+                CEP {order.shippingZip}
               </p>
-            </div>
-          )}
+          </div>
 
           <div className="space-y-2 rounded-2xl border border-border bg-card p-5 text-sm">
             <p className="flex items-center gap-2 font-bold">
@@ -176,18 +191,38 @@ export default async function AdminOrderDetail({
               <br />
               Status: {order.payment?.status ?? "—"}
             </p>
+            {order.payment?.status === "REFUND_PENDING" && (
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                Estorno solicitado; aguardando confirmação do Stripe.
+              </p>
+            )}
+            {order.payment?.status === "REFUND_FAILED" && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-danger-500">
+                  O pedido foi cancelado, mas o dinheiro ainda não foi confirmado
+                  como devolvido.
+                </p>
+                {order.payment.refundError && (
+                  <p className="text-xs text-muted-foreground">
+                    {order.payment.refundError}
+                  </p>
+                )}
+                <RetryRefundButton orderId={order.id} />
+              </div>
+            )}
           </div>
 
           {isOwner && (
-            <div className="space-y-3 rounded-2xl border border-danger-500/30 bg-danger-500/5 p-5 print:hidden">
-              <p className="text-sm font-bold text-danger-500">Zona de perigo</p>
+            <div className="space-y-3 rounded-2xl border border-border bg-card p-5 print:hidden">
+              <p className="text-sm font-bold">Histórico do pedido</p>
               <p className="text-xs text-muted-foreground">
-                Excluir apaga este pedido permanentemente. Não estorna pagamento
-                nem devolve estoque — para isso, use “Cancelar”.
+                O arquivamento é reversível e preserva itens, pagamento,
+                conciliação e dados obrigatórios do pedido.
               </p>
-              <DeleteOrderButton
+              <OrderArchiveButton
                 orderId={order.id}
                 orderNumber={order.number}
+                archived={!!order.archivedAt}
                 redirectToList
               />
             </div>

@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
+import { SALEABLE_PRODUCT_WHERE } from "@/lib/product-policy";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
 
@@ -14,7 +15,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     [products, categories] = await Promise.all([
       prisma.product.findMany({
-        where: { active: true },
+        where: SALEABLE_PRODUCT_WHERE,
         select: { slug: true, updatedAt: true },
       }),
       prisma.category.findMany({ select: { slug: true } }),

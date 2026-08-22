@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { registerSchema, resetPasswordSchema } from "@/lib/validators/auth";
+import { loginSchema, registerSchema, resetPasswordSchema } from "@/lib/validators/auth";
 
 const baseRegister = {
   name: "Maria Silva",
   email: "maria@exemplo.com",
-  password: "12345678",
-  confirm: "12345678",
+  password: "uma-senha-123",
+  confirm: "uma-senha-123",
   lgpd: "on",
 };
 
@@ -13,7 +13,7 @@ describe("registerSchema", () => {
   it("aceita dados válidos", () => {
     expect(registerSchema.safeParse(baseRegister).success).toBe(true);
   });
-  it("rejeita senha com menos de 8 caracteres", () => {
+  it("rejeita senha com menos de 12 caracteres", () => {
     const r = registerSchema.safeParse({
       ...baseRegister,
       password: "123",
@@ -22,7 +22,7 @@ describe("registerSchema", () => {
     expect(r.success).toBe(false);
   });
   it("rejeita confirmação diferente", () => {
-    const r = registerSchema.safeParse({ ...baseRegister, confirm: "87654321" });
+    const r = registerSchema.safeParse({ ...baseRegister, confirm: "outra-senha-123" });
     expect(r.success).toBe(false);
   });
   it("rejeita CPF malformado", () => {
@@ -49,20 +49,43 @@ describe("registerSchema", () => {
   });
 });
 
+describe("loginSchema", () => {
+  it("mantém o segundo fator opcional e limita seu tamanho", () => {
+    expect(
+      loginSchema.safeParse({ email: "maria@exemplo.com", password: "senha-123" })
+        .success
+    ).toBe(true);
+    expect(
+      loginSchema.safeParse({
+        email: "maria@exemplo.com",
+        password: "senha-123",
+        mfaCode: "ABCD-EFGH-IJKL-MNOP",
+      }).success
+    ).toBe(true);
+    expect(
+      loginSchema.safeParse({
+        email: "maria@exemplo.com",
+        password: "senha-123",
+        mfaCode: "x".repeat(65),
+      }).success
+    ).toBe(false);
+  });
+});
+
 describe("resetPasswordSchema", () => {
   it("exige token e senhas iguais", () => {
     const r = resetPasswordSchema.safeParse({
-      token: "0123456789abcdef",
-      password: "12345678",
-      confirm: "12345678",
+      token: "a".repeat(64),
+      password: "uma-senha-123",
+      confirm: "uma-senha-123",
     });
     expect(r.success).toBe(true);
   });
   it("rejeita confirmação diferente", () => {
     const r = resetPasswordSchema.safeParse({
-      token: "0123456789abcdef",
-      password: "12345678",
-      confirm: "diferente",
+      token: "a".repeat(64),
+      password: "uma-senha-123",
+      confirm: "outra-senha-123",
     });
     expect(r.success).toBe(false);
   });

@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 export function Skeleton({ className }: { className?: string }) {
   return (
     <div
+      aria-hidden="true"
       className={cn(
         "shimmer rounded-xl bg-muted",
         className
@@ -13,7 +14,12 @@ export function Skeleton({ className }: { className?: string }) {
 
 export function ProductCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-card">
+    <div
+      role="status"
+      aria-label="Carregando produto"
+      className="overflow-hidden rounded-2xl border border-border bg-card"
+    >
+      <span className="sr-only">Carregando produto…</span>
       <Skeleton className="aspect-square w-full rounded-none" />
       <div className="space-y-2 p-4">
         <Skeleton className="h-3 w-1/3" />

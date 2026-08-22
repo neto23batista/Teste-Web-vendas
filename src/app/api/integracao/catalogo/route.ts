@@ -5,7 +5,7 @@ import { upsertCatalog } from "@/lib/integration-catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// Lotes grandes de catálogo podem demorar (upsert item a item).
+// Lotes grandes ainda podem demorar; a biblioteca usa preload e batches de 100.
 export const maxDuration = 60;
 
 /**

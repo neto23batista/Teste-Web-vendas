@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdminAtPharmacy } from "@/lib/session";
+import {
+  assertArea,
+  assertOwner,
+  requireAdminAtPharmacy,
+} from "@/lib/session";
 import { newIntegrationToken } from "@/lib/integration-auth";
 import { logAudit } from "@/lib/audit";
 
@@ -15,16 +19,27 @@ export async function generateIntegrationToken(
   pharmacyId: string
 ): Promise<{ ok: boolean; token?: string; error?: string }> {
   try {
+    // Rotacionar esta credencial derruba imediatamente o conector atual.
+    // Por isso, além do escopo da unidade, exige OWNER.
+    await assertOwner();
     await requireAdminAtPharmacy(pharmacyId);
   } catch {
     return { ok: false, error: "Sem permissão para esta unidade." };
   }
 
   const { token, hash } = newIntegrationToken();
-  await prisma.pharmacy.update({
-    where: { id: pharmacyId },
-    data: { integrationTokenHash: hash },
+  const rotatedAt = new Date();
+  const rotated = await prisma.pharmacy.updateMany({
+    where: { id: pharmacyId, archivedAt: null },
+    data: {
+      integrationTokenHash: hash,
+      integrationTokenLastUsedAt: null,
+      integrationTokenRotatedAt: rotatedAt,
+    },
   });
+  if (rotated.count === 0) {
+    return { ok: false, error: "Unidade não encontrada ou arquivada." };
+  }
 
   await logAudit({
     action: "integration.token",
@@ -42,6 +57,12 @@ export async function generateIntegrationToken(
 export async function retryOrderExport(
   orderExportId: string
 ): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await assertArea("integracao");
+  } catch {
+    return { ok: false, error: "Sem permissão para esta ação." };
+  }
+
   const exp = await prisma.orderExport.findUnique({
     where: { id: orderExportId },
     select: { id: true, pharmacyId: true, status: true, order: { select: { number: true } } },

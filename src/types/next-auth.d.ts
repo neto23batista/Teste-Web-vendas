@@ -7,8 +7,10 @@ declare module "next-auth" {
     // Unidade do admin (null em clientes). MATRIZ = escopo global.
     pharmacyId?: string | null;
     pharmacyType?: PharmacyType | null;
-    // Perfil operacional do staff (null = OWNER, acesso total).
+    // Perfil operacional do staff; null nunca concede acesso de OWNER.
     staffProfile?: StaffProfile | null;
+    sessionVersion: number;
+    mfaEnabled: boolean;
   }
   interface Session {
     user: {
@@ -17,6 +19,8 @@ declare module "next-auth" {
       pharmacyId: string | null;
       pharmacyType: PharmacyType | null;
       staffProfile: StaffProfile | null;
+      sessionVersion: number;
+      mfaEnabled: boolean;
     } & DefaultSession["user"];
   }
 }
@@ -28,5 +32,7 @@ declare module "next-auth/jwt" {
     pharmacyId: string | null;
     pharmacyType: PharmacyType | null;
     staffProfile: StaffProfile | null;
+    sessionVersion: number;
+    mfaEnabled: boolean;
   }
 }

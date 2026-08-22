@@ -8,6 +8,7 @@ import {
   GenerateTokenButton,
   RetryExportButton,
 } from "@/components/admin/integration-controls";
+import { moneyToNumber } from "@/lib/money";
 
 export const metadata: Metadata = { title: "Integração InovaFarma" };
 export const dynamic = "force-dynamic";
@@ -18,9 +19,18 @@ const fmtData = (d: Date) =>
 export default async function AdminIntegrationPage() {
   const scope = await getAdminScope();
   const pharmacies = await prisma.pharmacy.findMany({
-    where: scope.isGlobal ? {} : { id: scope.pharmacyId ?? "" },
+    where: scope.isGlobal
+      ? { archivedAt: null }
+      : { id: scope.pharmacyId ?? "", archivedAt: null },
     orderBy: [{ type: "asc" }, { name: "asc" }],
-    select: { id: true, name: true, type: true, integrationTokenHash: true },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      integrationTokenHash: true,
+      integrationTokenLastUsedAt: true,
+      integrationTokenRotatedAt: true,
+    },
   });
 
   const data = await Promise.all(
@@ -77,6 +87,12 @@ export default async function AdminIntegrationPage() {
                   </>
                 )}
               </p>
+              {ph.integrationTokenHash && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Rotacionado: {ph.integrationTokenRotatedAt ? fmtData(ph.integrationTokenRotatedAt) : "data legada"}
+                  {" · "}Último uso: {ph.integrationTokenLastUsedAt ? fmtData(ph.integrationTokenLastUsedAt) : "ainda não usado"}
+                </p>
+              )}
             </div>
             <GenerateTokenButton pharmacyId={ph.id} hasToken={!!ph.integrationTokenHash} />
           </div>
@@ -125,7 +141,7 @@ export default async function AdminIntegrationPage() {
                   <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold">
-                        {e.order.number} · {formatBRL(e.order.total)} · {e.attempts}{" "}
+                        {e.order.number} · {formatBRL(moneyToNumber(e.order.total))} · {e.attempts}{" "}
                         {e.attempts === 1 ? "tentativa" : "tentativas"}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">{e.lastError}</p>

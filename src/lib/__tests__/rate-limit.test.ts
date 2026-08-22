@@ -6,7 +6,58 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
 }));
 
-import { rateLimit } from "@/lib/rate-limit";
+import { clientIpFromHeaders, rateLimit } from "@/lib/rate-limit";
+
+describe("clientIpFromHeaders", () => {
+  it("ignora cabeçalhos forjáveis sem proxy confiável", () => {
+    const previousVercel = process.env.VERCEL;
+    const previousTrust = process.env.TRUST_PROXY_HEADERS;
+    delete process.env.VERCEL;
+    delete process.env.TRUST_PROXY_HEADERS;
+    try {
+      const h = new Headers({
+        "x-forwarded-for": "203.0.113.40",
+        "x-real-ip": "203.0.113.41",
+      });
+      expect(clientIpFromHeaders(h)).toBe("unknown");
+    } finally {
+      if (previousVercel === undefined) delete process.env.VERCEL;
+      else process.env.VERCEL = previousVercel;
+      if (previousTrust === undefined) delete process.env.TRUST_PROXY_HEADERS;
+      else process.env.TRUST_PROXY_HEADERS = previousTrust;
+    }
+  });
+
+  it("usa o cabeçalho gerenciado da Vercel", () => {
+    const previousVercel = process.env.VERCEL;
+    process.env.VERCEL = "1";
+    try {
+      const h = new Headers({ "x-vercel-forwarded-for": "2001:db8::10" });
+      expect(clientIpFromHeaders(h)).toBe("2001:db8::10");
+    } finally {
+      if (previousVercel === undefined) delete process.env.VERCEL;
+      else process.env.VERCEL = previousVercel;
+    }
+  });
+
+  it("em proxy próprio usa o último hop e descarta prefixo injetado", () => {
+    const previousVercel = process.env.VERCEL;
+    const previousTrust = process.env.TRUST_PROXY_HEADERS;
+    delete process.env.VERCEL;
+    process.env.TRUST_PROXY_HEADERS = "true";
+    try {
+      const h = new Headers({
+        "x-forwarded-for": "198.51.100.1, 203.0.113.50",
+      });
+      expect(clientIpFromHeaders(h)).toBe("203.0.113.50");
+    } finally {
+      if (previousVercel === undefined) delete process.env.VERCEL;
+      else process.env.VERCEL = previousVercel;
+      if (previousTrust === undefined) delete process.env.TRUST_PROXY_HEADERS;
+      else process.env.TRUST_PROXY_HEADERS = previousTrust;
+    }
+  });
+});
 
 describe("rateLimit (fallback em memória)", () => {
   beforeEach(() => {

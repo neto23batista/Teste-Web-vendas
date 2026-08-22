@@ -1,5 +1,4 @@
-import { getCurrentUser } from "@/lib/session";
-import { canAccess } from "@/lib/permissions";
+import { assertArea } from "@/lib/session";
 import { getAbcReport } from "@/lib/admin-reports";
 import { toCsv } from "@/lib/csv";
 
@@ -7,8 +6,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "ADMIN" || !canAccess(user.staffProfile, "relatorios")) {
+  try {
+    await assertArea("relatorios");
+  } catch {
     return new Response("Acesso negado", { status: 403 });
   }
 

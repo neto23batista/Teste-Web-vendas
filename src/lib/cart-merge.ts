@@ -22,7 +22,16 @@ export async function mergeGuestCartIntoUser(userId: string): Promise<void> {
   if (!guest || guest.userId !== null || guest.items.length === 0) return;
 
   let userCart = await prisma.cart.findFirst({ where: { userId } });
-  if (!userCart) userCart = await prisma.cart.create({ data: { userId } });
+  if (!userCart) {
+    try {
+      userCart = await prisma.cart.create({
+        data: { userId, pharmacyId: guest.pharmacyId },
+      });
+    } catch (cause) {
+      userCart = await prisma.cart.findFirst({ where: { userId } });
+      if (!userCart) throw cause;
+    }
+  }
 
   for (const item of guest.items) {
     await prisma.cartItem.upsert({

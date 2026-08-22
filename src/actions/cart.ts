@@ -7,6 +7,11 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { CART_COOKIE } from "@/lib/cart";
 import { getSelectedPharmacyId } from "@/lib/pharmacy";
+import {
+  MAX_ITEM_QUANTITY,
+  isValidItemQuantity,
+  isValidStock,
+} from "@/lib/orders";
 
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 dias
 
@@ -37,10 +42,18 @@ async function resolveCartId(pharmacyId: string | null): Promise<string> {
       }
       return existing.id;
     }
-    const created = await prisma.cart.create({
-      data: { userId: user.id, pharmacyId },
-    });
-    return created.id;
+    try {
+      const created = await prisma.cart.create({
+        data: { userId: user.id, pharmacyId },
+      });
+      return created.id;
+    } catch (cause) {
+      // O índice parcial no PostgreSQL garante um carrinho por usuário. Se duas
+      // requisições criarem ao mesmo tempo, reutiliza o vencedor da corrida.
+      const winner = await prisma.cart.findFirst({ where: { userId: user.id } });
+      if (winner) return winner.id;
+      throw cause;
+    }
   }
 
   const store = await cookies();
@@ -72,6 +85,16 @@ async function resolveCartId(pharmacyId: string | null): Promise<string> {
 }
 
 export async function addToCart(productId: string, qty = 1) {
+  // Server Actions podem ser chamadas diretamente: o tipo TypeScript não
+  // valida o payload em runtime. Em especial, quantidade negativa faria o
+  // subtotal ficar negativo e, mais tarde, `decrement: -N` aumentaria estoque.
+  if (!isValidItemQuantity(qty)) {
+    return {
+      ok: false,
+      error: `Quantidade inválida. Escolha de 1 a ${MAX_ITEM_QUANTITY} unidades.`,
+    };
+  }
+
   const pharmacyId = await getSelectedPharmacyId();
   const product = await prisma.product.findUnique({
     where: { id: productId },
@@ -81,13 +104,26 @@ export async function addToCart(productId: string, qty = 1) {
     return { ok: false, error: "Produto indisponível." };
 
   const stock = await unitStock(productId, pharmacyId);
-  if (stock <= 0) return { ok: false, error: "Sem estoque nesta unidade." };
+  if (!isValidStock(stock) || stock === 0) {
+    return { ok: false, error: "Sem estoque nesta unidade." };
+  }
 
   const cartId = await resolveCartId(pharmacyId);
   const existing = await prisma.cartItem.findUnique({
     where: { cartId_productId: { cartId, productId } },
+    select: { qty: true },
   });
-  const nextQty = Math.min(stock, (existing?.qty ?? 0) + qty);
+  if (existing && !isValidItemQuantity(existing.qty)) {
+    return {
+      ok: false,
+      error: "A sacola contém uma quantidade inválida. Remova o item e adicione novamente.",
+    };
+  }
+  const nextQty = Math.min(
+    stock,
+    MAX_ITEM_QUANTITY,
+    (existing?.qty ?? 0) + qty
+  );
 
   await prisma.cartItem.upsert({
     where: { cartId_productId: { cartId, productId } },
@@ -122,6 +158,16 @@ async function ownCart(): Promise<{ id: string; pharmacyId: string | null } | nu
 }
 
 export async function updateCartItem(itemId: string, qty: number) {
+  // Zero é aceito exclusivamente como comando de remoção (nenhuma linha
+  // com qty=0 é persistida). Todo outro valor precisa ser inteiro seguro.
+  const remove = qty === 0;
+  if ((!remove && !isValidItemQuantity(qty)) || !Number.isSafeInteger(qty)) {
+    return {
+      ok: false,
+      error: `Quantidade inválida. Escolha de 1 a ${MAX_ITEM_QUANTITY} unidades.`,
+    };
+  }
+
   const cart = await ownCart();
   if (!cart) return { ok: false };
 
@@ -132,15 +178,23 @@ export async function updateCartItem(itemId: string, qty: number) {
   });
   if (!item) return { ok: false };
 
-  const stock = await unitStock(item.productId, cart.pharmacyId);
-  if (qty <= 0 || stock <= 0) {
+  if (remove) {
     await prisma.cartItem.delete({ where: { id: item.id } });
-  } else {
-    await prisma.cartItem.update({
-      where: { id: item.id },
-      data: { qty: Math.min(stock, qty) },
-    });
+    revalidatePath("/sacola");
+    return { ok: true };
   }
+
+  const stock = await unitStock(item.productId, cart.pharmacyId);
+  if (!isValidStock(stock) || stock === 0) {
+    await prisma.cartItem.delete({ where: { id: item.id } });
+    revalidatePath("/sacola");
+    return { ok: false, error: "O produto ficou sem estoque e foi removido." };
+  }
+
+  await prisma.cartItem.update({
+    where: { id: item.id },
+    data: { qty: Math.min(stock, MAX_ITEM_QUANTITY, qty) },
+  });
   revalidatePath("/sacola");
   return { ok: true };
 }
@@ -154,4 +208,3 @@ export async function removeCartItem(itemId: string) {
   revalidatePath("/sacola");
   return { ok: true };
 }
-

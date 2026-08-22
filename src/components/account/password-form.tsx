@@ -15,14 +15,14 @@ export function PasswordForm() {
       className="space-y-4 rounded-2xl border border-border bg-card p-5"
     >
       {state?.error && (
-        <div className="flex items-center gap-2 rounded-xl bg-danger-500/10 px-4 py-3 text-sm font-medium text-danger-500">
+        <div role="alert" className="flex items-center gap-2 rounded-xl bg-danger-500/10 px-4 py-3 text-sm font-medium text-danger-500">
           <AlertCircle className="size-4 shrink-0" /> {state.error}
         </div>
       )}
       {state?.success && (
-        <div className="flex items-center gap-2 rounded-xl bg-success-500/10 px-4 py-3 text-sm font-medium text-success-600">
-          <CheckCircle2 className="size-4 shrink-0" /> Senha alterada com
-          sucesso!
+        <div role="status" className="flex items-center gap-2 rounded-xl bg-success-500/10 px-4 py-3 text-sm font-medium text-success-600">
+          <CheckCircle2 className="size-4 shrink-0" /> Senha alterada. Por
+          segurança, entre novamente na próxima navegação.
         </div>
       )}
 
@@ -32,6 +32,7 @@ export function PasswordForm() {
           name="currentPassword"
           type="password"
           autoComplete="current-password"
+          maxLength={128}
           required
         />
       </Field>
@@ -39,14 +40,15 @@ export function PasswordForm() {
         <Field
           label="Nova senha"
           htmlFor="newPassword"
-          hint="Mínimo de 8 caracteres"
+          hint="Entre 12 e 64 caracteres"
         >
           <Input
             id="newPassword"
             name="newPassword"
             type="password"
             autoComplete="new-password"
-            minLength={8}
+            minLength={12}
+            maxLength={64}
             required
           />
         </Field>
@@ -56,13 +58,14 @@ export function PasswordForm() {
             name="confirmPassword"
             type="password"
             autoComplete="new-password"
-            minLength={8}
+            minLength={12}
+            maxLength={64}
             required
           />
         </Field>
       </div>
 
-      <Button type="submit" variant="primary" disabled={pending}>
+      <Button type="submit" variant="primary" disabled={pending} aria-busy={pending}>
         {pending ? (
           <Loader2 className="size-5 animate-spin" />
         ) : (

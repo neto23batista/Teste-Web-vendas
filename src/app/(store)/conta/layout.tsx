@@ -1,12 +1,17 @@
-import { getCurrentUser } from "@/lib/session";
+import type { Metadata } from "next";
+import { requireUserPage } from "@/lib/session";
 import { AccountNav } from "@/components/account/account-nav";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false, nocache: true },
+};
 
 export default async function AccountLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getCurrentUser();
+  const user = await requireUserPage("/conta");
 
   return (
     <div className="aurora">
@@ -16,7 +21,7 @@ export default async function AccountLayout({
           Minha conta
         </p>
         <h1 className="text-2xl font-extrabold tracking-tight md:text-3xl">
-          Olá, {user?.name?.split(" ")[0] ?? "cliente"} 👋
+          Olá, {user.name?.split(" ")[0] ?? "cliente"} 👋
         </h1>
       </div>
       <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">

@@ -3,39 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+import {
+  addressFromFormData,
+  validateAddress,
+} from "@/lib/address";
+import { createUserAddressWithinLimit } from "@/lib/address-persistence";
 
 export type AddressState = { ok?: boolean; error?: string } | undefined;
-
-function parse(fd: FormData) {
-  const s = (k: string) => String(fd.get(k) ?? "").trim();
-  return {
-    label: s("label") || "Endereço",
-    recipient: s("recipient"),
-    zip: s("zip"),
-    street: s("street"),
-    number: s("number"),
-    complement: s("complement") || null,
-    district: s("district"),
-    city: s("city"),
-    state: s("state").toUpperCase().slice(0, 2),
-    isDefault: fd.get("isDefault") === "on",
-  };
-}
-
-function validate(d: ReturnType<typeof parse>): string | null {
-  if (
-    !d.recipient ||
-    !d.zip ||
-    !d.street ||
-    !d.number ||
-    !d.district ||
-    !d.city ||
-    !d.state
-  ) {
-    return "Preencha todos os campos obrigatórios do endereço.";
-  }
-  return null;
-}
 
 function revalidate() {
   revalidatePath("/conta/enderecos");
@@ -47,25 +21,15 @@ export async function createAddress(
   fd: FormData
 ): Promise<AddressState> {
   const user = await requireUser();
-  const d = parse(fd);
-  const err = validate(d);
+  const d = addressFromFormData(fd);
+  const err = validateAddress(d);
   if (err) return { error: err };
 
-  // O primeiro endereço do cliente vira padrão automaticamente.
-  const count = await prisma.address.count({ where: { userId: user.id } });
-  const makeDefault = d.isDefault || count === 0;
-
-  await prisma.$transaction(async (tx) => {
-    if (makeDefault) {
-      await tx.address.updateMany({
-        where: { userId: user.id },
-        data: { isDefault: false },
-      });
-    }
-    await tx.address.create({
-      data: { ...d, userId: user.id, isDefault: makeDefault },
-    });
-  });
+  // O lock transacional compartilhado com o checkout fecha a corrida do teto.
+  const result = await createUserAddressWithinLimit(user.id, d);
+  if (!result.ok) {
+    return { error: "Limite de 20 endereços atingido. Remova um endereço antigo." };
+  }
 
   revalidate();
   return { ok: true };
@@ -83,8 +47,8 @@ export async function updateAddress(
   });
   if (!owns) return { error: "Endereço não encontrado." };
 
-  const d = parse(fd);
-  const err = validate(d);
+  const d = addressFromFormData(fd);
+  const err = validateAddress(d);
   if (err) return { error: err };
 
   await prisma.$transaction(async (tx) => {
@@ -110,15 +74,8 @@ export async function deleteAddress(
   });
   if (!addr) return { ok: false, error: "Endereço não encontrado." };
 
-  try {
-    await prisma.address.delete({ where: { id } });
-  } catch {
-    // FK: endereço referenciado por pedido (onDelete Restrict).
-    return {
-      ok: false,
-      error: "Este endereço está vinculado a um pedido e não pode ser excluído.",
-    };
-  }
+  // Pedidos preservam o destino em snapshot; a FK opcional vira null.
+  await prisma.address.delete({ where: { id } });
 
   // Se o excluído era o padrão, promove o mais antigo restante.
   if (addr.isDefault) {

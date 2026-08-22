@@ -25,7 +25,7 @@ export async function sincronizarCatalogo() {
     criados += res.criados ?? 0;
     atualizados += res.atualizados ?? 0;
     if (res.erros?.length) {
-      console.warn(`[catalogo] erros no lote: ${res.erros.join("; ")}`);
+      console.warn(`[catalogo] lote retornou ${res.erros.length} erro(s); detalhes omitidos`);
     }
   }
 

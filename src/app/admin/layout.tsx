@@ -1,7 +1,11 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { getAdminScope, getCurrentUser } from "@/lib/session";
+import {
+  adminNeedsMfaEnrollment,
+  getAdminScope,
+  getCurrentUser,
+} from "@/lib/session";
 import { getAdminBadges } from "@/lib/admin";
 import { listPharmaciesSafe } from "@/lib/pharmacy";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
@@ -12,6 +16,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = {
   title: { default: "Admin", template: "%s | Admin FarmaVida" },
+  robots: { index: false, follow: false, nocache: true },
 };
 
 // O admin é sempre por sessão e lê o banco a cada requisição.
@@ -25,6 +30,9 @@ export default async function AdminLayout({
 }) {
   const user = await getCurrentUser();
   if (!user || user.role !== "ADMIN") redirect("/login");
+  if (await adminNeedsMfaEnrollment()) {
+    redirect("/conta/seguranca?required=1");
+  }
 
   const b = await getAdminBadges();
   const badges = {
@@ -66,7 +74,13 @@ export default async function AdminLayout({
             <AdminUserMenu name={user.name ?? "Administrador"} />
           </div>
         </header>
-        <main className="aurora flex-1 p-4 md:p-6 lg:p-8">{children}</main>
+        <main
+          id="conteudo-principal"
+          tabIndex={-1}
+          className="aurora flex-1 p-4 md:p-6 lg:p-8"
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

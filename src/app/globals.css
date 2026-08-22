@@ -586,6 +586,13 @@
   }
 }
 
+/* Evita que o WhatsApp cubra o CTA fixo de compra no produto mobile. */
+@media (max-width: 767px) {
+  body:has([data-sticky-buy-bar]) [data-whatsapp-fab] {
+    bottom: 10.5rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

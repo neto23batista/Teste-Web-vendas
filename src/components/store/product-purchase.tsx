@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { addToCart } from "@/actions/cart";
 import { Button } from "@/components/ui/button";
 
+const MAX_ITEM_QUANTITY = 99;
+
 export function ProductPurchase({
   productId,
   name,
@@ -24,7 +26,8 @@ export function ProductPurchase({
   const [added, setAdded] = React.useState(false);
 
   const dec = () => setQty((q) => Math.max(1, q - 1));
-  const inc = () => setQty((q) => Math.min(maxStock || 99, q + 1));
+  const maxQuantity = Math.min(maxStock, MAX_ITEM_QUANTITY);
+  const inc = () => setQty((q) => Math.min(maxQuantity, q + 1));
 
   function add() {
     start(async () => {
@@ -54,7 +57,7 @@ export function ProductPurchase({
         <span className="w-10 text-center text-base font-bold">{qty}</span>
         <button
           onClick={inc}
-          disabled={disabled || qty >= maxStock}
+          disabled={disabled || qty >= maxQuantity}
           aria-label="Aumentar"
           className="grid size-12 place-items-center rounded-r-2xl text-muted-foreground transition hover:bg-muted disabled:opacity-40"
         >

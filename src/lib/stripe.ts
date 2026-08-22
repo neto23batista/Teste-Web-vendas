@@ -1,5 +1,5 @@
 /**
- * Integração Stripe — provedor de pagamento (substitui o PagBank).
+ * Integração Stripe — provedor de pagamentos online.
  *
  * - PIX nativo: PaymentIntent com método `pix` → QR + copia-e-cola exibidos na
  *   página do pedido, sem sair do site. O webhook confirma a aprovação.
@@ -8,8 +8,8 @@
  * - Cartão: Checkout Session hospedada (redirect); o cliente volta pela success_url.
  * - Reembolso: refunds.create({ payment_intent }) no cancelamento de pedido pago.
  *
- * Credenciais: a secret key salva em /admin/configuracoes (tabela Setting) tem
- * prioridade; sem ela, vale a env STRIPE_SECRET_KEY — ver getPaymentSettings().
+ * Credenciais: exclusivamente STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET no
+ * ambiente/secret manager — nunca na tabela genérica de configurações.
  * Tudo é best-effort: sem chave ou com falha na API, as funções retornam
  * null/false e o checkout cai no fluxo de "aguardando pagamento".
  * Valores monetários na API são em CENTAVOS (inteiro), moeda BRL.
@@ -18,12 +18,23 @@
 import Stripe from "stripe";
 import { getPaymentSettings } from "@/lib/settings";
 import { qrPngBase64 } from "@/lib/qrcode";
+import { reportError } from "@/lib/monitoring";
+import { moneyToCents, type MoneyValue } from "@/lib/money";
 
-const toCents = (v: number) => Math.round(v * 100);
+function toCents(value: MoneyValue): number {
+  const cents = moneyToCents(value);
+  if (cents === null) throw new TypeError("Valor monetário inválido para o Stripe.");
+  return cents;
+}
+
+/** Política única de rede: retenta falhas transitórias sem prender o checkout. */
+function stripeClient(secretKey: string): Stripe {
+  return new Stripe(secretKey, { maxNetworkRetries: 2, timeout: 10_000 });
+}
 
 async function getClient(): Promise<Stripe | null> {
   const { stripeSecretKey } = await getPaymentSettings();
-  return stripeSecretKey ? new Stripe(stripeSecretKey) : null;
+  return stripeSecretKey ? stripeClient(stripeSecretKey) : null;
 }
 
 /** Cliente + segredo do webhook, para a rota /api/webhooks/stripe. */
@@ -33,7 +44,7 @@ export async function getStripeForWebhook(): Promise<{
 } | null> {
   const { stripeSecretKey, stripeWebhookSecret } = await getPaymentSettings();
   if (!stripeSecretKey || !stripeWebhookSecret) return null;
-  return { client: new Stripe(stripeSecretKey), webhookSecret: stripeWebhookSecret };
+  return { client: stripeClient(stripeSecretKey), webhookSecret: stripeWebhookSecret };
 }
 
 export type StripePing = {
@@ -71,7 +82,7 @@ export async function stripePing(): Promise<StripePing> {
     return { configured: false, ok: false, live: false, pix: false, status: 0 };
   }
   const live = stripeSecretKey.startsWith("sk_live_");
-  const client = new Stripe(stripeSecretKey);
+  const client = stripeClient(stripeSecretKey);
   try {
     await client.balance.retrieve();
   } catch (err) {
@@ -99,6 +110,13 @@ export type PixRaw = {
   expiresAt: string | null;
 };
 
+/** Referência da Checkout Session para o cliente retomar enquanto estiver aberta. */
+export type CheckoutRaw = {
+  sessionId: string;
+  url: string | null;
+  expiresAt: string | null;
+};
+
 /**
  * Cria um PaymentIntent PIX e devolve o QR/copia-e-cola. A imagem PNG do QR é
  * gerada localmente a partir do EMV (não depende de baixar imagem do provedor).
@@ -106,19 +124,20 @@ export type PixRaw = {
  */
 export async function createPixPayment(opts: {
   orderNumber: string;
-  amount: number;
+  amount: MoneyValue;
   payerEmail: string;
   payerName?: string | null;
   payerTaxId?: string | null; // CPF (coletado no checkout)
   description?: string;
 }): Promise<PixCharge | null> {
   const client = await getClient();
-  if (!client || opts.amount <= 0 || !opts.payerEmail) return null;
+  const amountCents = toCents(opts.amount);
+  if (!client || amountCents <= 0 || !opts.payerEmail) return null;
 
   try {
     const pi = await client.paymentIntents.create(
       {
-        amount: toCents(opts.amount),
+        amount: amountCents,
         currency: "brl",
         payment_method_types: ["pix"],
         payment_method_data: {
@@ -149,7 +168,7 @@ export async function createPixPayment(opts: {
       expiresAt: qr.expires_at ? new Date(qr.expires_at * 1000).toISOString() : null,
     };
   } catch (err) {
-    console.error("[stripe] falha ao criar pix:", err);
+    reportError(err, { operation: "stripe.pix.create" });
     return null;
   }
 }
@@ -169,7 +188,20 @@ export function readPixRaw(raw: unknown): PixRaw | null {
   };
 }
 
-type CheckoutItem = { name: string; price: number; qty: number };
+export function readCheckoutRaw(raw: unknown): CheckoutRaw | null {
+  if (!raw || typeof raw !== "object") return null;
+  const checkout = (raw as Record<string, unknown>).checkout;
+  if (!checkout || typeof checkout !== "object") return null;
+  const value = checkout as Record<string, unknown>;
+  if (typeof value.sessionId !== "string" || !value.sessionId) return null;
+  return {
+    sessionId: value.sessionId,
+    url: typeof value.url === "string" ? value.url : null,
+    expiresAt: typeof value.expiresAt === "string" ? value.expiresAt : null,
+  };
+}
+
+type CheckoutItem = { name: string; price: MoneyValue; qty: number };
 
 /**
  * Quanto o cartão deve cobrar, em centavos, a partir do total AUTORITATIVO do
@@ -184,8 +216,8 @@ type CheckoutItem = { name: string; price: number; qty: number };
  */
 export function hostedCheckoutAmounts(
   items: CheckoutItem[],
-  shipping: number,
-  total: number
+  shipping: MoneyValue,
+  total: MoneyValue
 ): { itemsCents: number; shippingCents: number; discountCents: number; chargedCents: number } {
   const itemsCents = items.reduce((sum, i) => sum + toCents(i.price) * i.qty, 0);
   const shippingCents = toCents(shipping);
@@ -211,20 +243,26 @@ export function hostedCheckoutAmounts(
  * `total` (order.total, já com cupom/pontos) é o valor cobrado — sem ele o Stripe
  * cobraria o preço cheio enquanto o pedido registra o total com desconto.
  */
+export type HostedCheckout = {
+  sessionId: string;
+  url: string;
+  expiresAt: string | null;
+};
+
 export async function createHostedCheckout(opts: {
   orderNumber: string;
   items: CheckoutItem[];
-  shipping: number;
-  total: number;
+  shipping: MoneyValue;
+  total: MoneyValue;
   customerEmail?: string | null;
   customerName?: string | null;
-}): Promise<string | null> {
+}): Promise<HostedCheckout | null> {
   const client = await getClient();
   if (!client) return null;
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
   try {
-    const { discountCents } = hostedCheckoutAmounts(
+    const { discountCents, shippingCents } = hostedCheckoutAmounts(
       opts.items,
       opts.shipping,
       opts.total
@@ -257,13 +295,13 @@ export async function createHostedCheckout(opts: {
               product_data: { name: i.name.slice(0, 250) },
             },
           })),
-          ...(opts.shipping > 0
+          ...(shippingCents > 0
             ? [
                 {
                   quantity: 1,
                   price_data: {
                     currency: "brl",
-                    unit_amount: toCents(opts.shipping),
+                    unit_amount: shippingCents,
                     product_data: { name: "Frete" },
                   },
                 },
@@ -279,9 +317,16 @@ export async function createHostedCheckout(opts: {
       },
       { idempotencyKey: `checkout-${opts.orderNumber}` }
     );
-    return session.url ?? null;
+    if (!session.url) return null;
+    return {
+      sessionId: session.id,
+      url: session.url,
+      expiresAt: session.expires_at
+        ? new Date(session.expires_at * 1000).toISOString()
+        : null,
+    };
   } catch (err) {
-    console.error("[stripe] falha ao criar checkout:", err);
+    reportError(err, { operation: "stripe.checkout.create" });
     return null;
   }
 }
@@ -308,26 +353,103 @@ export async function getPaymentStatus(
       paidChargeId: paid ? pi.id : null,
     };
   } catch (err) {
-    console.error(`[stripe] falha ao consultar ${paymentIntentId}:`, err);
+    reportError(err, { operation: "stripe.payment_intent.retrieve" });
     return null;
   }
 }
 
 /**
- * Estorna um pagamento aprovado (reembolso total). Aceita o id do PaymentIntent
- * (pi_…). Best-effort: nunca lança — falha aqui não bloqueia o cancelamento.
+ * Resultado persistível de um pedido de reembolso. `pending` inclui casos em
+ * que o Stripe exige ação ou ainda processa o estorno; o webhook conclui depois.
  */
-export async function refundPayment(paymentIntentId: string): Promise<boolean> {
+export type RefundPaymentResult =
+  | { ok: true; refundId: string; status: "succeeded" | "pending" }
+  | { ok: false; refundId: string | null; error: string };
+
+export async function refundPayment(
+  paymentIntentId: string,
+  orderNumber?: string
+): Promise<RefundPaymentResult> {
   const client = await getClient();
-  if (!client || !paymentIntentId) return false;
+  if (!client) {
+    return { ok: false, refundId: null, error: "Stripe não configurado." };
+  }
+  if (!paymentIntentId) {
+    return { ok: false, refundId: null, error: "PaymentIntent ausente." };
+  }
   try {
-    await client.refunds.create(
-      { payment_intent: paymentIntentId },
+    const refund = await client.refunds.create(
+      {
+        payment_intent: paymentIntentId,
+        reason: "requested_by_customer",
+        ...(orderNumber ? { metadata: { orderNumber } } : {}),
+      },
       { idempotencyKey: `refund-${paymentIntentId}` }
     );
-    return true;
+    if (refund.status === "succeeded") {
+      return { ok: true, refundId: refund.id, status: "succeeded" };
+    }
+    if (refund.status === "pending" || refund.status === "requires_action") {
+      return { ok: true, refundId: refund.id, status: "pending" };
+    }
+    return {
+      ok: false,
+      refundId: refund.id,
+      error: refund.failure_reason || `Reembolso retornou status ${refund.status ?? "desconhecido"}.`,
+    };
   } catch (err) {
-    console.error(`[stripe] erro ao reembolsar ${paymentIntentId}:`, err);
-    return false;
+    reportError(err, { operation: "stripe.refund.create" });
+    return {
+      ok: false,
+      refundId: null,
+      error:
+        err instanceof Error
+          ? err.message
+          : "Falha ao solicitar o reembolso no Stripe.",
+    };
   }
+}
+
+/**
+ * Invalida uma cobrança ainda não paga. É best-effort: o webhook continua
+ * sendo a rede de segurança caso o pagamento vença a corrida do cancelamento.
+ */
+export async function cancelPendingStripePayment(input: {
+  paymentIntentId?: string | null;
+  checkoutSessionId?: string | null;
+}): Promise<boolean> {
+  const client = await getClient();
+  if (!client) return false;
+
+  let attempted = false;
+  let ok = true;
+  if (input.paymentIntentId) {
+    attempted = true;
+    try {
+      const intent = await client.paymentIntents.retrieve(input.paymentIntentId);
+      if (
+        intent.status !== "succeeded" &&
+        intent.status !== "canceled" &&
+        intent.status !== "processing"
+      ) {
+        await client.paymentIntents.cancel(input.paymentIntentId);
+      }
+    } catch (err) {
+      ok = false;
+      reportError(err, { operation: "stripe.payment_intent.cancel" });
+    }
+  }
+  if (input.checkoutSessionId) {
+    attempted = true;
+    try {
+      const session = await client.checkout.sessions.retrieve(input.checkoutSessionId);
+      if (session.status === "open") {
+        await client.checkout.sessions.expire(input.checkoutSessionId);
+      }
+    } catch (err) {
+      ok = false;
+      reportError(err, { operation: "stripe.checkout.expire" });
+    }
+  }
+  return attempted && ok;
 }
