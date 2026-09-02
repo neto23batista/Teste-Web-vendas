@@ -31,12 +31,31 @@ export async function submitReview(
   const comment =
     String(formData.get("comment") ?? "").trim().slice(0, 1000) || null;
 
+  const verifiedPurchase = await prisma.order.findFirst({
+    where: {
+      userId: user.id,
+      status: "DELIVERED",
+      items: { some: { productId } },
+    },
+    select: { id: true },
+  });
+  if (!verifiedPurchase) {
+    return { error: "A avaliação fica disponível após uma compra entregue deste produto." };
+  }
+
   // Moderação: toda avaliação (nova ou editada) entra como NÃO aprovada e só
   // aparece na loja depois do OK do dono em /admin/avaliacoes.
   await prisma.review.upsert({
     where: { productId_userId: { productId, userId: user.id } },
-    create: { productId, userId: user.id, rating, comment, approved: false },
-    update: { rating, comment, approved: false },
+    create: {
+      productId,
+      userId: user.id,
+      rating,
+      comment,
+      approved: false,
+      verifiedPurchase: true,
+    },
+    update: { rating, comment, approved: false, verifiedPurchase: true },
   });
 
   const agg = await prisma.review.aggregate({

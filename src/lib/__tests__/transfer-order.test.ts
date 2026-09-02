@@ -3,10 +3,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const orderFindUnique = vi.fn();
 const pharmacyFindFirst = vi.fn();
 const inventoryUpdateMany = vi.fn();
+const inventoryFindUnique = vi.fn();
+const inventoryUpsert = vi.fn();
+const inventoryMovementCreate = vi.fn();
+const inventoryReservationFindMany = vi.fn();
 const orderUpdate = vi.fn();
 
 const tx = {
-  inventory: { updateMany: inventoryUpdateMany },
+  inventory: {
+    updateMany: inventoryUpdateMany,
+    findUnique: inventoryFindUnique,
+    upsert: inventoryUpsert,
+  },
+  inventoryMovement: { create: inventoryMovementCreate },
+  inventoryReservation: { findMany: inventoryReservationFindMany },
   order: { update: orderUpdate },
 };
 
@@ -25,6 +35,7 @@ import { transferOrder } from "@/lib/orders";
 
 const baseOrder = (status: string) => ({
   id: "o1",
+  number: "FV-1",
   status,
   pharmacyId: "m",
   notes: null,
@@ -36,9 +47,16 @@ beforeEach(() => {
   orderFindUnique.mockReset();
   pharmacyFindFirst.mockReset();
   inventoryUpdateMany.mockReset();
+  inventoryFindUnique.mockReset();
+  inventoryUpsert.mockReset();
+  inventoryMovementCreate.mockReset();
+  inventoryReservationFindMany.mockReset();
   orderUpdate.mockReset();
   pharmacyFindFirst.mockResolvedValue({ id: "f", name: "Filial" });
   inventoryUpdateMany.mockResolvedValue({ count: 1 });
+  inventoryFindUnique.mockResolvedValue({ id: "inv-target", stock: 8 });
+  inventoryUpsert.mockResolvedValue({ id: "inv-source", stock: 12 });
+  inventoryReservationFindMany.mockResolvedValue([]);
 });
 
 describe("transferOrder", () => {
@@ -59,11 +77,14 @@ describe("transferOrder", () => {
       where: { productId: "p1", pharmacyId: "f", stock: { gte: 2 } },
       data: { stock: { decrement: 2 } },
     });
-    // 2ª chamada: devolve à origem (matriz)
-    expect(inventoryUpdateMany.mock.calls[1][0]).toMatchObject({
-      where: { productId: "p1", pharmacyId: "m" },
-      data: { stock: { increment: 2 } },
+    // A devolução à origem usa upsert atômico e também grava o livro-razão.
+    expect(inventoryUpsert).toHaveBeenCalledWith({
+      where: { productId_pharmacyId: { productId: "p1", pharmacyId: "m" } },
+      create: expect.objectContaining({ productId: "p1", pharmacyId: "m", stock: 2 }),
+      update: { stock: { increment: 2 } },
+      select: { id: true, stock: true },
     });
+    expect(inventoryMovementCreate).toHaveBeenCalledTimes(2);
     expect(orderUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ pharmacyId: "f" }) })
     );

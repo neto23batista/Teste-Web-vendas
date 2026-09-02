@@ -2,12 +2,18 @@ import { prisma } from "@/lib/prisma";
 import { centsToNumber, moneyToCents, percentageOfCents } from "@/lib/money";
 
 export type CouponResult =
-  | { code: string; discount: number; usageLimit: number | null }
+  | {
+      code: string;
+      discount: number;
+      usageLimit: number | null;
+      usageLimitPerCustomer: number;
+    }
   | { error: string };
 
 export async function validateCoupon(
   rawCode: string,
-  subtotalCents: number
+  subtotalCents: number,
+  userId: string
 ): Promise<CouponResult> {
   const code = rawCode.trim().toUpperCase();
   if (!code) return { error: "Informe um cupom." };
@@ -18,6 +24,12 @@ export async function validateCoupon(
     return { error: "Cupom expirado." };
   if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit)
     return { error: "Cupom esgotado." };
+  const customerUses = await prisma.couponRedemption.count({
+    where: { couponId: coupon.id, userId },
+  });
+  if (customerUses >= coupon.usageLimitPerCustomer) {
+    return { error: "Você já atingiu o limite de uso deste cupom." };
+  }
   const minTotalCents = moneyToCents(coupon.minTotal);
   const valueCents = moneyToCents(coupon.value);
   if (minTotalCents === null || valueCents === null) {
@@ -41,5 +53,6 @@ export async function validateCoupon(
     code,
     discount: centsToNumber(discountCents),
     usageLimit: coupon.usageLimit,
+    usageLimitPerCustomer: coupon.usageLimitPerCustomer,
   };
 }

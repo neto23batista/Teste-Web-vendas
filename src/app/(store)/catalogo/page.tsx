@@ -9,10 +9,47 @@ import { categoryIcon } from "@/components/store/category-visual";
 import { Reveal } from "@/components/motion/motion";
 import { cn } from "@/lib/utils";
 
-export const metadata: Metadata = { title: "Catálogo" };
-
 type SP = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<SP>;
+}): Promise<Metadata> {
+  const sp = await searchParams;
+  const query = one(sp.q)?.trim();
+  const categorySlug = one(sp.cat)?.trim();
+  const page = Math.max(1, Number(one(sp.page)) || 1);
+  const hasCommercialFilters = Boolean(
+    query || one(sp.marca) || one(sp.promo) || one(sp.generic) || one(sp.pmin) || one(sp.pmax)
+  );
+  let categoryName: string | null = null;
+  if (categorySlug && !hasCommercialFilters) {
+    const categories = await getCategories();
+    categoryName = categories.find((category) => category.slug === categorySlug)?.name ?? null;
+  }
+  const canonicalParams = new URLSearchParams();
+  if (categoryName && categorySlug) canonicalParams.set("cat", categorySlug);
+  if (page > 1) canonicalParams.set("page", String(page));
+  const suffix = canonicalParams.toString();
+  const canonical = `/catalogo${suffix ? `?${suffix}` : ""}`;
+  const title = query
+    ? `Busca por “${query.slice(0, 60)}”`
+    : categoryName
+      ? `${categoryName} na farmácia online`
+      : page > 1
+        ? `Catálogo — página ${page}`
+        : "Catálogo da farmácia online";
+  return {
+    title,
+    description: categoryName
+      ? `Encontre ${categoryName.toLocaleLowerCase("pt-BR")} disponíveis no catálogo, com preço e estoque da unidade selecionada.`
+      : "Consulte medicamentos isentos de prescrição, cuidados pessoais, vitaminas e ofertas disponíveis na sua unidade.",
+    alternates: { canonical },
+    robots: hasCommercialFilters ? { index: false, follow: true } : undefined,
+  };
+}
 
 export default async function CatalogPage({
   searchParams,

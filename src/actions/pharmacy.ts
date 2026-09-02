@@ -36,8 +36,9 @@ export type SetPharmacyResult =
   | { ok: false; error: string };
 
 /**
- * Define a unidade da loja: por CEP (roteia para a unidade que atende; matriz
- * como fallback) ou por id explícito. Grava o cookie e sincroniza o carrinho.
+ * Define a unidade da loja por CEP coberto ou por id explícito. Selecionar uma
+ * unidade para navegar não amplia sua área de entrega; o checkout valida a
+ * cobertura novamente usando o endereço autoritativo.
  */
 export async function setSelectedPharmacy(input: {
   cep?: string;
@@ -56,7 +57,7 @@ export async function setSelectedPharmacy(input: {
     const resolved = await resolvePharmacyByCep(input.cep);
     chosen = resolved ? all.find((p) => p.id === resolved.id) ?? null : null;
     if (!chosen) {
-      return { ok: false, error: "Não encontramos uma unidade para este CEP." };
+      return { ok: false, error: "Ainda não entregamos neste CEP." };
     }
   }
 

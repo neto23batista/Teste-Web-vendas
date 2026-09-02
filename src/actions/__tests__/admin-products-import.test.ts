@@ -132,9 +132,9 @@ describe("importProducts em lote", () => {
       { id: "p1", sku: "REP-1", requiresPrescription: false },
     ]);
     const first =
-      "Produto inicial,REP-1,7891,10,,5,Medicamentos,,,Primeira,nao,sim";
+      "Produto inicial,REP-1,,10,,5,Medicamentos,,,Primeira,nao,sim";
     const last =
-      "Produto final,REP-1,7891,12,,9,Medicamentos,,,Segunda,nao,nao";
+      "Produto final,REP-1,,12,,9,Medicamentos,,,Segunda,nao,nao";
 
     const result = await importProducts(formWithRows([first, last]));
 

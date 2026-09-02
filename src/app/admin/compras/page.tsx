@@ -1,16 +1,32 @@
 import type { Metadata } from "next";
-import { ShoppingBasket, Download, PackageCheck } from "lucide-react";
+import { ShoppingBasket, Download, PackageCheck, Clock3 } from "lucide-react";
 import { requireArea } from "@/lib/session";
 import { getPurchaseSuggestions } from "@/lib/admin-reports";
 import { formatBRL, cn } from "@/lib/utils";
 import { ProductImage } from "@/components/store/product-image";
 import { StockLevels } from "@/components/admin/stock-levels";
+import { LotReceipt, LotWriteOff } from "@/components/admin/inventory-lot-controls";
+import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Compras" };
 export const dynamic = "force-dynamic";
 
 type SP = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+
+async function getInventoryLotsWithExpiry(pharmacyId: string) {
+  const lots = await prisma.inventoryLot.findMany({
+    where: { pharmacyId, qty: { gt: 0 } },
+    include: { product: { select: { name: true } } },
+    orderBy: [{ expiresAt: "asc" }, { receivedAt: "desc" }],
+    take: 100,
+  });
+  const now = Date.now();
+  return lots.map((lot) => ({
+    ...lot,
+    daysToExpiry: Math.ceil((lot.expiresAt.getTime() - now) / 86_400_000),
+  }));
+}
 
 export default async function AdminPurchasesPage({
   searchParams,
@@ -20,7 +36,10 @@ export default async function AdminPurchasesPage({
   await requireArea("compras");
   const sp = await searchParams;
   const unit = one(sp.unit) || undefined;
-  const { rows } = await getPurchaseSuggestions(unit);
+  const { unitId, rows } = await getPurchaseSuggestions(unit);
+  const lots = unitId
+    ? await getInventoryLotsWithExpiry(unitId)
+    : [];
 
   const toBuy = rows.filter((r) => r.suggested > 0);
   const estimated = toBuy.reduce(
@@ -84,6 +103,7 @@ export default async function AdminPurchasesPage({
                   <th className="p-4 font-semibold">Mín / Máx</th>
                   <th className="p-4 text-right font-semibold">Sugerido</th>
                   <th className="p-4 text-right font-semibold">Custo est.</th>
+                  <th className="p-4 font-semibold">Entrada</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -142,6 +162,15 @@ export default async function AdminPurchasesPage({
                         ? formatBRL(r.costPrice * r.suggested)
                         : "—"}
                     </td>
+                    <td className="p-4 align-top">
+                      {unitId && (
+                        <LotReceipt
+                          productId={r.productId}
+                          pharmacyId={unitId}
+                          suggested={r.suggested}
+                        />
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -149,6 +178,61 @@ export default async function AdminPurchasesPage({
           </div>
         )}
       </div>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-bold">
+            <Clock3 className="size-5 text-brand-600 dark:text-brand-400" /> Lotes e validades
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Saldo rastreável por lote, ordenado pela validade mais próxima.
+          </p>
+        </div>
+        {lots.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-sm text-muted-foreground">
+            Nenhum lote recebido nesta unidade.
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+            <table className="min-w-[760px] w-full text-sm">
+              <thead className="border-b border-border bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="p-3 font-semibold">Produto</th>
+                  <th className="p-3 font-semibold">Lote</th>
+                  <th className="p-3 font-semibold">Validade</th>
+                  <th className="p-3 text-right font-semibold">Saldo</th>
+                  <th className="p-3 font-semibold">Fornecedor</th>
+                  <th className="p-3 font-semibold">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {lots.map((lot) => {
+                  const days = lot.daysToExpiry;
+                  return (
+                    <tr key={lot.id} className={days <= 90 ? "bg-amber-50/60 dark:bg-amber-500/5" : undefined}>
+                      <td className="p-3 font-semibold">{lot.product.name}</td>
+                      <td className="p-3 font-mono text-xs">{lot.lotCode}</td>
+                      <td className="p-3">
+                        {lot.expiresAt.toLocaleDateString("pt-BR")}
+                        {days <= 90 && (
+                          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">
+                            {days <= 0 ? "vencido" : `${days} dias`}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3 text-right font-bold">{lot.qty}</td>
+                      <td className="p-3 text-muted-foreground">{lot.supplier ?? "—"}</td>
+                      <td className="p-3">
+                        {unitId && <LotWriteOff lotId={lot.id} pharmacyId={unitId} available={lot.qty} />}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <p className="text-xs text-muted-foreground">
         O máximo é o alvo da reposição (vazio = 2× o mínimo). O CSV exportado é o

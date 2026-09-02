@@ -38,6 +38,15 @@ export const metadata: Metadata = {
     type: "website",
     siteName: APP_NAME,
     locale: "pt_BR",
+    title: `${APP_NAME} — Farmácia online`,
+    description:
+      "Catálogo de medicamentos isentos de prescrição, cuidados diários e entrega conforme o CEP.",
+  },
+  twitter: {
+    card: "summary",
+    title: `${APP_NAME} — Farmácia online`,
+    description:
+      "Catálogo de medicamentos isentos de prescrição, cuidados diários e entrega conforme o CEP.",
   },
 };
 

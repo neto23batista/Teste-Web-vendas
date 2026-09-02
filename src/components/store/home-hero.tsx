@@ -13,13 +13,25 @@ const upV = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: EASE_OUT } },
 };
 
-const trust = [
-  { icon: Star, label: "Catálogo somente MIP", iconCls: "fill-amber-300 text-amber-300" },
-  { icon: Truck, label: "Entrega conforme seu CEP", iconCls: "" },
-  { icon: ShieldCheck, label: "Compra protegida", iconCls: "" },
-];
-
-export function HomeHero() {
+export function HomeHero({
+  storeName,
+  freeShippingMin,
+}: {
+  storeName: string;
+  freeShippingMin: number;
+}) {
+  const trust = [
+    { icon: Star, label: "Catálogo somente MIP", iconCls: "fill-amber-300 text-amber-300" },
+    {
+      icon: Truck,
+      label:
+        freeShippingMin > 0
+          ? `Frete grátis a partir de ${freeShippingMin.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`
+          : "Entrega conforme seu CEP",
+      iconCls: "",
+    },
+    { icon: ShieldCheck, label: "Compra protegida", iconCls: "" },
+  ];
   return (
     <section className="grain gradient-brand-animated relative overflow-hidden rounded-[2rem] px-6 py-10 text-white shadow-[var(--shadow-glow-strong)] md:px-12 md:py-14">
       {/* Luzes decorativas com drift suave (transform/opacity = compositor;
@@ -40,7 +52,7 @@ export function HomeHero() {
             variants={upV}
             className="glass inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-1.5 text-sm font-semibold"
           >
-            <Sparkles className="size-4" /> Sua farmácia, com cara de app
+            <Sparkles className="size-4" /> Compre online na {storeName}
           </motion.span>
 
           <motion.h1

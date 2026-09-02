@@ -21,7 +21,6 @@ export type Area =
   | "assinaturas"
   | "relatorios"
   | "financeiro"
-  | "integracao"
   | "equipe"
   | "auditoria"
   | "configuracoes";
@@ -39,14 +38,14 @@ export function isOwnerProfile(p: StaffProfile | null | undefined): boolean {
 /**
  * Áreas por perfil. OWNER não aparece aqui: tem acesso a tudo.
  * - PHARMACIST: atendimento clínico — pedidos, clientes e assinaturas.
- * - STOCKIST: cuida de catálogo, estoque, compras e da integração com o PDV.
+ * - STOCKIST: cuida de catálogo, estoque e compras.
  * - ATTENDANT: cuida do balcão — pedidos, entregas e clientes.
  * Dinheiro (financeiro/relatórios), equipe, auditoria, cupons e configurações
  * ficam com o OWNER.
  */
 const AREAS_BY_PROFILE: Record<Exclude<StaffProfile, "OWNER">, Area[]> = {
   PHARMACIST: ["dashboard", "pedidos", "clientes", "assinaturas", "entregas"],
-  STOCKIST: ["dashboard", "produtos", "estoque", "compras", "integracao"],
+  STOCKIST: ["dashboard", "produtos", "estoque", "compras"],
   ATTENDANT: ["dashboard", "pedidos", "entregas", "clientes"],
 };
 
@@ -70,6 +69,6 @@ export const PROFILE_LABEL: Record<StaffProfile, string> = {
 export const PROFILE_DESCRIPTION: Record<StaffProfile, string> = {
   OWNER: "Acesso total, incluindo financeiro, equipe e configurações.",
   PHARMACIST: "Pedidos, clientes e assinaturas.",
-  STOCKIST: "Produtos, estoque, compras e integração com o PDV.",
+  STOCKIST: "Produtos, estoque e compras.",
   ATTENDANT: "Pedidos, entregas e clientes.",
 };

@@ -24,7 +24,7 @@ Necessárias conforme os recursos habilitados:
 | `STRIPE_SECRET_KEY` | cartão e, quando habilitado na conta, Pix |
 | `STRIPE_WEBHOOK_SECRET` | valida `/api/webhooks/stripe` |
 | `RESEND_API_KEY` + `MAIL_FROM` | e-mails transacionais |
-| `CRON_SECRET` | protege os crons diários de assinaturas e retenção |
+| `CRON_SECRET` | protege assinaturas, retenção e reconciliação de pagamentos/reservas |
 | `UPSTASH_REDIS_REST_URL` + `_TOKEN`, `KV_REST_API_*` ou `REDIS_URL` | rate limit durável; REST em serverless ou TCP no runtime Node |
 | `NEXT_PUBLIC_BASE_URL` / `AUTH_URL` | URLs públicas HTTPS |
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | monitoramento de erros |
@@ -79,7 +79,7 @@ uma janela de baixo volume de escrita em catálogos grandes.
 - gera senhas demo aleatórias, salvo quando `SEED_*_PASSWORD` é informado.
 
 Nunca use o seed para inicializar produção. Cadastre o catálogo real pelo painel
-ou pela integração, sempre revisando a classificação de tarja.
+ou por importação, sempre revisando a classificação de tarja.
 
 ## 4. Stripe
 

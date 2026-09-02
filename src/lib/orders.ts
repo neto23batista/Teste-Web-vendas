@@ -1,5 +1,10 @@
 import { revalidateTag } from "next/cache";
-import type { Prisma, OrderStatus, PaymentStatus } from "@prisma/client";
+import type {
+  DeliveryProofMethod,
+  Prisma,
+  OrderStatus,
+  PaymentStatus,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { reportError } from "@/lib/monitoring";
 import {
@@ -7,6 +12,13 @@ import {
   moneyToCents as exactMoneyToCents,
   type MoneyValue,
 } from "@/lib/money";
+import { changeInventory } from "@/lib/inventory-movements";
+import {
+  commitOrderInventoryReservations,
+  releaseOrderInventoryReservations,
+  reserveOrderInventory,
+  transferOrderInventoryReservations,
+} from "@/lib/inventory-reservations";
 
 export const ORDER_STATUSES: readonly OrderStatus[] = [
   "PENDING",
@@ -343,6 +355,10 @@ export async function createCheckoutOrder(
   if (!Number.isSafeInteger(reservations.redeemPoints) || reservations.redeemPoints < 0) {
     throw new Error("Quantidade de pontos inválida.");
   }
+  if (!input.pharmacyId) {
+    throw new CheckoutReservationError("Não foi possível definir a unidade responsável.");
+  }
+  const checkoutPharmacyId = input.pharmacyId;
 
   try {
     return await prisma.$transaction(async (tx) => {
@@ -376,33 +392,79 @@ export async function createCheckoutOrder(
         }
       }
 
+      let reservedCouponId: string | null = null;
       if (input.couponCode) {
         const subtotalCents = moneyToCents(input.subtotal);
         if (subtotalCents === null) {
           throw new CheckoutReservationError("Subtotal inválido.");
         }
-        const where: Prisma.CouponWhereInput = {
-          code: input.couponCode,
-          active: true,
-          minTotal: { lte: centsToDecimal(subtotalCents) },
-          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-        };
-        if (reservations.couponUsageLimit != null) {
-          where.usedCount = { lt: reservations.couponUsageLimit };
+        const coupon = await tx.coupon.findUnique({
+          where: { code: input.couponCode },
+          select: {
+            id: true,
+            active: true,
+            minTotal: true,
+            expiresAt: true,
+            usageLimit: true,
+            usedCount: true,
+            usageLimitPerCustomer: true,
+          },
+        });
+        const minTotalCents = coupon ? moneyToCents(coupon.minTotal) : null;
+        if (
+          !coupon ||
+          !coupon.active ||
+          minTotalCents === null ||
+          subtotalCents < minTotalCents ||
+          (coupon.expiresAt && coupon.expiresAt <= new Date())
+        ) {
+          throw new CheckoutReservationError("Este cupom não está mais disponível.");
+        }
+        // Serializa somente os usos deste cliente/cupom. Assim duas abas não
+        // ultrapassam o limite individual antes que o INSERT fique visível.
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`coupon:${coupon.id}:${input.userId}`}, 0))`;
+        const customerUses = await tx.couponRedemption.count({
+          where: { couponId: coupon.id, userId: input.userId },
+        });
+        if (customerUses >= coupon.usageLimitPerCustomer) {
+          throw new CheckoutReservationError("Você já atingiu o limite de uso deste cupom.");
         }
         const reserved = await tx.coupon.updateMany({
-          where,
+          where: {
+            id: coupon.id,
+            ...(coupon.usageLimit != null ? { usedCount: { lt: coupon.usageLimit } } : {}),
+          },
           data: { usedCount: { increment: 1 } },
         });
         if (reserved.count !== 1) {
           throw new CheckoutReservationError("Este cupom acabou de esgotar. Tente outro.");
         }
+        reservedCouponId = coupon.id;
       }
 
       const order = await tx.order.create({
         data: createOrderData({ ...input, checkoutKey: reservations.checkoutKey }),
         include: { items: true },
       });
+
+      // O estoque disponível é comprometido na mesma transação do pedido. Se
+      // qualquer item faltar, pedido, cupom e pontos voltam juntos.
+      await reserveOrderInventory(tx, {
+        orderId: order.id,
+        orderNumber: order.number,
+        pharmacyId: checkoutPharmacyId,
+        items: order.items,
+      });
+
+      if (reservedCouponId) {
+        await tx.couponRedemption.create({
+          data: {
+            couponId: reservedCouponId,
+            userId: input.userId,
+            orderId: order.id,
+          },
+        });
+      }
 
       if (reservations.redeemPoints > 0 && reservations.loyaltyAccountId) {
         await tx.loyaltyTransaction.create({
@@ -500,17 +562,24 @@ export async function fulfillOrder(orderId: string) {
     );
     if (!didFulfill) return; // já confirmado por uma chamada concorrente
 
-    for (const item of order.items) {
-      if (!item.productId || !pharmacyId) continue;
-      // Decremento condicional: só baixa se houver estoque suficiente na
-      // unidade. Se count === 0, aborta a transação (evita estoque negativo
-      // numa corrida) — a reivindicação acima também é desfeita no rollback.
-      const res = await tx.inventory.updateMany({
-        where: { productId: item.productId, pharmacyId, stock: { gte: item.qty } },
-        data: { stock: { decrement: item.qty } },
-      });
-      if (res.count === 0) {
-        throw new Error(`Estoque insuficiente para "${item.name}"`);
+    const reservationCount = await tx.inventoryReservation.count({
+      where: { orderId: order.id, status: { in: ["ACTIVE", "COMMITTED"] } },
+    });
+    if (reservationCount > 0) {
+      await commitOrderInventoryReservations(tx, order.id);
+    } else {
+      // Compatibilidade com pedidos criados antes da migração de reservas.
+      for (const item of order.items) {
+        if (!item.productId || !pharmacyId) continue;
+        await changeInventory(tx, {
+          productId: item.productId,
+          pharmacyId,
+          delta: -item.qty,
+          kind: "SALE",
+          reason: `Baixa do pedido legado ${order.number}`,
+          referenceType: "ORDER",
+          referenceId: order.id,
+        });
       }
     }
 
@@ -607,7 +676,20 @@ export async function transitionOrderStatus(
  * Conclui a entrega de forma atômica. No dinheiro, este é o primeiro momento
  * em que o recebimento foi comprovado; aprova o pagamento e credita pontos aqui.
  */
-export async function markOrderDelivered(orderId: string): Promise<boolean> {
+export type DeliveryProofInput = {
+  method: DeliveryProofMethod;
+  recipientName: string;
+  recipientDocumentLast4?: string | null;
+  notes?: string | null;
+  courierName?: string | null;
+  confirmedById?: string | null;
+  confirmedByEmail?: string | null;
+};
+
+export async function markOrderDelivered(
+  orderId: string,
+  proof?: DeliveryProofInput
+): Promise<boolean> {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order || order.status !== "SHIPPED") return false;
 
@@ -618,7 +700,22 @@ export async function markOrderDelivered(orderId: string): Promise<boolean> {
       data: { status: "DELIVERED", deliveredAt: new Date() },
     });
     delivered = changed.count === 1;
-    if (!delivered || order.paymentMethod !== "cash") return;
+    if (!delivered) return;
+    if (proof) {
+      await tx.deliveryProof.create({
+        data: {
+          orderId: order.id,
+          method: proof.method,
+          recipientName: proof.recipientName,
+          recipientDocumentLast4: proof.recipientDocumentLast4 ?? null,
+          notes: proof.notes ?? null,
+          courierName: proof.courierName ?? null,
+          confirmedById: proof.confirmedById ?? null,
+          confirmedByEmail: proof.confirmedByEmail ?? null,
+        },
+      });
+    }
+    if (order.paymentMethod !== "cash") return;
 
     const payment = await tx.payment.updateMany({
       where: { orderId: order.id, provider: "CASH", status: "PENDING" },
@@ -763,13 +860,24 @@ export async function cancelOrder(
     didCancel = await claimOrderStatus(tx, order.id, order.status, "CANCELED");
     if (!didCancel) return;
 
-    if (wasFulfilled) {
+    const releasedReservations = await releaseOrderInventoryReservations(tx, {
+      orderId: order.id,
+      orderNumber: order.number,
+      reason: `Liberação pelo cancelamento do pedido ${order.number}`,
+    });
+
+    if (wasFulfilled && releasedReservations === 0) {
       assertValidInventoryItems(order.items);
       for (const item of order.items) {
         if (!item.productId || !pharmacyId) continue;
-        await tx.inventory.updateMany({
-          where: { productId: item.productId, pharmacyId },
-          data: { stock: { increment: item.qty } },
+        await changeInventory(tx, {
+          productId: item.productId,
+          pharmacyId,
+          delta: item.qty,
+          kind: "CANCELLATION",
+          reason: `Cancelamento do pedido legado ${order.number}`,
+          referenceType: "ORDER",
+          referenceId: order.id,
         });
       }
     }
@@ -796,10 +904,15 @@ export async function cancelOrder(
     }
 
     if (order.couponCode) {
-      await tx.coupon.updateMany({
-        where: { code: order.couponCode, usedCount: { gt: 0 } },
-        data: { usedCount: { decrement: 1 } },
+      const released = await tx.couponRedemption.deleteMany({
+        where: { orderId: order.id },
       });
+      if (released.count === 1) {
+        await tx.coupon.updateMany({
+          where: { code: order.couponCode, usedCount: { gt: 0 } },
+          data: { usedCount: { decrement: 1 } },
+        });
+      }
     }
 
     if (order.payment) {
@@ -968,8 +1081,8 @@ export async function recordStripeRefund(update: StripeRefundUpdate) {
 
 /**
  * Transfere um pedido para outra unidade, movendo o estoque corretamente:
- *  - PENDING: o estoque nunca foi baixado → só troca a unidade.
- *  - Já "fulfilled" (PAID/PREPARING/...): baixa do destino (decremento
+ *  - Pedidos novos: move a reserva (inclusive enquanto PENDING).
+ *  - Pedidos legados já "fulfilled" (PAID/PREPARING/...): baixa do destino
  *    condicional anti-corrida) e devolve à origem. Se faltar estoque no destino,
  *    a transação inteira é abortada (lança Error) e a unidade NÃO muda.
  * Registra uma nota de auditoria. Retorna o pedido atualizado.
@@ -1004,22 +1117,34 @@ export async function transferOrder(orderId: string, targetPharmacyId: string) {
   const mergedNotes = (order.notes ? `${order.notes}\n${auditNote}` : auditNote).slice(0, 2000);
 
   await prisma.$transaction(async (tx) => {
-    if (wasFulfilled) {
+    const movedReservations = await transferOrderInventoryReservations(tx, {
+      orderId: order.id,
+      orderNumber: order.number,
+      targetPharmacyId: target.id,
+    });
+    if (wasFulfilled && movedReservations === 0) {
       for (const item of order.items) {
         if (!item.productId) continue;
         // Baixa condicional no destino primeiro: se faltar, aborta a transação.
-        const taken = await tx.inventory.updateMany({
-          where: { productId: item.productId, pharmacyId: target.id, stock: { gte: item.qty } },
-          data: { stock: { decrement: item.qty } },
+        await changeInventory(tx, {
+          productId: item.productId,
+          pharmacyId: target.id,
+          delta: -item.qty,
+          kind: "TRANSFER_OUT",
+          reason: `Transferência do pedido legado ${order.number}`,
+          referenceType: "ORDER_TRANSFER",
+          referenceId: order.id,
         });
-        if (taken.count === 0) {
-          throw new Error(`Estoque insuficiente em ${target.name} para "${item.name}".`);
-        }
         // Devolve o estoque à unidade de origem.
         if (sourcePharmacyId) {
-          await tx.inventory.updateMany({
-            where: { productId: item.productId, pharmacyId: sourcePharmacyId },
-            data: { stock: { increment: item.qty } },
+          await changeInventory(tx, {
+            productId: item.productId,
+            pharmacyId: sourcePharmacyId,
+            delta: item.qty,
+            kind: "TRANSFER_IN",
+            reason: `Transferência do pedido legado ${order.number}`,
+            referenceType: "ORDER_TRANSFER",
+            referenceId: order.id,
           });
         }
       }

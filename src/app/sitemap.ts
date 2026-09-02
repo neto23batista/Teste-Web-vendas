@@ -18,13 +18,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         where: SALEABLE_PRODUCT_WHERE,
         select: { slug: true, updatedAt: true },
       }),
-      prisma.category.findMany({ select: { slug: true } }),
+      prisma.category.findMany({
+        where: { products: { some: SALEABLE_PRODUCT_WHERE } },
+        select: { slug: true },
+      }),
     ]);
   } catch {
     // sem banco: devolve apenas as rotas estáticas abaixo
   }
 
-  const staticRoutes = ["", "/catalogo", "/sobre", "/privacidade", "/termos"].map(
+  const staticRoutes = [
+    "",
+    "/catalogo",
+    "/sobre",
+    "/trocas-e-devolucoes",
+    "/privacidade",
+    "/termos",
+  ].map(
     (path) => ({
       url: `${BASE}${path}`,
       lastModified: new Date(),

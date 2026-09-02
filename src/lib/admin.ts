@@ -299,8 +299,23 @@ export async function getStockRows(selectedUnitId?: string | null) {
     select: {
       stock: true,
       minStock: true,
+      price: true,
+      promoPrice: true,
+      costPrice: true,
+      sku: true,
+      ean: true,
       product: {
-        select: { id: true, name: true, emoji: true, category: { select: { name: true } } },
+        select: {
+          id: true,
+          name: true,
+          emoji: true,
+          price: true,
+          promoPrice: true,
+          costPrice: true,
+          sku: true,
+          ean: true,
+          category: { select: { name: true } },
+        },
       },
     },
     orderBy: { stock: "asc" },
@@ -315,6 +330,17 @@ export async function getStockRows(selectedUnitId?: string | null) {
       category: r.product.category.name,
       stock: r.stock,
       minStock: r.minStock,
+      price: moneyToNumber(r.price ?? r.product.price),
+      promoPrice:
+        (r.promoPrice ?? r.product.promoPrice) == null
+          ? null
+          : moneyToNumber(r.promoPrice ?? r.product.promoPrice!),
+      costPrice:
+        (r.costPrice ?? r.product.costPrice) == null
+          ? null
+          : moneyToNumber(r.costPrice ?? r.product.costPrice!),
+      sku: r.sku ?? r.product.sku,
+      ean: r.ean ?? r.product.ean,
     })),
   };
 }
@@ -326,6 +352,11 @@ export type StockRow = {
   category: string;
   stock: number;
   minStock: number;
+  price: number;
+  promoPrice: number | null;
+  costPrice: number | null;
+  sku: string | null;
+  ean: string | null;
 };
 
 export type AdminOrderFilters = {
@@ -495,6 +526,13 @@ export async function getAdminOrder(id: string) {
       pharmacy: { select: { id: true, name: true, type: true } },
       items: { include: { product: { select: { emoji: true } } } },
       payment: true,
+      deliveryProof: true,
+      returnRequests: {
+        include: {
+          items: { include: { orderItem: { select: { name: true, productId: true } } } },
+        },
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
   if (!order) return null;
@@ -511,6 +549,12 @@ export async function getAdminOrder(id: string) {
     items: order.items.map((item) => ({
       ...item,
       price: moneyToNumber(item.price),
+    })),
+    returnRequests: order.returnRequests.map((request) => ({
+      ...request,
+      requestedAmount: moneyToNumber(request.requestedAmount),
+      approvedAmount:
+        request.approvedAmount == null ? null : moneyToNumber(request.approvedAmount),
     })),
     payment: order.payment
       ? { ...order.payment, amount: moneyToNumber(order.payment.amount) }

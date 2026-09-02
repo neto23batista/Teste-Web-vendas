@@ -38,10 +38,14 @@ export default async function CheckoutPage() {
   // Resolve a distância (km) de cada endereço salvo pela faixa de CEP da unidade,
   // para o resumo de frete recalcular ao trocar de endereço/modalidade no cliente.
   const addresses = await Promise.all(
-    rawAddresses.map(async (a) => ({
-      ...a,
-      km: await resolveKm(a.zip, cart.pharmacyId),
-    }))
+    rawAddresses.map(async (a) => {
+      const km = await resolveKm(a.zip, cart.pharmacyId);
+      return {
+        ...a,
+        km: km ?? shippingConfig.defaultKm,
+        covered: km !== null,
+      };
+    })
   );
 
   return (

@@ -39,9 +39,19 @@ export async function generateMetadata({
   const { slug } = await params;
   const product = await getProductMetadataBySlug(slug);
   if (!product) return { title: "Produto não encontrado" };
+  const description = product.shortDescription ?? product.description.slice(0, 155);
+  const canonical = `/produto/${slug}`;
   return {
     title: product.name,
-    description: product.shortDescription ?? undefined,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      type: "website",
+      url: canonical,
+      title: product.name,
+      description,
+      images: product.images[0]?.url ? [{ url: product.images[0].url, alt: product.name }] : undefined,
+    },
   };
 }
 
@@ -322,8 +332,15 @@ export default async function ProductPage({
                     key={r.id}
                     className="rounded-2xl border border-border bg-card p-5"
                   >
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold">{r.user.name}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="font-semibold">{r.user.name}</p>
+                        {r.verifiedPurchase && (
+                          <p className="inline-flex items-center gap-1 text-[11px] font-bold text-success-600">
+                            <CheckCircle2 className="size-3" /> Compra verificada
+                          </p>
+                        )}
+                      </div>
                       <StarRating rating={r.rating} />
                     </div>
                     {r.comment && (

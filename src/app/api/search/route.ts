@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getProductSuggestions } from "@/lib/products";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { getSelectedPharmacyId } from "@/lib/pharmacy";
 
 // Sugestões de busca (autocomplete do header). Leve e somente leitura.
 export const runtime = "nodejs";
@@ -21,6 +22,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const items = await getProductSuggestions(q, 6);
+  const pharmacyId = await getSelectedPharmacyId();
+  const items = await getProductSuggestions(q, 6, pharmacyId);
   return NextResponse.json({ items });
 }

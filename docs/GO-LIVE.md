@@ -34,7 +34,7 @@ liberado para operação comercial.
 - [ ] O webhook `https://SEU_DOMINIO/api/webhooks/stripe` foi registrado e testado.
 - [ ] Pix só aparece depois de a capability da conta Stripe ser confirmada.
 - [ ] `RESEND_API_KEY`, `MAIL_FROM` e domínio remetente foram validados.
-- [ ] `CRON_SECRET` protege os crons de assinaturas e retenção.
+- [ ] `CRON_SECRET` protege os crons de assinaturas, retenção e pagamentos/reservas.
 - [ ] Redis/Upstash durável foi configurado para rate limit serverless.
 - [ ] Sentry/alertas, backups, PITR e procedimento de restauração foram testados.
 - [ ] `/api/health` responde liveness e `/api/ready` confirma banco e migration.

@@ -46,14 +46,14 @@ export async function getDefaultPharmacy(): Promise<PharmacyOption | null> {
 
 /**
  * Roteia um CEP para a unidade que o atende (primeira faixa que contém o CEP).
- * Sem CEP válido ou sem cobertura, cai na matriz (fallback).
+ * CEP inválido ou sem cobertura retorna null. A matriz continua sendo apenas a
+ * unidade inicial da vitrine; nunca autoriza silenciosamente uma entrega.
  */
 export async function resolvePharmacyByCep(
   cep: string | null | undefined
 ): Promise<PharmacyOption | null> {
-  const fallback = await getDefaultPharmacy();
   const n = cepToInt(cep);
-  if (n == null) return fallback;
+  if (n == null) return null;
   const match = await prisma.pharmacyCepRange
     .findFirst({
       where: {
@@ -68,7 +68,7 @@ export async function resolvePharmacyByCep(
       },
     })
     .catch(() => null);
-  return match?.pharmacy ?? fallback;
+  return match?.pharmacy ?? null;
 }
 
 /**

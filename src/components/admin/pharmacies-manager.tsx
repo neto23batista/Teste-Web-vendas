@@ -142,7 +142,7 @@ export function PharmaciesManager({
                         onClick={() => {
                           if (
                             confirm(
-                              `Arquivar a unidade "${u.name}"? O histórico será preservado e o token do conector será revogado.`
+                              `Arquivar a unidade "${u.name}"? O histórico será preservado.`
                             )
                           ) {
                             run(() => archivePharmacy(u.id));

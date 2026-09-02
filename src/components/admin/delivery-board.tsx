@@ -164,29 +164,50 @@ export function DeliveryBoard({
                     {o.dispatchedAt ? ` · saiu ${o.dispatchedAt}` : ""}
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-11 w-full sm:w-auto"
-                  disabled={pending}
-                  onClick={() =>
-                    run(
-                      `deliver:${o.id}`,
-                      () => markDelivered(o.id),
-                      "Entrega confirmada."
-                    )
-                  }
-                >
-                  {activeOperation === `deliver:${o.id}` ? (
-                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <CheckCircle2
-                      className="size-4 text-success-600"
-                      aria-hidden="true"
-                    />
-                  )}
-                  Confirmar entrega
-                </Button>
+                <details className="sm:min-w-[22rem]">
+                  <summary className="inline-flex h-11 w-full cursor-pointer list-none items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold transition hover:bg-muted">
+                    <CheckCircle2 className="size-4 text-success-600" aria-hidden="true" />
+                    Confirmar com comprovante
+                  </summary>
+                  <form
+                    className="mt-2 grid gap-2 rounded-xl border border-border bg-background p-3 shadow-sm"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const data = new FormData(event.currentTarget);
+                      run(
+                        `deliver:${o.id}`,
+                        () =>
+                          markDelivered(o.id, {
+                            method: String(data.get("method")) as "RECIPIENT" | "CONCIERGE" | "SAFE_PLACE" | "PICKUP",
+                            recipientName: String(data.get("recipientName") ?? ""),
+                            recipientDocumentLast4: String(data.get("recipientDocumentLast4") ?? ""),
+                            notes: String(data.get("notes") ?? ""),
+                          }),
+                        "Entrega confirmada com comprovante."
+                      );
+                    }}
+                  >
+                    <select name="method" className="h-10 rounded-lg border border-border bg-card px-3 text-sm" required>
+                      <option value="RECIPIENT">Recebido pelo destinatário</option>
+                      <option value="CONCIERGE">Recebido na portaria</option>
+                      <option value="SAFE_PLACE">Deixado em local autorizado</option>
+                      <option value="PICKUP">Retirado na unidade</option>
+                    </select>
+                    <div className="grid grid-cols-[1fr_8rem] gap-2">
+                      <Input name="recipientName" placeholder="Nome de quem recebeu" required />
+                      <Input name="recipientDocumentLast4" inputMode="numeric" maxLength={4} placeholder="Doc. final" />
+                    </div>
+                    <Input name="notes" maxLength={1000} placeholder="Observação do comprovante" />
+                    <Button type="submit" variant="primary" size="sm" className="h-10" disabled={pending}>
+                      {activeOperation === `deliver:${o.id}` ? (
+                        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <CheckCircle2 className="size-4" aria-hidden="true" />
+                      )}
+                      Registrar entrega
+                    </Button>
+                  </form>
+                </details>
               </div>
             ))}
           </div>

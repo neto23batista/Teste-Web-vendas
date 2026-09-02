@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   userFindUnique: vi.fn(),
   userUpdate: vi.fn(),
+  pharmacyFindFirst: vi.fn(),
   pharmacyUpdate: vi.fn(),
   audit: vi.fn(),
 }));
@@ -28,7 +29,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     pharmacy: {
       findUnique: vi.fn(),
-      findFirst: vi.fn(),
+      findFirst: mocks.pharmacyFindFirst,
       create: vi.fn(),
       update: mocks.pharmacyUpdate,
       delete: vi.fn(),
@@ -44,6 +45,7 @@ describe("autorização das mutações globais de unidades", () => {
     vi.clearAllMocks();
     mocks.audit.mockResolvedValue(undefined);
     mocks.userUpdate.mockResolvedValue({});
+    mocks.pharmacyFindFirst.mockResolvedValue({ id: "ph-1" });
   });
 
   it("nega staff que não é OWNER antes de acessar o banco", async () => {

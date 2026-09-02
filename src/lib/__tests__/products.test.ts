@@ -51,7 +51,7 @@ beforeEach(() => {
 });
 
 describe("consultas públicas de produto", () => {
-  it("autocomplete usa uma query leve, sem count, estoque ou janela de relevância", async () => {
+  it("autocomplete usa uma query leve e respeita a oferta da unidade", async () => {
     queryRaw.mockResolvedValue([
       {
         name: "Dipirona 500mg",
@@ -83,13 +83,18 @@ describe("consultas públicas de produto", () => {
     const sql = queryRaw.mock.calls[0][0] as { strings: string[]; values: unknown[] };
     const text = sql.strings.join(" ");
     expect(text).not.toContain("COUNT");
-    expect(text).not.toContain("Inventory");
+    expect(text).toContain('LEFT JOIN "Inventory" AS unit_inventory');
     expect(text).toContain("LIMIT");
     expect(sql.values).toContain(6);
   });
 
-  it("metadados carregam apenas nome e descrição curta", async () => {
-    productFindFirst.mockResolvedValue({ name: "Vitamina C", shortDescription: "500mg" });
+  it("metadados carregam texto e imagem principal para compartilhamento", async () => {
+    productFindFirst.mockResolvedValue({
+      name: "Vitamina C",
+      shortDescription: "500mg",
+      description: "Vitamina C 500mg",
+      images: [{ url: "/vitamina.webp" }],
+    });
 
     const result = await getProductMetadataBySlug("vitamina-c");
 
@@ -100,7 +105,12 @@ describe("consultas públicas de produto", () => {
         active: true,
         requiresPrescription: false,
       },
-      select: { name: true, shortDescription: true },
+      select: {
+        name: true,
+        shortDescription: true,
+        description: true,
+        images: { orderBy: { sort: "asc" }, take: 1, select: { url: true } },
+      },
     });
   });
 
@@ -120,7 +130,8 @@ describe("consultas públicas de produto", () => {
     expect(result.total).toBe(2);
     expect(productCount).not.toHaveBeenCalled();
     const sql = queryRaw.mock.calls[0][0] as { strings: string[] };
-    expect(sql.strings.join(" ")).toContain('COALESCE(p."promoPrice", p."price")');
+    expect(sql.strings.join(" ")).toContain('unit_inventory."promoPrice"');
+    expect(sql.strings.join(" ")).toContain('unit_inventory."price"');
   });
 
   it("consulta o count somente quando a página de preço está vazia", async () => {

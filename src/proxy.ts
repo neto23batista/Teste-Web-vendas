@@ -25,7 +25,6 @@ const ADMIN_AREAS: [prefix: string, area: Area][] = [
   ["/admin/assinaturas", "assinaturas"],
   ["/admin/relatorios", "relatorios"],
   ["/admin/financeiro", "financeiro"],
-  ["/admin/integracao", "integracao"],
   ["/admin/equipe", "equipe"],
   ["/admin/auditoria", "auditoria"],
   ["/admin/configuracoes", "configuracoes"],

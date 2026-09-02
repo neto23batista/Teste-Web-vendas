@@ -92,4 +92,18 @@ describe("quoteCheckout", () => {
     ).rejects.toThrow(/endereço de entrega inválido/i);
     expect(shippingForCents).not.toHaveBeenCalled();
   });
+
+  it("bloqueia CEP fora da cobertura em vez de assumir distância zero", async () => {
+    resolveKm.mockResolvedValue(null);
+
+    await expect(
+      quoteCheckout({
+        userId: "user-1",
+        pharmacyId: "pharmacy-1",
+        subtotal: 100,
+        addressId: "address-1",
+      })
+    ).rejects.toThrow(/ainda não entregamos neste CEP/i);
+    expect(shippingForCents).not.toHaveBeenCalled();
+  });
 });

@@ -11,6 +11,7 @@ type Product = {
   name: string;
   emoji: string | null;
   sku: string | null;
+  ean: string | null;
   price: number;
   promoPrice: number | null;
   costPrice: number | null;
@@ -106,8 +107,8 @@ export function ProductForm({
           <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
             <h2 className="font-bold">Preço e estoque</h2>
             <p className="text-xs text-muted-foreground">
-              Preço é compartilhado entre as unidades. O estoque abaixo é o da{" "}
-              <strong>matriz</strong>; o das filiais é ajustado em Controle de estoque.
+              Estes dados definem a oferta da <strong>matriz</strong>. As filiais podem
+              manter preço, identificadores e estoque próprios em Controle de estoque.
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Preço (R$)" htmlFor="price">
@@ -129,8 +130,11 @@ export function ProductForm({
               <Field label="Estoque mínimo" htmlFor="minStock">
                 <Input id="minStock" name="minStock" inputMode="numeric" defaultValue={p?.minStock ?? 5} />
               </Field>
-              <Field label="SKU / EAN" htmlFor="sku">
+              <Field label="SKU" htmlFor="sku">
                 <Input id="sku" name="sku" defaultValue={p?.sku ?? ""} />
+              </Field>
+              <Field label="EAN" htmlFor="ean">
+                <Input id="ean" name="ean" inputMode="numeric" defaultValue={p?.ean ?? ""} />
               </Field>
             </div>
           </section>

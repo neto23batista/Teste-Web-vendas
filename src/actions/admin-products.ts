@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { assertArea, requireAdmin, requireAdminAtPharmacy } from "@/lib/session";
 import { canAccess } from "@/lib/permissions";
-import { logAudit } from "@/lib/audit";
+import { logAudit, logAuditInTransaction } from "@/lib/audit";
 import { slugify } from "@/lib/utils";
 import { parseCsvRecords } from "@/lib/csv";
 import { PRESCRIPTION_PRODUCT_UNAVAILABLE } from "@/lib/product-policy";
@@ -15,6 +15,11 @@ import {
   parseMoneyInputToCents,
 } from "@/lib/money";
 import { validateProductImageUrls } from "@/lib/product-images";
+import { Prisma } from "@prisma/client";
+import {
+  changeInventory,
+  InsufficientInventoryError,
+} from "@/lib/inventory-movements";
 
 // Invalida o cache das listas de produto da home (tag "products").
 function revalidateProducts() {
@@ -35,7 +40,19 @@ async function isCatalogAdmin(): Promise<boolean> {
 
 /** Garante uma linha de Inventory em todas as unidades ativas (não zera estoque
  *  já existente). Usado ao criar produtos / ao surgir uma unidade nova. */
-async function ensureInventoryForAllUnits(productId: string, minStock: number) {
+type UnitOfferInput = {
+  price: string;
+  costPrice: string | null;
+  promoPrice: string | null;
+  sku: string | null;
+  ean: string | null;
+};
+
+async function ensureInventoryForAllUnits(
+  productId: string,
+  minStock: number,
+  offer: UnitOfferInput
+) {
   const pharmacies = await prisma.pharmacy.findMany({
     where: { active: true, archivedAt: null },
     select: { id: true },
@@ -43,7 +60,7 @@ async function ensureInventoryForAllUnits(productId: string, minStock: number) {
   for (const ph of pharmacies) {
     await prisma.inventory.upsert({
       where: { productId_pharmacyId: { productId, pharmacyId: ph.id } },
-      create: { productId, pharmacyId: ph.id, stock: 0, minStock },
+      create: { productId, pharmacyId: ph.id, stock: 0, minStock, ...offer },
       update: {},
     });
   }
@@ -51,7 +68,12 @@ async function ensureInventoryForAllUnits(productId: string, minStock: number) {
 
 /** Estoque informado no formulário do produto = estoque da MATRIZ (filiais
  *  começam em 0 e gerenciam o próprio em Controle de estoque). */
-async function setMatrizStock(productId: string, stock: number, minStock: number) {
+async function setMatrizStock(
+  productId: string,
+  stock: number,
+  minStock: number,
+  offer: UnitOfferInput
+) {
   const matriz = await prisma.pharmacy.findFirst({
     where: { type: "MATRIZ", archivedAt: null },
     select: { id: true },
@@ -59,8 +81,8 @@ async function setMatrizStock(productId: string, stock: number, minStock: number
   if (!matriz) return;
   await prisma.inventory.upsert({
     where: { productId_pharmacyId: { productId, pharmacyId: matriz.id } },
-    create: { productId, pharmacyId: matriz.id, stock, minStock },
-    update: { stock, minStock },
+    create: { productId, pharmacyId: matriz.id, stock, minStock, ...offer },
+    update: { stock, minStock, ...offer },
   });
 }
 
@@ -79,6 +101,7 @@ function parse(formData: FormData) {
     activeIngredient: String(formData.get("activeIngredient") ?? "").trim() || null,
     emoji: String(formData.get("emoji") ?? "").trim() || null,
     sku: String(formData.get("sku") ?? "").trim() || null,
+    ean: String(formData.get("ean") ?? "").trim() || null,
     priceRaw: raw("price"),
     promoPriceRaw: raw("promoPrice"),
     costPriceRaw: raw("costPrice"),
@@ -119,11 +142,26 @@ function validateProductForm(d: ReturnType<typeof parse>):
   if (d.costPriceCents !== null && d.costPriceCents < 0) {
     return { ok: false, error: "O custo não pode ser negativo." };
   }
+  if (d.ean && !/^\d{8,14}$/.test(d.ean)) {
+    return { ok: false, error: "O EAN deve conter de 8 a 14 dígitos." };
+  }
   if (!Number.isSafeInteger(d.stock) || d.stock < 0 || !Number.isSafeInteger(d.minStock) || d.minStock < 0) {
     return { ok: false, error: "Estoque e estoque mínimo devem ser inteiros não negativos." };
   }
   const images = validateProductImageUrls(d.imageUrlsRaw);
   return images.ok ? { ok: true, imageUrls: images.urls } : images;
+}
+
+function unitOfferFromForm(d: ReturnType<typeof parse>): UnitOfferInput {
+  return {
+    price: centsToDecimal(d.priceCents!),
+    costPrice:
+      d.costPriceCents == null ? null : centsToDecimal(d.costPriceCents),
+    promoPrice:
+      d.promoPriceCents == null ? null : centsToDecimal(d.promoPriceCents),
+    sku: d.sku,
+    ean: d.ean,
+  };
 }
 
 async function uniqueSlug(base: string, ignoreId?: string): Promise<string> {
@@ -156,6 +194,7 @@ export async function createProduct(
       activeIngredient: d.activeIngredient,
       emoji: d.emoji,
       sku: d.sku,
+      ean: d.ean,
       price: centsToDecimal(d.priceCents!),
       promoPrice:
         d.promoPriceCents == null ? null : centsToDecimal(d.promoPriceCents),
@@ -172,8 +211,9 @@ export async function createProduct(
     },
   });
   // Cria estoque por unidade: matriz com o informado, filiais zeradas.
-  await ensureInventoryForAllUnits(product.id, d.minStock);
-  await setMatrizStock(product.id, d.stock, d.minStock);
+  const offer = unitOfferFromForm(d);
+  await ensureInventoryForAllUnits(product.id, d.minStock, offer);
+  await setMatrizStock(product.id, d.stock, d.minStock, offer);
 
   await logAudit({
     action: "product.create",
@@ -213,6 +253,7 @@ export async function updateProduct(
       activeIngredient: d.activeIngredient,
       emoji: d.emoji,
       sku: d.sku,
+      ean: d.ean,
       price: centsToDecimal(d.priceCents!),
       promoPrice:
         d.promoPriceCents == null ? null : centsToDecimal(d.promoPriceCents),
@@ -234,8 +275,9 @@ export async function updateProduct(
   });
   // O campo de estoque do formulário reflete a MATRIZ; filiais usam Controle de
   // estoque. Garante linhas em todas as unidades (cobre unidades novas).
-  await ensureInventoryForAllUnits(id, d.minStock);
-  await setMatrizStock(id, d.stock, d.minStock);
+  const offer = unitOfferFromForm(d);
+  await ensureInventoryForAllUnits(id, d.minStock, offer);
+  await setMatrizStock(id, d.stock, d.minStock, offer);
 
   await logAudit({
     action: "product.update",
@@ -360,6 +402,16 @@ type CsvWorkItem = {
   existing: { id: string; requiresPrescription: boolean } | null;
 };
 
+function csvUnitOffer(entry: Pick<CsvWorkItem, "sku" | "data">): UnitOfferInput {
+  return {
+    price: entry.data.price,
+    costPrice: null,
+    promoPrice: entry.data.promoPrice,
+    sku: entry.sku,
+    ean: entry.data.ean,
+  };
+}
+
 function csvChunks<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let index = 0; index < items.length; index += size) {
@@ -437,9 +489,14 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
     const line = i + 2; // +1 pelo cabeçalho, +1 para base-1
     const name = (r.nome ?? "").trim();
     const sku = (r.sku ?? "").trim() || null;
+    const ean = (r.ean ?? "").replace(/\s+/g, "") || null;
 
     if (!name) {
       errors.push(`Linha ${line}: nome em branco — ignorada.`);
+      continue;
+    }
+    if (ean && !/^\d{8,14}$/.test(ean)) {
+      errors.push(`Linha ${line} (${name}): EAN inválido — ignorada.`);
       continue;
     }
     const priceCents = csvMoneyCents(r.preco ?? "");
@@ -490,7 +547,7 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
       name,
       description: (r.descricao ?? "").trim() || name,
       activeIngredient: (r.principio_ativo ?? "").trim() || null,
-      ean: (r.ean ?? "").trim() || null,
+      ean,
       price: centsToDecimal(priceCents),
       promoPrice: promoCents == null ? null : centsToDecimal(promoCents),
       categoryId,
@@ -507,11 +564,23 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
   const skus = [
     ...new Set(prepared.map((entry) => entry.sku).filter((sku): sku is string => !!sku)),
   ];
+  const eans = [
+    ...new Set(
+      prepared
+        .map((entry) => entry.data.ean)
+        .filter((ean): ean is string => !!ean)
+    ),
+  ];
   const [existingProducts, activePharmacies, matriz] = await Promise.all([
-    skus.length > 0
+    skus.length > 0 || eans.length > 0
       ? prisma.product.findMany({
-          where: { sku: { in: skus } },
-          select: { id: true, sku: true, requiresPrescription: true },
+          where: {
+            OR: [
+              ...(skus.length > 0 ? [{ sku: { in: skus } }] : []),
+              ...(eans.length > 0 ? [{ ean: { in: eans } }] : []),
+            ],
+          },
+          select: { id: true, sku: true, ean: true, requiresPrescription: true },
         })
       : Promise.resolve([]),
     prisma.pharmacy.findMany({
@@ -528,6 +597,11 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
       product.sku ? [[product.sku, product] as const] : []
     )
   );
+  const existingByEan = new Map(
+    existingProducts.flatMap((product) =>
+      product.ean ? [[product.ean, product] as const] : []
+    )
+  );
   const unitIds = [
     ...new Set([
       ...activePharmacies.map((pharmacy) => pharmacy.id),
@@ -539,10 +613,20 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
   // `tarja=sim` nunca é rebaixado por uma linha posterior.
   const consolidated = new Map<string, CsvWorkItem>();
   for (const entry of prepared) {
-    const key = entry.sku ? `sku:${entry.sku}` : `line:${entry.line}`;
+    const matched =
+      (entry.sku ? existingBySku.get(entry.sku) : undefined) ??
+      (entry.data.ean ? existingByEan.get(entry.data.ean) : undefined);
+    const key = matched
+      ? `product:${matched.id}`
+      : entry.data.ean
+        ? `ean:${entry.data.ean}`
+        : entry.sku
+          ? `sku:${entry.sku}`
+          : `line:${entry.line}`;
     const previous = consolidated.get(key);
     if (previous) {
       previous.line = entry.line;
+      previous.sku = entry.sku;
       previous.stock = entry.stock;
       previous.data = entry.data;
       previous.requiresPrescription ||= entry.requiresPrescription;
@@ -552,13 +636,8 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
     consolidated.set(key, {
       ...entry,
       occurrences: 1,
-      existing: entry.sku
-        ? (() => {
-            const product = existingBySku.get(entry.sku!);
-            return product
-              ? { id: product.id, requiresPrescription: product.requiresPrescription }
-              : null;
-          })()
+      existing: matched
+        ? { id: matched.id, requiresPrescription: matched.requiresPrescription }
         : null,
     });
   }
@@ -581,6 +660,7 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
             pharmacyId,
             stock: 0,
             minStock: 5,
+            ...csvUnitOffer(entry),
           }))
         );
         for (const rows of csvChunks(inventoryRows, CSV_INVENTORY_BATCH_SIZE)) {
@@ -618,15 +698,24 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
                   pharmacyId: matriz.id,
                   stock: entry.stock,
                   minStock: 5,
+                  ...csvUnitOffer(entry),
                 },
-                update: { stock: entry.stock, minStock: 5 },
+                update: {
+                  stock: entry.stock,
+                  minStock: 5,
+                  ...csvUnitOffer(entry),
+                },
               }),
             ]);
           } else {
             await update;
           }
           if (!inventoriesPrepared) {
-            await ensureInventoryForAllUnits(entry.existing.id, 5);
+            await ensureInventoryForAllUnits(
+              entry.existing.id,
+              5,
+              csvUnitOffer(entry)
+            );
           }
           updated += entry.occurrences;
         } catch (err) {
@@ -669,6 +758,7 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
               pharmacyId,
               stock: pharmacyId === matriz?.id ? entry.stock : 0,
               minStock: 5,
+              ...csvUnitOffer(entry),
             }))
           );
           for (const rows of csvChunks(inventoryRows, CSV_INVENTORY_BATCH_SIZE)) {
@@ -689,12 +779,18 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
 
     for (const { entry, id, product } of inserts) {
       try {
-        const concurrent = entry.sku
-          ? await prisma.product.findUnique({
-              where: { sku: entry.sku },
-              select: { id: true, requiresPrescription: true },
-            })
-          : null;
+        const concurrent =
+          entry.sku || entry.data.ean
+            ? await prisma.product.findFirst({
+                where: {
+                  OR: [
+                    ...(entry.sku ? [{ sku: entry.sku }] : []),
+                    ...(entry.data.ean ? [{ ean: entry.data.ean }] : []),
+                  ],
+                },
+                select: { id: true, requiresPrescription: true },
+              })
+            : null;
         if (concurrent) {
           await prisma.product.update({
             where: { id: concurrent.id },
@@ -705,8 +801,9 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
                 : {}),
             },
           });
-          await ensureInventoryForAllUnits(concurrent.id, 5);
-          await setMatrizStock(concurrent.id, entry.stock, 5);
+          const offer = csvUnitOffer(entry);
+          await ensureInventoryForAllUnits(concurrent.id, 5, offer);
+          await setMatrizStock(concurrent.id, entry.stock, 5, offer);
           updated += entry.occurrences;
           continue;
         }
@@ -725,6 +822,7 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
               pharmacyId,
               stock: pharmacyId === matriz?.id ? entry.stock : 0,
               minStock: 5,
+              ...csvUnitOffer(entry),
             }));
             for (const rows of csvChunks(inventoryRows, CSV_INVENTORY_BATCH_SIZE)) {
               await tx.inventory.createMany({ data: rows });
@@ -746,26 +844,149 @@ export async function importProducts(formData: FormData): Promise<ImportResult> 
   return { ok: true, created, updated, errors };
 }
 
+export type UnitOfferValues = {
+  price: string;
+  promoPrice: string;
+  costPrice: string;
+  sku: string;
+  ean: string;
+};
+
+export async function updateUnitOffer(
+  productId: string,
+  pharmacyId: string,
+  values: UnitOfferValues
+): Promise<{ ok: boolean; error?: string }> {
+  await assertArea("estoque");
+  const actor = await requireAdminAtPharmacy(pharmacyId);
+  const priceCents = parseMoneyInputToCents(values.price);
+  const promoCents = values.promoPrice.trim()
+    ? parseMoneyInputToCents(values.promoPrice)
+    : null;
+  const costCents = values.costPrice.trim()
+    ? parseMoneyInputToCents(values.costPrice)
+    : null;
+  const sku = values.sku.trim().slice(0, 120) || null;
+  const ean = values.ean.replace(/\s+/g, "").slice(0, 32) || null;
+
+  if (priceCents === null || priceCents <= 0) {
+    return { ok: false, error: "Informe um preço maior que zero." };
+  }
+  if (values.promoPrice.trim() && promoCents === null) {
+    return { ok: false, error: "Preço promocional inválido." };
+  }
+  if (promoCents !== null && (promoCents <= 0 || promoCents >= priceCents)) {
+    return { ok: false, error: "A promoção deve ser maior que zero e menor que o preço." };
+  }
+  if (values.costPrice.trim() && costCents === null) {
+    return { ok: false, error: "Custo inválido." };
+  }
+  if (ean && !/^\d{8,14}$/.test(ean)) {
+    return { ok: false, error: "O EAN deve conter de 8 a 14 dígitos." };
+  }
+
+  const offer = {
+    price: centsToDecimal(priceCents),
+    promoPrice: promoCents == null ? null : centsToDecimal(promoCents),
+    costPrice: costCents == null ? null : centsToDecimal(costCents),
+    sku,
+    ean,
+  };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const [inventory, pharmacy] = await Promise.all([
+        tx.inventory.findUnique({
+          where: { productId_pharmacyId: { productId, pharmacyId } },
+          select: { id: true },
+        }),
+        tx.pharmacy.findUnique({
+          where: { id: pharmacyId },
+          select: { type: true },
+        }),
+      ]);
+      if (!inventory || !pharmacy) throw new Error("Oferta da unidade não encontrada.");
+
+      await tx.inventory.update({
+        where: { id: inventory.id },
+        data: offer,
+      });
+      // O cadastro canônico acompanha a matriz e continua sendo o fallback para
+      // registros legados ainda sem oferta local.
+      if (pharmacy.type === "MATRIZ") {
+        await tx.product.update({ where: { id: productId }, data: offer });
+      }
+      await logAuditInTransaction(tx, {
+        action: "inventory.offer.update",
+        entity: "Inventory",
+        entityId: inventory.id,
+        detail: `Atualizou oferta da unidade (preço ${offer.price}, SKU ${sku ?? "-"}, EAN ${ean ?? "-"})`,
+        pharmacyId,
+        actor: { id: actor.id ?? null, email: actor.email ?? null },
+      });
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { ok: false, error: "SKU ou EAN já está em uso nesta unidade." };
+    }
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Não foi possível atualizar a oferta.",
+    };
+  }
+
+  revalidateProducts();
+  revalidatePath("/admin/estoque");
+  return { ok: true };
+}
+
 export async function adjustStock(
   productId: string,
   pharmacyId: string,
-  delta: number
-) {
+  delta: number,
+  reason: string
+): Promise<{ ok: boolean; error?: string }> {
   await assertArea("estoque");
   // Filial só ajusta a própria unidade; matriz, qualquer uma.
-  await requireAdminAtPharmacy(pharmacyId);
-  const inv = await prisma.inventory.findUnique({
-    where: { productId_pharmacyId: { productId, pharmacyId } },
-  });
-  if (inv) {
-    await prisma.inventory.update({
-      where: { id: inv.id },
-      data: { stock: Math.max(0, inv.stock + delta) },
+  const actor = await requireAdminAtPharmacy(pharmacyId);
+  if (!Number.isSafeInteger(delta) || delta === 0 || Math.abs(delta) > 100_000) {
+    return { ok: false, error: "Informe um ajuste inteiro entre -100.000 e 100.000." };
+  }
+  const normalizedReason = reason.trim().slice(0, 500);
+  if (!normalizedReason) {
+    return { ok: false, error: "Informe o motivo do ajuste de estoque." };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const movement = await changeInventory(tx, {
+        productId,
+        pharmacyId,
+        delta,
+        kind: "MANUAL_ADJUSTMENT",
+        reason: normalizedReason,
+        actor,
+      });
+      await logAuditInTransaction(tx, {
+        action: "stock.adjust",
+        entity: "Inventory",
+        entityId: movement.inventoryId,
+        detail: `${normalizedReason}: ${movement.stockBefore} → ${movement.stockAfter}`,
+        pharmacyId,
+        actor: {
+          id: actor.id ?? null,
+          email: actor.email ?? null,
+        },
+      });
     });
-  } else {
-    await prisma.inventory.create({
-      data: { productId, pharmacyId, stock: Math.max(0, delta), minStock: 5 },
-    });
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof InsufficientInventoryError
+          ? error.message
+          : "Não foi possível ajustar o estoque.",
+    };
   }
   revalidateProducts();
   revalidatePath("/admin/estoque");
@@ -796,23 +1017,40 @@ export async function transferStock(
   }
 
   try {
+    const actor = await requireAdmin();
+    const transferId = randomUUID();
     await prisma.$transaction(async (tx) => {
-      const taken = await tx.inventory.updateMany({
-        where: { productId, pharmacyId: fromPharmacyId, stock: { gte: n } },
-        data: { stock: { decrement: n } },
+      await changeInventory(tx, {
+        productId,
+        pharmacyId: fromPharmacyId,
+        delta: -n,
+        kind: "TRANSFER_OUT",
+        reason: `Transferência para a unidade ${toPharmacyId}`,
+        referenceType: "STOCK_TRANSFER",
+        referenceId: transferId,
+        actor,
       });
-      if (taken.count === 0) {
-        throw new Error("Estoque insuficiente na unidade de origem.");
-      }
-      const dest = await tx.inventory.updateMany({
-        where: { productId, pharmacyId: toPharmacyId },
-        data: { stock: { increment: n } },
+      await changeInventory(tx, {
+        productId,
+        pharmacyId: toPharmacyId,
+        delta: n,
+        kind: "TRANSFER_IN",
+        reason: `Transferência recebida da unidade ${fromPharmacyId}`,
+        referenceType: "STOCK_TRANSFER",
+        referenceId: transferId,
+        actor,
       });
-      if (dest.count === 0) {
-        await tx.inventory.create({
-          data: { productId, pharmacyId: toPharmacyId, stock: n, minStock: 5 },
-        });
-      }
+      await logAuditInTransaction(tx, {
+        action: "stock.transfer",
+        entity: "Product",
+        entityId: productId,
+        detail: `Transferiu ${n} un entre unidades (${transferId})`,
+        pharmacyId: toPharmacyId,
+        actor: {
+          id: actor.id ?? null,
+          email: actor.email ?? null,
+        },
+      });
     });
   } catch (e) {
     return {
@@ -821,13 +1059,6 @@ export async function transferStock(
     };
   }
 
-  await logAudit({
-    action: "stock.transfer",
-    entity: "Product",
-    entityId: productId,
-    detail: `Transferiu ${n} un entre unidades`,
-    pharmacyId: toPharmacyId,
-  });
   revalidateProducts();
   revalidatePath("/admin/estoque");
   return { ok: true };

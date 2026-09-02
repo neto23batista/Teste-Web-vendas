@@ -17,6 +17,7 @@ import { OrderArchiveButton } from "@/components/admin/order-archive-button";
 import { allowedOrderTransitions } from "@/lib/orders";
 import { RetryRefundButton } from "@/components/admin/retry-refund-button";
 import { moneyToNumber } from "@/lib/money";
+import { ReturnManagement } from "@/components/admin/return-management";
 
 export const metadata = { title: "Pedido" };
 
@@ -94,8 +95,9 @@ export default async function AdminOrderDetail({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
-        {/* Itens */}
-        <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
+        <div className="space-y-6">
+          {/* Itens */}
+          <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
           <h2 className="font-bold">Itens do pedido</h2>
           <div className="divide-y divide-border">
             {order.items.map((it) => (
@@ -129,7 +131,10 @@ export default async function AdminOrderDetail({
               <dd className="text-brand-700 dark:text-brand-400">{formatBRL(total)}</dd>
             </div>
           </dl>
-        </section>
+          </section>
+
+          <ReturnManagement requests={order.returnRequests} />
+        </div>
 
         {/* Lateral */}
         <aside className="space-y-4">
@@ -166,6 +171,21 @@ export default async function AdminOrderDetail({
             {order.customerEmail && <p className="text-muted-foreground">{order.customerEmail}</p>}
             {order.customerPhone && <p className="text-muted-foreground">{order.customerPhone}</p>}
           </div>
+
+          {order.deliveryProof && (
+            <div className="space-y-2 rounded-2xl border border-emerald-300 bg-emerald-50 p-5 text-sm dark:border-emerald-500/30 dark:bg-emerald-500/10">
+              <p className="font-bold text-emerald-800 dark:text-emerald-200">Comprovante de entrega</p>
+              <p>Recebido por: <strong>{order.deliveryProof.recipientName}</strong></p>
+              <p className="text-xs text-muted-foreground">
+                Método: {order.deliveryProof.method}
+                {order.deliveryProof.recipientDocumentLast4
+                  ? ` · documento final ${order.deliveryProof.recipientDocumentLast4}`
+                  : ""}
+                {order.deliveryProof.courierName ? ` · ${order.deliveryProof.courierName}` : ""}
+              </p>
+              {order.deliveryProof.notes && <p className="text-xs">{order.deliveryProof.notes}</p>}
+            </div>
+          )}
 
           <div className="space-y-2 rounded-2xl border border-border bg-card p-5 text-sm">
               <p className="flex items-center gap-2 font-bold">
@@ -209,6 +229,17 @@ export default async function AdminOrderDetail({
                 )}
                 <RetryRefundButton orderId={order.id} />
               </div>
+            )}
+            {order.payment?.lastReconciledAt && (
+              <p className="text-xs text-muted-foreground">
+                Última conciliação: {order.payment.lastReconciledAt.toLocaleString("pt-BR")}
+                {` · ${order.payment.reconciliationAttempts} tentativa(s)`}
+              </p>
+            )}
+            {order.payment?.reconciliationError && (
+              <p className="text-xs font-semibold text-danger-500">
+                Conciliação: {order.payment.reconciliationError}
+              </p>
             )}
           </div>
 

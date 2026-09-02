@@ -24,10 +24,9 @@ describe("permissions", () => {
     expect(canAccess("PHARMACIST", "equipe")).toBe(false);
   });
 
-  it("estoquista: produtos/estoque/compras/integração sim; pedidos não", () => {
+  it("estoquista: produtos/estoque/compras sim; pedidos não", () => {
     expect(canAccess("STOCKIST", "estoque")).toBe(true);
     expect(canAccess("STOCKIST", "compras")).toBe(true);
-    expect(canAccess("STOCKIST", "integracao")).toBe(true);
     expect(canAccess("STOCKIST", "pedidos")).toBe(false);
   });
 

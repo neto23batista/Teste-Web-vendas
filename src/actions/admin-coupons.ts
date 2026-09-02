@@ -27,6 +27,9 @@ async function assertMatrixOwner() {
 function parse(formData: FormData) {
   const rawUsage = String(formData.get("usageLimit") ?? "").trim();
   const usageLimit = rawUsage === "" ? null : Number(rawUsage);
+  const usageLimitPerCustomer = Number(
+    String(formData.get("usageLimitPerCustomer") ?? "1").trim()
+  );
   const expires = String(formData.get("expiresAt") ?? "").trim();
   const minTotalRaw = String(formData.get("minTotal") ?? "").trim();
   return {
@@ -36,6 +39,7 @@ function parse(formData: FormData) {
     minTotalCents:
       minTotalRaw === "" ? 0 : parseMoneyInputToCents(minTotalRaw),
     usageLimit,
+    usageLimitPerCustomer,
     expiresAt: expires ? new Date(`${expires}T23:59:59`) : null,
     active: formData.get("active") === "on",
   };
@@ -57,6 +61,9 @@ function validate(d: ReturnType<typeof parse>): string | null {
     (!Number.isSafeInteger(d.usageLimit) || d.usageLimit <= 0)
   ) {
     return "O limite de usos deve ser um inteiro positivo.";
+  }
+  if (!Number.isSafeInteger(d.usageLimitPerCustomer) || d.usageLimitPerCustomer <= 0) {
+    return "O limite por cliente deve ser um inteiro positivo.";
   }
   return null;
 }
@@ -80,6 +87,7 @@ export async function createCoupon(
       value: centsToDecimal(d.valueCents!),
       minTotal: centsToDecimal(d.minTotalCents!),
       usageLimit: d.usageLimit,
+      usageLimitPerCustomer: d.usageLimitPerCustomer,
       expiresAt: d.expiresAt,
       active: d.active,
     },
@@ -118,6 +126,7 @@ export async function updateCoupon(
       value: centsToDecimal(d.valueCents!),
       minTotal: centsToDecimal(d.minTotalCents!),
       usageLimit: d.usageLimit,
+      usageLimitPerCustomer: d.usageLimitPerCustomer,
       expiresAt: d.expiresAt,
       active: d.active,
     },

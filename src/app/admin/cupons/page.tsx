@@ -85,7 +85,7 @@ export default async function AdminCouponsPage() {
                       ? `até ${new Date(c.expiresAt).toLocaleDateString("pt-BR")}`
                       : "sem prazo"}{" "}
                     · {c.usedCount}
-                    {c.usageLimit ? `/${c.usageLimit}` : ""} usos
+                    {c.usageLimit ? `/${c.usageLimit}` : ""} usos · máx. {c.usageLimitPerCustomer} por cliente
                   </p>
                   <CouponRowActions id={c.id} active={c.active} code={c.code} />
                 </div>
@@ -133,6 +133,7 @@ export default async function AdminCouponsPage() {
                       <td className="p-4 text-muted-foreground">
                         {c.usedCount}
                         {c.usageLimit ? ` / ${c.usageLimit}` : ""}
+                        <span className="block text-xs">máx. {c.usageLimitPerCustomer} por cliente</span>
                       </td>
                       <td className="p-4">
                         <span

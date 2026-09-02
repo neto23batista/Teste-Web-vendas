@@ -92,6 +92,63 @@ enum PolicyKind {
   PRIVACY_ACKNOWLEDGEMENT
 }
 
+enum InventoryMovementKind {
+  MANUAL_ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+  SALE
+  CANCELLATION
+  RETURN
+  RECEIPT
+  LOSS
+  SYNC
+  RESERVATION
+  RELEASE
+}
+
+enum ReturnStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  RECEIVED
+  COMPLETED
+  CANCELED
+}
+
+enum ReturnReason {
+  WITHDRAWAL
+  DAMAGED
+  WRONG_ITEM
+  QUALITY
+  OTHER
+}
+
+enum DeliveryProofMethod {
+  RECIPIENT
+  CONCIERGE
+  SAFE_PLACE
+  PICKUP
+}
+
+enum InventoryReservationStatus {
+  ACTIVE
+  COMMITTED
+  RELEASED
+}
+
+enum StripeEventStatus {
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum ReturnRefundStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
 // ─────────────────────────── Usuário ───────────────────────────
 model User {
   id                 String        @id @default(cuid())
@@ -110,9 +167,9 @@ model User {
   mfaEnabledAt       DateTime?
   // Unidade à qual um admin pertence. Null em clientes. Admin cuja unidade é
   // MATRIZ tem escopo "global" (vê/gere todas as unidades).
-  pharmacyId   String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  pharmacyId         String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   addresses         Address[]
   orders            Order[]
@@ -124,6 +181,8 @@ model User {
   favorites         Favorite[]
   auditLogs         AuditLog[]
   subscriptions     Subscription[]
+  returnRequests    ReturnRequest[]
+  couponRedemptions CouponRedemption[]
   mfaRecoveryCodes  MfaRecoveryCode[]
   policyAcceptances PolicyAcceptance[]
   pharmacy          Pharmacy?            @relation(fields: [pharmacyId], references: [id])
@@ -217,7 +276,7 @@ model Product {
   shortDescription     String?  @db.Text
   emoji                String?
   sku                  String?  @unique
-  ean                  String?
+  ean                  String?  @unique
   price                Decimal  @db.Decimal(12, 2)
   /// Custo de aquisição — base do CMV, da margem e da curva ABC por valor.
   costPrice            Decimal? @db.Decimal(12, 2)
@@ -234,15 +293,17 @@ model Product {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  category      Category       @relation(fields: [categoryId], references: [id])
-  brand         Brand?         @relation(fields: [brandId], references: [id])
-  images        ProductImage[]
-  cartItems     CartItem[]
-  orderItems    OrderItem[]
-  reviews       Review[]
-  favoritedBy   Favorite[]
-  inventory     Inventory[]
-  subscriptions Subscription[]
+  category              Category               @relation(fields: [categoryId], references: [id])
+  brand                 Brand?                 @relation(fields: [brandId], references: [id])
+  images                ProductImage[]
+  cartItems             CartItem[]
+  orderItems            OrderItem[]
+  reviews               Review[]
+  favoritedBy           Favorite[]
+  inventory             Inventory[]
+  subscriptions         Subscription[]
+  inventoryLots         InventoryLot[]
+  inventoryReservations InventoryReservation[]
 
   @@index([categoryId])
   @@index([brandId])
@@ -349,12 +410,15 @@ model Order {
   dispatchedAt DateTime?
   deliveredAt  DateTime?
 
-  items         OrderItem[]
-  payment       Payment?
-  prescriptions Prescription[]
-  loyaltyTx     LoyaltyTransaction[]
-  orderExport   OrderExport?
-  courier       Courier?             @relation(fields: [courierId], references: [id])
+  items                 OrderItem[]
+  inventoryReservations InventoryReservation[]
+  returnRequests        ReturnRequest[]
+  deliveryProof         DeliveryProof?
+  couponRedemption      CouponRedemption?
+  payment               Payment?
+  prescriptions         Prescription[]
+  loyaltyTx             LoyaltyTransaction[]
+  courier               Courier?               @relation(fields: [courierId], references: [id])
 
   @@index([userId])
   @@index([status])
@@ -370,28 +434,33 @@ model OrderItem {
   price     Decimal @db.Decimal(12, 2)
   qty       Int
 
-  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  order                Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product              Product?              @relation(fields: [productId], references: [id], onDelete: SetNull)
+  returnItems          ReturnItem[]
+  inventoryReservation InventoryReservation?
 
   @@index([orderId])
 }
 
 model Payment {
-  id                String          @id @default(cuid())
-  orderId           String          @unique
-  provider          PaymentProvider @default(STRIPE)
-  status            PaymentStatus   @default(PENDING)
-  externalId        String?
-  refundId          String?         @unique
-  refundError       String?         @db.Text
-  refundRequestedAt DateTime?
-  refundedAt        DateTime?
-  failureReason     String?         @db.Text
-  failedAt          DateTime?
-  amount            Decimal         @db.Decimal(12, 2)
-  raw               Json?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id                     String          @id @default(cuid())
+  orderId                String          @unique
+  provider               PaymentProvider @default(STRIPE)
+  status                 PaymentStatus   @default(PENDING)
+  externalId             String?
+  refundId               String?         @unique
+  refundError            String?         @db.Text
+  refundRequestedAt      DateTime?
+  refundedAt             DateTime?
+  failureReason          String?         @db.Text
+  failedAt               DateTime?
+  lastReconciledAt       DateTime?
+  reconciliationAttempts Int             @default(0)
+  reconciliationError    String?         @db.Text
+  amount                 Decimal         @db.Decimal(12, 2)
+  raw                    Json?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
 
   order  Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
   bankTx BankTransaction?
@@ -437,26 +506,44 @@ model LoyaltyTransaction {
 
 // ─────────────────────────── Marketing ───────────────────────────
 model Coupon {
-  id         String     @id @default(cuid())
-  code       String     @unique
-  type       CouponType @default(PERCENT)
-  value      Decimal    @db.Decimal(12, 2)
-  minTotal   Decimal    @default(0) @db.Decimal(12, 2)
-  expiresAt  DateTime?
-  active     Boolean    @default(true)
-  usageLimit Int?
-  usedCount  Int        @default(0)
+  id                    String             @id @default(cuid())
+  code                  String             @unique
+  type                  CouponType         @default(PERCENT)
+  value                 Decimal            @db.Decimal(12, 2)
+  minTotal              Decimal            @default(0) @db.Decimal(12, 2)
+  expiresAt             DateTime?
+  active                Boolean            @default(true)
+  usageLimit            Int?
+  usageLimitPerCustomer Int                @default(1)
+  usedCount             Int                @default(0)
+  redemptions           CouponRedemption[]
+}
+
+model CouponRedemption {
+  id        String   @id @default(cuid())
+  couponId  String
+  userId    String
+  orderId   String   @unique
+  createdAt DateTime @default(now())
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([couponId, userId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model Review {
-  id        String   @id @default(cuid())
-  productId String
-  userId    String
-  rating    Int
-  comment   String?  @db.Text
+  id               String   @id @default(cuid())
+  productId        String
+  userId           String
+  rating           Int
+  comment          String?  @db.Text
   // Moderação: avaliações só aparecem na loja após aprovação do dono.
-  approved  Boolean  @default(false)
-  createdAt DateTime @default(now())
+  approved         Boolean  @default(false)
+  verifiedPurchase Boolean  @default(false)
+  createdAt        DateTime @default(now())
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -486,49 +573,45 @@ model Setting {
 }
 
 // ─────────────────────────── Unidades (Matriz + Filiais) ───────────────────────────
-// Catálogo e preços são compartilhados (globais no Product). O que é por unidade:
-// estoque (Inventory), pedidos (Order.pharmacyId) e escopo do admin (User.pharmacyId).
+// Product guarda a curadoria canônica; Inventory contém a oferta e o estoque
+// efetivos de cada unidade. Pedidos e escopo do admin também são por unidade.
 model Pharmacy {
-  id                   String       @id @default(cuid())
-  name                 String
-  slug                 String       @unique
-  type                 PharmacyType @default(FILIAL)
-  active               Boolean      @default(true)
-  zip                  String?
-  street               String?
-  number               String?
-  district             String?
-  city                 String?
-  state                String?
-  phone                String?
-  whatsapp             String?
-  hours                String?
+  id              String       @id @default(cuid())
+  name            String
+  slug            String       @unique
+  type            PharmacyType @default(FILIAL)
+  active          Boolean      @default(true)
+  zip             String?
+  street          String?
+  number          String?
+  district        String?
+  city            String?
+  state           String?
+  phone           String?
+  whatsapp        String?
+  hours           String?
   // Frete por unidade: override do frete global (Setting). null = usa o global.
-  shippingFlat         Decimal?     @db.Decimal(12, 2)
-  shippingFreeMin      Decimal?     @db.Decimal(12, 2)
+  shippingFlat    Decimal?     @db.Decimal(12, 2)
+  shippingFreeMin Decimal?     @db.Decimal(12, 2)
   // Dados regulatórios (ANVISA) por unidade: override do global. null = global.
-  cnpj                 String?
-  pharmacistName       String?
-  pharmacistCrf        String?
-  // Integração InovaFarma: hash SHA-256 do token do conector desta unidade.
-  // O token em claro só é exibido uma vez, ao ser gerado no admin.
-  integrationTokenHash       String?   @unique
-  integrationTokenLastUsedAt DateTime?
-  integrationTokenRotatedAt  DateTime?
-  archivedAt                 DateTime?
-  createdAt                  DateTime  @default(now())
-  updatedAt                  DateTime  @updatedAt
+  cnpj            String?
+  pharmacistName  String?
+  pharmacistCrf   String?
+  archivedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
-  inventory    Inventory[]
-  cepRanges    PharmacyCepRange[]
-  orders       Order[]
-  users        User[]
-  carts        Cart[]
-  orderExports OrderExport[]
-  syncRuns     SyncRun[]
-  couriers     Courier[]
-  expenses     Expense[]
-  bankTx       BankTransaction[]
+  inventory             Inventory[]
+  inventoryLots         InventoryLot[]
+  inventoryReservations InventoryReservation[]
+  returnRequests        ReturnRequest[]
+  cepRanges             PharmacyCepRange[]
+  orders                Order[]
+  users                 User[]
+  carts                 Cart[]
+  couriers              Courier[]
+  expenses              Expense[]
+  bankTx                BankTransaction[]
 
   @@index([type])
   @@index([active, archivedAt])
@@ -599,59 +682,11 @@ model BankTransaction {
   @@index([pharmacyId])
 }
 
-// ─────────────────── Integração InovaFarma (PDV on-premise) ───────────────────
-// O conector (PC da farmácia) puxa catálogo da InovaFarma e empurra pedidos.
-// OrderExport é a fila/idempotência da exportação: um pedido só vira venda no
-// PDV uma vez (orderId único); erro fica registrado e é re-tentado.
-
-enum ExportStatus {
-  PENDING
-  SENT
-  ERROR
-}
-
-model OrderExport {
-  id             String       @id @default(cuid())
-  orderId        String       @unique
-  pharmacyId     String
-  status         ExportStatus @default(PENDING)
-  /// id da venda gerada na InovaFarma (confirmação da exportação)
-  externalSaleId String?
-  attempts       Int          @default(0)
-  lastError      String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-
-  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
-
-  @@index([pharmacyId, status])
-}
-
-enum SyncKind {
-  CATALOG
-  ORDERS
-}
-
-// Telemetria dos syncs do conector (alimenta /admin/integracao).
-model SyncRun {
-  id         String   @id @default(cuid())
-  pharmacyId String
-  kind       SyncKind
-  ok         Boolean
-  items      Int      @default(0)
-  message    String?
-  createdAt  DateTime @default(now())
-
-  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
-
-  @@index([pharmacyId, kind, createdAt])
-}
-
 // Faixas de CEP atendidas por uma unidade (numéricas, 8 dígitos). O roteamento
-// escolhe a primeira unidade cuja faixa contém o CEP; sem casar, cai na matriz.
+// escolhe a primeira unidade cuja faixa contém o CEP; sem casar, a entrega é
+// recusada (a matriz é fallback de navegação, não de cobertura logística).
 model PharmacyCepRange {
-  id         String @id @default(cuid())
+  id         String    @id @default(cuid())
   pharmacyId String
   start      Int
   end        Int
@@ -669,11 +704,19 @@ model PharmacyCepRange {
 // Estoque de um produto numa unidade. Fonte da verdade do estoque (substitui
 // Product.stock/minStock, mantidos como legado até a migração de limpeza).
 model Inventory {
-  id         String @id @default(cuid())
+  id         String   @id @default(cuid())
   productId  String
   pharmacyId String
-  stock      Int    @default(0)
-  minStock   Int    @default(5)
+  stock      Int      @default(0)
+  minStock   Int      @default(5)
+  /// Oferta efetiva da unidade. null existe apenas durante transições/legado e
+  /// usa o valor canônico do Product como fallback de leitura.
+  price      Decimal? @db.Decimal(12, 2)
+  costPrice  Decimal? @db.Decimal(12, 2)
+  promoPrice Decimal? @db.Decimal(12, 2)
+  /// Identificadores locais do PDV; são únicos dentro de cada unidade.
+  sku        String?
+  ean        String?
   /// Estoque máximo (nível de reposição). Base da sugestão de compra:
   /// quando stock <= minStock, sugere comprar (maxStock - stock).
   maxStock   Int?
@@ -682,8 +725,184 @@ model Inventory {
   pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
 
   @@unique([productId, pharmacyId])
+  @@unique([pharmacyId, sku])
+  @@unique([pharmacyId, ean])
   @@index([pharmacyId])
   @@index([productId])
+}
+
+/// Livro razão imutável do estoque. Os identificadores e o e-mail do ator são
+/// snapshots deliberados: o histórico sobrevive à anonimização e ao arquivamento
+/// dos cadastros operacionais sem depender de relações mutáveis.
+model InventoryMovement {
+  id            String                @id @default(cuid())
+  productId     String
+  pharmacyId    String
+  kind          InventoryMovementKind
+  delta         Int
+  stockBefore   Int
+  stockAfter    Int
+  reason        String                @db.Text
+  referenceType String?
+  referenceId   String?
+  actorId       String?
+  actorEmail    String?
+  createdAt     DateTime              @default(now())
+
+  @@index([productId, pharmacyId, createdAt])
+  @@index([referenceType, referenceId])
+  @@index([createdAt])
+}
+
+/// Lote físico por unidade. `qty` é o saldo rastreável do lote; estoque legado
+/// sem lote permanece no Inventory e pode ser saneado gradualmente.
+model InventoryLot {
+  id         String   @id @default(cuid())
+  productId  String
+  pharmacyId String
+  lotCode    String
+  expiresAt  DateTime
+  qty        Int
+  supplier   String?
+  note       String?  @db.Text
+  receivedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  product     Product                   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  pharmacy    Pharmacy                  @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  allocations InventoryReservationLot[]
+
+  @@unique([productId, pharmacyId, lotCode])
+  @@index([pharmacyId, expiresAt, qty])
+  @@index([productId, pharmacyId])
+}
+
+/// Estoque comprometido por um pedido ainda não concluído. O saldo disponível
+/// já é debitado na criação; esta linha torna a liberação/baixa idempotente.
+model InventoryReservation {
+  id          String                     @id @default(cuid())
+  orderId     String
+  orderItemId String                     @unique
+  productId   String
+  pharmacyId  String
+  qty         Int
+  status      InventoryReservationStatus @default(ACTIVE)
+  expiresAt   DateTime
+  committedAt DateTime?
+  releasedAt  DateTime?
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  order       Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem   OrderItem                 @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  product     Product                   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  pharmacy    Pharmacy                  @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  allocations InventoryReservationLot[]
+
+  @@index([orderId, status])
+  @@index([status, expiresAt])
+  @@index([productId, pharmacyId, status])
+}
+
+/// Parcela da reserva atribuída a um lote FEFO. A soma pode ser menor que a
+/// reserva quando parte do saldo ainda é legado e não possui lote rastreado.
+model InventoryReservationLot {
+  id            String @id @default(cuid())
+  reservationId String
+  lotId         String
+  qty           Int
+
+  reservation InventoryReservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  lot         InventoryLot         @relation(fields: [lotId], references: [id], onDelete: Restrict)
+
+  @@unique([reservationId, lotId])
+  @@index([lotId])
+}
+
+/// Fluxo de pós-venda separado do status do pedido. O recebimento físico e a
+/// reposição de estoque não dependem da liquidação financeira do estorno.
+model ReturnRequest {
+  id              String             @id @default(cuid())
+  orderId         String
+  userId          String
+  pharmacyId      String
+  status          ReturnStatus       @default(REQUESTED)
+  reason          ReturnReason
+  customerNotes   String?            @db.Text
+  adminNotes      String?            @db.Text
+  requestedAmount Decimal            @db.Decimal(12, 2)
+  approvedAmount  Decimal?           @db.Decimal(12, 2)
+  requestedAt     DateTime           @default(now())
+  decidedAt       DateTime?
+  receivedAt      DateTime?
+  completedAt     DateTime?
+  refundStatus    ReturnRefundStatus @default(PENDING)
+  refundId        String?            @unique
+  refundError     String?            @db.Text
+  refundedAt      DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  order    Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user     User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  pharmacy Pharmacy     @relation(fields: [pharmacyId], references: [id], onDelete: Restrict)
+  items    ReturnItem[]
+
+  @@index([orderId, status])
+  @@index([userId, createdAt])
+  @@index([pharmacyId, status, createdAt])
+}
+
+/// Caixa de entrada idempotente dos webhooks Stripe. O payload é identificado
+/// por hash, e tentativas/falhas ficam observáveis para reconciliação.
+model StripeEvent {
+  id            String            @id
+  type          String
+  payloadSha256 String
+  status        StripeEventStatus @default(PROCESSING)
+  attempts      Int               @default(1)
+  lastError     String?           @db.Text
+  receivedAt    DateTime          @default(now())
+  processedAt   DateTime?
+  updatedAt     DateTime          @updatedAt
+
+  @@index([status, updatedAt])
+  @@index([type, receivedAt])
+}
+
+model ReturnItem {
+  id              String   @id @default(cuid())
+  returnRequestId String
+  orderItemId     String
+  qty             Int
+  restockQty      Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  returnRequest ReturnRequest @relation(fields: [returnRequestId], references: [id], onDelete: Cascade)
+  orderItem     OrderItem     @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+
+  @@unique([returnRequestId, orderItemId])
+  @@index([orderItemId])
+}
+
+/// Comprovante operacional imutável da entrega. Os nomes/e-mails são snapshots
+/// para que a evidência não dependa de cadastros que podem mudar depois.
+model DeliveryProof {
+  id                     String              @id @default(cuid())
+  orderId                String              @unique
+  method                 DeliveryProofMethod
+  recipientName          String
+  recipientDocumentLast4 String?
+  notes                  String?             @db.Text
+  courierName            String?
+  confirmedById          String?
+  confirmedByEmail       String?
+  createdAt              DateTime            @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
 }
 
 // ─────────────────────────── Assinaturas ───────────────────────────
@@ -702,8 +921,8 @@ model Subscription {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user          User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product       Product                    @relation(fields: [productId], references: [id], onDelete: Cascade)
   notifications SubscriptionNotification[]
 
   @@unique([userId, productId])

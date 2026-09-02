@@ -12,6 +12,7 @@ type Coupon = {
   value: number;
   minTotal: number;
   usageLimit: number | null;
+  usageLimitPerCustomer: number;
   expiresAt: Date | null;
   active: boolean;
 };
@@ -83,6 +84,22 @@ export function CouponForm({
             />
           </Field>
         </div>
+
+        <Field
+          label="Limite por cliente"
+          htmlFor="usageLimitPerCustomer"
+          hint="Quantas compras cada conta pode fazer com este cupom"
+        >
+          <Input
+            id="usageLimitPerCustomer"
+            name="usageLimitPerCustomer"
+            inputMode="numeric"
+            type="number"
+            min={1}
+            defaultValue={coupon?.usageLimitPerCustomer ?? 1}
+            required
+          />
+        </Field>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Compra mínima (R$)" htmlFor="minTotal" hint="0 para não exigir mínimo">

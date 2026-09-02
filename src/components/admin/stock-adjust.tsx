@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Minus, Plus, Loader2 } from "lucide-react";
 import { adjustStock } from "@/actions/admin-products";
+import { toast } from "sonner";
 
 export function StockAdjust({
   id,
@@ -19,7 +20,17 @@ export function StockAdjust({
 
   const change = (delta: number) =>
     start(async () => {
-      await adjustStock(id, pharmacyId, delta);
+      const operation = delta > 0 ? "Entrada manual" : "Retirada manual";
+      const result = await adjustStock(
+        id,
+        pharmacyId,
+        delta,
+        `${operation} pelo controle de estoque (${Math.abs(delta)} un)`
+      );
+      if (!result.ok) {
+        toast.error(result.error ?? "Não foi possível ajustar o estoque.");
+        return;
+      }
       router.refresh();
     });
 

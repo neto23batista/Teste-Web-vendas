@@ -4,6 +4,7 @@ import { formatBRL } from "@/lib/utils";
 import { StatusBadge } from "@/components/store/order-status";
 import { ReorderButton } from "@/components/store/reorder-button";
 import type { UserOrder } from "@/lib/account";
+import { ReturnRequestControl } from "@/components/account/return-request";
 
 export function OrderCard({ order }: { order: UserOrder }) {
   const itemCount = order.items.reduce((s, i) => s + i.qty, 0);
@@ -63,6 +64,12 @@ export function OrderCard({ order }: { order: UserOrder }) {
           variant="soft"
           size="sm"
           className="flex-1"
+        />
+        <ReturnRequestControl
+          orderId={order.id}
+          canRequest={order.canRequestReturn}
+          items={order.items.map((item) => ({ id: item.id, name: item.name, qty: item.qty }))}
+          latest={order.returnRequests[0]}
         />
         <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 opacity-0 transition group-hover:opacity-100 dark:text-brand-400">
           Detalhes <ArrowRight className="size-4" />

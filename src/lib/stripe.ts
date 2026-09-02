@@ -336,6 +336,9 @@ export type PaymentOrderStatus = {
   paid: boolean;
   /** id do PaymentIntent pago (pi_…) — usado para reembolso. */
   paidChargeId: string | null;
+  status: string;
+  amountCents: number;
+  currency: string;
 };
 
 /** Re-consulta um PaymentIntent na API (fonte da verdade). */
@@ -351,9 +354,45 @@ export async function getPaymentStatus(
       referenceId: pi.metadata?.orderNumber ?? null,
       paid,
       paidChargeId: paid ? pi.id : null,
+      status: pi.status,
+      amountCents: pi.amount_received || pi.amount,
+      currency: pi.currency,
     };
   } catch (err) {
     reportError(err, { operation: "stripe.payment_intent.retrieve" });
+    return null;
+  }
+}
+
+/** Reconsulta uma Checkout Session quando o PaymentIntent ainda não foi gravado. */
+export async function getCheckoutPaymentStatus(
+  sessionId: string
+): Promise<PaymentOrderStatus | null> {
+  const client = await getClient();
+  if (!client || !sessionId) return null;
+  try {
+    const session = await client.checkout.sessions.retrieve(sessionId, {
+      expand: ["payment_intent"],
+    });
+    const paymentIntent =
+      typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : (session.payment_intent?.id ?? null);
+    const paid = session.payment_status === "paid" && Boolean(paymentIntent);
+    const intentStatus =
+      typeof session.payment_intent === "object" && session.payment_intent
+        ? session.payment_intent.status
+        : null;
+    return {
+      referenceId: session.metadata?.orderNumber ?? null,
+      paid,
+      paidChargeId: paid ? paymentIntent : null,
+      status: session.status === "expired" ? "canceled" : (intentStatus ?? session.payment_status),
+      amountCents: session.amount_total ?? 0,
+      currency: session.currency ?? "",
+    };
+  } catch (err) {
+    reportError(err, { operation: "stripe.checkout.retrieve" });
     return null;
   }
 }
@@ -368,7 +407,12 @@ export type RefundPaymentResult =
 
 export async function refundPayment(
   paymentIntentId: string,
-  orderNumber?: string
+  orderNumber?: string,
+  options?: {
+    amountCents?: number;
+    returnId?: string;
+    idempotencyKey?: string;
+  }
 ): Promise<RefundPaymentResult> {
   const client = await getClient();
   if (!client) {
@@ -377,14 +421,31 @@ export async function refundPayment(
   if (!paymentIntentId) {
     return { ok: false, refundId: null, error: "PaymentIntent ausente." };
   }
+  if (
+    options?.amountCents !== undefined &&
+    (!Number.isSafeInteger(options.amountCents) || options.amountCents <= 0)
+  ) {
+    return { ok: false, refundId: null, error: "Valor de reembolso inválido." };
+  }
   try {
     const refund = await client.refunds.create(
       {
         payment_intent: paymentIntentId,
         reason: "requested_by_customer",
-        ...(orderNumber ? { metadata: { orderNumber } } : {}),
+        ...(options?.amountCents ? { amount: options.amountCents } : {}),
+        ...(orderNumber || options?.returnId
+          ? {
+              metadata: {
+                ...(orderNumber ? { orderNumber } : {}),
+                ...(options?.returnId ? { returnId: options.returnId } : {}),
+              },
+            }
+          : {}),
       },
-      { idempotencyKey: `refund-${paymentIntentId}` }
+      {
+        idempotencyKey:
+          options?.idempotencyKey ?? `refund-${paymentIntentId}`,
+      }
     );
     if (refund.status === "succeeded") {
       return { ok: true, refundId: refund.id, status: "succeeded" };
@@ -407,6 +468,40 @@ export async function refundPayment(
           ? err.message
           : "Falha ao solicitar o reembolso no Stripe.",
     };
+  }
+}
+
+export type RefundProviderStatus = {
+  refundId: string;
+  paymentIntentId: string | null;
+  returnId: string | null;
+  status: string | null;
+  amountCents: number;
+  error: string | null;
+};
+
+/** Reconsulta um reembolso para recuperar webhooks perdidos. */
+export async function getRefundStatus(
+  refundId: string
+): Promise<RefundProviderStatus | null> {
+  const client = await getClient();
+  if (!client || !refundId) return null;
+  try {
+    const refund = await client.refunds.retrieve(refundId);
+    return {
+      refundId: refund.id,
+      paymentIntentId:
+        typeof refund.payment_intent === "string"
+          ? refund.payment_intent
+          : (refund.payment_intent?.id ?? null),
+      returnId: refund.metadata?.returnId ?? null,
+      status: refund.status,
+      amountCents: refund.amount,
+      error: refund.failure_reason ?? null,
+    };
+  } catch (err) {
+    reportError(err, { operation: "stripe.refund.retrieve" });
+    return null;
   }
 }
 

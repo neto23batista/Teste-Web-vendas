@@ -29,7 +29,7 @@ export function productCardSelect(pharmacyId?: string | null) {
     ...productCardBase,
     inventory: {
       where: pharmacyId ? { pharmacyId } : undefined,
-      select: { stock: true },
+      select: { stock: true, price: true, promoPrice: true },
     },
   } satisfies Prisma.ProductSelect;
 }
@@ -51,10 +51,13 @@ export type ProductCard = Omit<
 export function toProductCard(row: ProductCardRow): ProductCard {
   const { inventory, ...rest } = row;
   const stock = inventory.reduce((sum, i) => sum + i.stock, 0);
+  const unitOffer = inventory.length === 1 ? inventory[0] : null;
+  const effectivePrice = unitOffer?.price ?? rest.price;
+  const effectivePromo = unitOffer?.promoPrice ?? rest.promoPrice;
   return {
     ...rest,
-    price: moneyToNumber(rest.price),
-    promoPrice: rest.promoPrice == null ? null : moneyToNumber(rest.promoPrice),
+    price: moneyToNumber(effectivePrice),
+    promoPrice: effectivePromo == null ? null : moneyToNumber(effectivePromo),
     stock,
   };
 }
@@ -99,7 +102,16 @@ export function getPromoProducts(take = 8, pharmacyId?: string | null) {
     async () =>
       (
         await prisma.product.findMany({
-          where: { ...SALEABLE_PRODUCT_WHERE, promoPrice: { not: null } },
+          where: {
+            ...SALEABLE_PRODUCT_WHERE,
+            ...(pharmacyId
+              ? {
+                  inventory: {
+                    some: { pharmacyId, promoPrice: { not: null } },
+                  },
+                }
+              : { promoPrice: { not: null } }),
+          },
           select: productCardSelect(pharmacyId),
           orderBy: { ratingCount: "desc" },
           take,
@@ -179,6 +191,21 @@ function catalogWhere(params: CatalogParams): Prisma.ProductWhereInput {
           { activeIngredient: { contains: term, mode: "insensitive" } },
           { sku: { contains: term, mode: "insensitive" } },
           { ean: { contains: term, mode: "insensitive" } },
+          ...(params.pharmacyId
+            ? [
+                {
+                  inventory: {
+                    some: {
+                      pharmacyId: params.pharmacyId,
+                      OR: [
+                        { sku: { contains: term, mode: "insensitive" as const } },
+                        { ean: { contains: term, mode: "insensitive" as const } },
+                      ],
+                    },
+                  },
+                },
+              ]
+            : []),
           { brand: { name: { contains: term, mode: "insensitive" } } },
         ],
       }))
@@ -187,24 +214,62 @@ function catalogWhere(params: CatalogParams): Prisma.ProductWhereInput {
   if (params.cat) where.category = { slug: params.cat };
   if (params.brand) where.brand = { slug: params.brand };
   if (params.generic) where.isGeneric = true;
-  if (params.promo) where.promoPrice = { not: null };
+  if (params.promo) {
+    if (params.pharmacyId) {
+      and.push({
+        inventory: {
+          some: { pharmacyId: params.pharmacyId, promoPrice: { not: null } },
+        },
+      });
+    } else {
+      where.promoPrice = { not: null };
+    }
+  }
 
   // Faixa de preço sobre o valor efetivo (promoPrice quando houver, senão price).
   if (params.priceMin != null) {
-    and.push({
-      OR: [
-        { promoPrice: { gte: params.priceMin } },
-        { promoPrice: null, price: { gte: params.priceMin } },
-      ],
-    });
+    and.push(
+      params.pharmacyId
+        ? {
+            inventory: {
+              some: {
+                pharmacyId: params.pharmacyId,
+                OR: [
+                  { promoPrice: { gte: params.priceMin } },
+                  { promoPrice: null, price: { gte: params.priceMin } },
+                ],
+              },
+            },
+          }
+        : {
+            OR: [
+              { promoPrice: { gte: params.priceMin } },
+              { promoPrice: null, price: { gte: params.priceMin } },
+            ],
+          }
+    );
   }
   if (params.priceMax != null) {
-    and.push({
-      OR: [
-        { promoPrice: { lte: params.priceMax } },
-        { promoPrice: null, price: { lte: params.priceMax } },
-      ],
-    });
+    and.push(
+      params.pharmacyId
+        ? {
+            inventory: {
+              some: {
+                pharmacyId: params.pharmacyId,
+                OR: [
+                  { promoPrice: { lte: params.priceMax } },
+                  { promoPrice: null, price: { lte: params.priceMax } },
+                ],
+              },
+            },
+          }
+        : {
+            OR: [
+              { promoPrice: { lte: params.priceMax } },
+              { promoPrice: null, price: { lte: params.priceMax } },
+            ],
+          }
+    );
   }
   if (and.length > 0) where.AND = and;
   return where;
@@ -226,7 +291,8 @@ export type ProductSuggestion = {
  */
 export async function getProductSuggestions(
   query: string,
-  take = 6
+  take = 6,
+  pharmacyId?: string | null
 ): Promise<ProductSuggestion[]> {
   if (query.trim().length < 2) return [];
   const requestedTake = Math.trunc(Number(take));
@@ -246,6 +312,8 @@ export async function getProductSuggestions(
       OR p."activeIngredient" ILIKE ${pattern}
       OR p."sku" ILIKE ${pattern}
       OR p."ean" ILIKE ${pattern}
+      OR unit_inventory."sku" ILIKE ${pattern}
+      OR unit_inventory."ean" ILIKE ${pattern}
       OR b."name" ILIKE ${pattern}
     )`);
   }
@@ -264,12 +332,24 @@ export async function getProductSuggestions(
       p."slug",
       p."emoji",
       image."url" AS "image",
-      COALESCE(p."promoPrice", p."price") AS "price",
-      CASE WHEN p."promoPrice" IS NOT NULL THEN p."price" ELSE NULL END AS "oldPrice",
+      COALESCE(
+        unit_inventory."promoPrice",
+        unit_inventory."price",
+        p."promoPrice",
+        p."price"
+      ) AS "price",
+      CASE
+        WHEN COALESCE(unit_inventory."promoPrice", p."promoPrice") IS NOT NULL
+        THEN COALESCE(unit_inventory."price", p."price")
+        ELSE NULL
+      END AS "oldPrice",
       c."name" AS "category"
     FROM "Product" AS p
     INNER JOIN "Category" AS c ON c."id" = p."categoryId"
     LEFT JOIN "Brand" AS b ON b."id" = p."brandId"
+    LEFT JOIN "Inventory" AS unit_inventory
+      ON unit_inventory."productId" = p."id"
+     AND unit_inventory."pharmacyId" = ${pharmacyId ?? null}
     LEFT JOIN LATERAL (
       SELECT pi."url"
       FROM "ProductImage" AS pi
@@ -337,21 +417,27 @@ export async function searchProducts(params: CatalogParams): Promise<SearchResul
         OR p."activeIngredient" ILIKE ${pattern}
         OR p."sku" ILIKE ${pattern}
         OR p."ean" ILIKE ${pattern}
+        OR unit_inventory."sku" ILIKE ${pattern}
+        OR unit_inventory."ean" ILIKE ${pattern}
         OR b."name" ILIKE ${pattern}
       )`);
     }
     if (params.cat) filters.push(Prisma.sql`c."slug" = ${params.cat}`);
     if (params.brand) filters.push(Prisma.sql`b."slug" = ${params.brand}`);
     if (params.generic) filters.push(Prisma.sql`p."isGeneric" = TRUE`);
-    if (params.promo) filters.push(Prisma.sql`p."promoPrice" IS NOT NULL`);
+    if (params.promo) {
+      filters.push(
+        Prisma.sql`COALESCE(unit_inventory."promoPrice", p."promoPrice") IS NOT NULL`
+      );
+    }
     if (params.priceMin != null) {
       filters.push(
-        Prisma.sql`COALESCE(p."promoPrice", p."price") >= ${params.priceMin}`
+        Prisma.sql`COALESCE(unit_inventory."promoPrice", unit_inventory."price", p."promoPrice", p."price") >= ${params.priceMin}`
       );
     }
     if (params.priceMax != null) {
       filters.push(
-        Prisma.sql`COALESCE(p."promoPrice", p."price") <= ${params.priceMax}`
+        Prisma.sql`COALESCE(unit_inventory."promoPrice", unit_inventory."price", p."promoPrice", p."price") <= ${params.priceMax}`
       );
     }
 
@@ -364,8 +450,16 @@ export async function searchProducts(params: CatalogParams): Promise<SearchResul
       FROM "Product" AS p
       INNER JOIN "Category" AS c ON c."id" = p."categoryId"
       LEFT JOIN "Brand" AS b ON b."id" = p."brandId"
+      LEFT JOIN "Inventory" AS unit_inventory
+        ON unit_inventory."productId" = p."id"
+       AND unit_inventory."pharmacyId" = ${params.pharmacyId ?? null}
       WHERE ${Prisma.join(filters, " AND ")}
-      ORDER BY COALESCE(p."promoPrice", p."price") ${direction},
+      ORDER BY COALESCE(
+                 unit_inventory."promoPrice",
+                 unit_inventory."price",
+                 p."promoPrice",
+                 p."price"
+               ) ${direction},
                p."name" ASC,
                p."id" ASC
       LIMIT ${perPage}
@@ -467,7 +561,14 @@ export async function getProductBySlug(slug: string, pharmacyId?: string | null)
       images: { orderBy: { sort: "asc" } },
       inventory: {
         where: pharmacyId ? { pharmacyId } : undefined,
-        select: { stock: true },
+        select: {
+          stock: true,
+          price: true,
+          costPrice: true,
+          promoPrice: true,
+          sku: true,
+          ean: true,
+        },
       },
       reviews: {
         where: { approved: true },
@@ -480,11 +581,17 @@ export async function getProductBySlug(slug: string, pharmacyId?: string | null)
   if (!product) return null;
   const { inventory, ...rest } = product;
   const stock = inventory.reduce((sum, i) => sum + i.stock, 0);
+  const unitOffer = inventory.length === 1 ? inventory[0] : null;
+  const effectivePrice = unitOffer?.price ?? rest.price;
+  const effectiveCost = unitOffer?.costPrice ?? rest.costPrice;
+  const effectivePromo = unitOffer?.promoPrice ?? rest.promoPrice;
   return {
     ...rest,
-    price: moneyToNumber(rest.price),
-    costPrice: rest.costPrice == null ? null : moneyToNumber(rest.costPrice),
-    promoPrice: rest.promoPrice == null ? null : moneyToNumber(rest.promoPrice),
+    sku: unitOffer?.sku ?? rest.sku,
+    ean: unitOffer?.ean ?? rest.ean,
+    price: moneyToNumber(effectivePrice),
+    costPrice: effectiveCost == null ? null : moneyToNumber(effectiveCost),
+    promoPrice: effectivePromo == null ? null : moneyToNumber(effectivePromo),
     stock,
   };
 }
@@ -493,7 +600,12 @@ export async function getProductBySlug(slug: string, pharmacyId?: string | null)
 export function getProductMetadataBySlug(slug: string) {
   return prisma.product.findFirst({
     where: { slug, ...SALEABLE_PRODUCT_WHERE },
-    select: { name: true, shortDescription: true },
+    select: {
+      name: true,
+      shortDescription: true,
+      description: true,
+      images: { orderBy: { sort: "asc" }, take: 1, select: { url: true } },
+    },
   });
 }
 

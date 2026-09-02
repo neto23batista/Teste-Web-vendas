@@ -49,6 +49,8 @@ type Address = {
   zip: string;
   /** Distância (km) resolvida pela faixa de CEP da unidade. */
   km: number;
+  /** O CEP pertence a uma faixa ativa da unidade selecionada. */
+  covered: boolean;
 };
 
 const METHOD_INFO: Record<
@@ -263,6 +265,11 @@ export function CheckoutForm({
                     {a.complement ? ` - ${a.complement}` : ""} · {a.district},{" "}
                     {a.city}/{a.state} · {a.zip}
                   </p>
+                  {!a.covered && (
+                    <p className="mt-1 font-semibold text-danger-500">
+                      Fora da área de entrega desta unidade
+                    </p>
+                  )}
                 </div>
               </label>
             ))}

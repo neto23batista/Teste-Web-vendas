@@ -227,16 +227,17 @@ export async function getShippingConfig(
 /**
  * Distância (km) do destino a partir das faixas de CEP da unidade
  * (PharmacyCepRange.km): acha a faixa que contém o CEP e devolve seu km.
- * Sem faixa casada (ou km não cadastrado), cai no `defaultKm` da config.
- * É a fonte da verdade da distância usada no frete (server-side).
+ * Sem faixa casada retorna null: `defaultKm` só completa a distância de uma
+ * faixa que a operação declarou como coberta, nunca cria cobertura implícita.
+ * É a fonte da verdade da distância usada no frete server-side.
  */
 export async function resolveKm(
   cep: string | null | undefined,
   pharmacyId?: string | null
-): Promise<number> {
+): Promise<number | null> {
   const cfg = await getShippingConfig(pharmacyId);
   const digits = (cep ?? "").replace(/\D/g, "");
-  if (digits.length < 8 || !pharmacyId) return cfg.defaultKm;
+  if (digits.length !== 8 || !pharmacyId) return null;
   const n = parseInt(digits.slice(0, 8), 10);
   const range = await prisma.pharmacyCepRange
     .findFirst({
@@ -245,11 +246,10 @@ export async function resolveKm(
         archivedAt: null,
         start: { lte: n },
         end: { gte: n },
-        km: { not: null },
       },
       orderBy: { km: "asc" },
       select: { km: true },
     })
     .catch(() => null);
-  return range?.km ?? cfg.defaultKm;
+  return range ? (range.km ?? cfg.defaultKm) : null;
 }

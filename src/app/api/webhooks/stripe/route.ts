@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
@@ -7,6 +8,7 @@ import {
   recordStripeRefund,
 } from "@/lib/orders";
 import { getStripeForWebhook } from "@/lib/stripe";
+import { recordStripeReturnRefund } from "@/lib/return-refunds";
 import { reportError } from "@/lib/monitoring";
 import { moneyToCents } from "@/lib/money";
 import {
@@ -19,6 +21,57 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 let reportedMissingConfiguration = false;
+
+class StripeEventPayloadMismatch extends Error {}
+
+async function claimStripeEvent(event: Stripe.Event, payloadSha256: string) {
+  try {
+    await prisma.stripeEvent.create({
+      data: { id: event.id, type: event.type, payloadSha256 },
+    });
+    return "claimed" as const;
+  } catch (error) {
+    if ((error as { code?: string })?.code !== "P2002") throw error;
+  }
+
+  const existing = await prisma.stripeEvent.findUnique({ where: { id: event.id } });
+  if (!existing) throw new Error("Evento Stripe desapareceu após conflito de chave.");
+  if (existing.payloadSha256 !== payloadSha256) {
+    throw new StripeEventPayloadMismatch("O mesmo id de evento chegou com outro payload.");
+  }
+  if (existing.status === "PROCESSED") return "processed" as const;
+
+  const staleBefore = new Date(Date.now() - 10 * 60 * 1000);
+  const claimed = await prisma.stripeEvent.updateMany({
+    where: {
+      id: event.id,
+      OR: [{ status: "FAILED" }, { status: "PROCESSING", updatedAt: { lt: staleBefore } }],
+    },
+    data: {
+      status: "PROCESSING",
+      attempts: { increment: 1 },
+      lastError: null,
+    },
+  });
+  return claimed.count === 1 ? ("claimed" as const) : ("processing" as const);
+}
+
+async function completeStripeEvent(eventId: string) {
+  await prisma.stripeEvent.updateMany({
+    where: { id: eventId, status: "PROCESSING" },
+    data: { status: "PROCESSED", processedAt: new Date(), lastError: null },
+  });
+}
+
+async function failStripeEvent(eventId: string, error: unknown) {
+  await prisma.stripeEvent.updateMany({
+    where: { id: eventId, status: "PROCESSING" },
+    data: {
+      status: "FAILED",
+      lastError: (error instanceof Error ? error.message : "Falha desconhecida.").slice(0, 2000),
+    },
+  });
+}
 
 /**
  * Webhook do Stripe. Segurança por ASSINATURA: o corpo CRU é validado com o
@@ -50,8 +103,9 @@ export async function POST(req: NextRequest) {
   }
 
   let event: Stripe.Event;
+  let raw: string;
   try {
-    const raw = await readTextBodyLimited(req, DEFAULT_MAX_REQUEST_BODY_BYTES);
+    raw = await readTextBodyLimited(req, DEFAULT_MAX_REQUEST_BODY_BYTES);
     event = cfg.client.webhooks.constructEvent(raw, sig, cfg.webhookSecret);
   } catch (err) {
     if (err instanceof RequestBodyTooLargeError) {
@@ -67,6 +121,30 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const payloadSha256 = createHash("sha256").update(raw).digest("hex");
+    const claim = await claimStripeEvent(event, payloadSha256);
+    if (claim === "processed") {
+      return NextResponse.json({ received: true, duplicate: true });
+    }
+    if (claim === "processing") {
+      // Força nova tentativa: responder 2xx aqui poderia deixar o evento preso
+      // se a primeira execução tivesse morrido depois do claim.
+      return NextResponse.json({ error: "evento em processamento" }, { status: 503 });
+    }
+  } catch (error) {
+    reportError(error, { operation: "stripe.webhook.claim", eventType: event.type });
+    return NextResponse.json(
+      { error: error instanceof StripeEventPayloadMismatch ? "evento divergente" : "falha ao registrar evento" },
+      { status: error instanceof StripeEventPayloadMismatch ? 409 : 500 }
+    );
+  }
+
+  const done = async (body: Record<string, unknown> = { received: true }, status = 200) => {
+    await completeStripeEvent(event.id);
+    return NextResponse.json(body, { status });
+  };
+
+  try {
     if (
       event.type === "refund.created" ||
       event.type === "refund.updated" ||
@@ -77,14 +155,25 @@ export async function POST(req: NextRequest) {
         typeof refund.payment_intent === "string"
           ? refund.payment_intent
           : (refund.payment_intent?.id ?? null);
-      await recordStripeRefund({
-        refundId: refund.id,
-        paymentIntentId,
-        status: refund.status,
-        amountCents: refund.amount,
-        error: refund.failure_reason ?? null,
-      });
-      return NextResponse.json({ received: true });
+      const returnId = refund.metadata?.returnId ?? null;
+      if (returnId) {
+        await recordStripeReturnRefund({
+          refundId: refund.id,
+          returnId,
+          status: refund.status,
+          amountCents: refund.amount,
+          error: refund.failure_reason ?? null,
+        });
+      } else {
+        await recordStripeRefund({
+          refundId: refund.id,
+          paymentIntentId,
+          status: refund.status,
+          amountCents: refund.amount,
+          error: refund.failure_reason ?? null,
+        });
+      }
+      return done();
     }
 
     let orderNumber: string | null = null;
@@ -102,7 +191,7 @@ export async function POST(req: NextRequest) {
     } else if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       if (session.payment_status !== "paid") {
-        return NextResponse.json({ received: true });
+        return done();
       }
       orderNumber = session.metadata?.orderNumber ?? null;
       paymentIntentId =
@@ -137,17 +226,17 @@ export async function POST(req: NextRequest) {
           ? "Sessão de pagamento expirada."
           : "Pagamento assíncrono recusado pelo Stripe.";
     } else {
-      return NextResponse.json({ received: true });
+      return done();
     }
 
-    if (!orderNumber) return NextResponse.json({ received: true });
+    if (!orderNumber) return done();
 
     const order = await prisma.order.findUnique({ where: { number: orderNumber } });
-    if (!order) return NextResponse.json({ received: true });
+    if (!order) return done();
 
     if (failureReason) {
       await failStripePayment(order.id, paymentIntentId, failureReason);
-      return NextResponse.json({ received: true });
+      return done();
     }
 
     // O valor pago precisa bater com o total do pedido. Sem esta trava, um
@@ -160,7 +249,7 @@ export async function POST(req: NextRequest) {
         operation: "stripe.webhook.invalid_order_total",
         eventType: event.type,
       });
-      return NextResponse.json({ error: "total do pedido inválido" }, { status: 500 });
+      throw new Error("Total autoritativo do pedido é inválido.");
     }
     if (paidCents !== expectedCents || currency?.toLowerCase() !== "brl") {
       reportError(new Error("Valor recebido diverge do total autoritativo."), {
@@ -170,7 +259,7 @@ export async function POST(req: NextRequest) {
         expectedCents: String(expectedCents),
         currency: currency ?? undefined,
       });
-      return NextResponse.json({ received: true, mismatch: true });
+      return done({ received: true, mismatch: true });
     }
 
     if (!paymentIntentId) {
@@ -178,11 +267,11 @@ export async function POST(req: NextRequest) {
         operation: "stripe.webhook.missing_payment_intent",
         eventType: event.type,
       });
-      return NextResponse.json({ error: "PaymentIntent ausente" }, { status: 500 });
+      throw new Error("Pagamento confirmado sem PaymentIntent.");
     }
     await confirmStripePayment(order.id, paymentIntentId);
 
-    return NextResponse.json({ received: true });
+    return done();
   } catch (err) {
     // Falha nossa (banco fora, estoque insuficiente): devolve 500 para o Stripe
     // RE-TENTAR — senão o cliente pagava e o pedido ficava preso em "pendente".
@@ -191,6 +280,11 @@ export async function POST(req: NextRequest) {
       operation: "stripe.webhook.process",
       eventType: event.type,
     });
+    try {
+      await failStripeEvent(event.id, err);
+    } catch (inboxError) {
+      reportError(inboxError, { operation: "stripe.webhook.mark_failed", eventType: event.type });
+    }
     return NextResponse.json({ error: "falha ao processar" }, { status: 500 });
   }
 }

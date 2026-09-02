@@ -59,7 +59,11 @@ describe("MFA", () => {
 
   it("falha se a cifra for adulterada", () => {
     const encrypted = encryptMfaSecret(generateMfaSecret());
-    expect(() => decryptMfaSecret(`${encrypted.slice(0, -1)}A`)).toThrow();
+    const parts = encrypted.split(".");
+    // Troca bits efetivos do ciphertext. Alterar só o último caractere base64url
+    // pode produzir os mesmos bytes quando ele contém apenas bits de padding.
+    parts[3] = `${parts[3][0] === "A" ? "B" : "A"}${parts[3].slice(1)}`;
+    expect(() => decryptMfaSecret(parts.join("."))).toThrow();
   });
 
   it("aceita chave e pepper anteriores durante rotação gradual", () => {

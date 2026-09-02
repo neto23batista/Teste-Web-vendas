@@ -76,8 +76,14 @@ export async function logAuditInTransaction(
  */
 export async function logAudit(input: AuditInput): Promise<void> {
   try {
-    const actor =
+    const resolvedActor =
       input.actor === undefined ? await getCurrentUser() : input.actor;
+    const actor: AuditActor | null = resolvedActor
+      ? {
+          id: resolvedActor.id ?? null,
+          email: resolvedActor.email ?? null,
+        }
+      : null;
     await writeAudit(prisma, input, actor);
   } catch (error) {
     reportError(error, { operation: "audit.write", action: input.action });

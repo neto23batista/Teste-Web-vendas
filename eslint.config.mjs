@@ -19,8 +19,6 @@ const eslintConfig = defineConfig([
     // Scripts Node (CommonJS) de utilidade/QA:
     "scripts/**",
     "prisma/seed.ts",
-    // Conector InovaFarma: Node puro, roda no PC da farmácia (fora do app Next)
-    "connector/**",
   ]),
 ]);
 

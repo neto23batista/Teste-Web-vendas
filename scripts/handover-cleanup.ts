@@ -64,7 +64,7 @@ async function main() {
       await tx.prescription.deleteMany();
       await tx.bankTransaction.deleteMany();
       await tx.payment.deleteMany();
-      await tx.order.deleteMany(); // OrderItem/OrderExport caem em cascata
+      await tx.order.deleteMany(); // OrderItem cai em cascata
       await tx.loyaltyTransaction.deleteMany();
       await tx.loyaltyAccount.deleteMany();
       await tx.cart.deleteMany(); // CartItem cai em cascata
@@ -72,7 +72,6 @@ async function main() {
       await tx.passwordResetToken.deleteMany();
       await tx.coupon.deleteMany();
       await tx.expense.deleteMany();
-      await tx.syncRun.deleteMany();
       await tx.courier.deleteMany();
       await tx.user.deleteMany();
 

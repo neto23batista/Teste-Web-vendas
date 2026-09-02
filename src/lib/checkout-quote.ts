@@ -64,7 +64,7 @@ export async function quoteCheckout(
   let couponUsageLimit: number | null = null;
   const couponRaw = input.coupon?.trim().slice(0, 50) || "";
   if (couponRaw) {
-    const coupon = await validateCoupon(couponRaw, subtotalCents);
+    const coupon = await validateCoupon(couponRaw, subtotalCents, input.userId);
     if ("error" in coupon) throw new Error(coupon.error);
     couponCode = coupon.code;
     couponDiscount = coupon.discount;
@@ -100,6 +100,9 @@ export async function quoteCheckout(
     getShippingConfig(input.pharmacyId),
     resolveKm(zip, input.pharmacyId),
   ]);
+  if (km === null) {
+    throw new Error("Ainda não entregamos neste CEP. Escolha outro endereço.");
+  }
   const couponDiscountCents = moneyToCents(couponDiscount) ?? 0;
   const shippingCents = shippingForCents(
     subtotalCents,

@@ -6,10 +6,26 @@ import { cn } from "@/lib/utils";
 import { ProductImage } from "@/components/store/product-image";
 import { StockAdjust } from "@/components/admin/stock-adjust";
 import { StockTransfer } from "@/components/admin/stock-transfer";
+import { UnitOfferEditor } from "@/components/admin/unit-offer-editor";
+import type { InventoryMovementKind } from "@prisma/client";
 
 export const metadata = { title: "Estoque" };
 
 type SP = Record<string, string | string[] | undefined>;
+
+const movementLabel: Record<InventoryMovementKind, string> = {
+  MANUAL_ADJUSTMENT: "Ajuste manual",
+  TRANSFER_IN: "Transferência recebida",
+  TRANSFER_OUT: "Transferência enviada",
+  SALE: "Venda",
+  CANCELLATION: "Cancelamento",
+  RETURN: "Devolução",
+  RECEIPT: "Recebimento",
+  LOSS: "Perda",
+  SYNC: "Sincronização",
+  RESERVATION: "Reserva",
+  RELEASE: "Liberação",
+};
 
 export default async function AdminStockPage({
   searchParams,
@@ -47,6 +63,20 @@ export default async function AdminStockPage({
     }
   }
   const showTransfer = canTransfer && units.length > 1;
+  const movements = unitId
+    ? await prisma.inventoryMovement.findMany({
+        where: { pharmacyId: unitId },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      })
+    : [];
+  const movementProducts = movements.length
+    ? await prisma.product.findMany({
+        where: { id: { in: [...new Set(movements.map((movement) => movement.productId))] } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const productNames = new Map(movementProducts.map((product) => [product.id, product.name]));
 
   return (
     <div className="space-y-6">
@@ -132,7 +162,18 @@ export default async function AdminStockPage({
                   </span>
                 </div>
                 {unitId && (
-                  <StockAdjust id={p.productId} pharmacyId={unitId} stock={p.stock} />
+                  <div className="space-y-3">
+                    <UnitOfferEditor
+                      productId={p.productId}
+                      pharmacyId={unitId}
+                      price={p.price}
+                      promoPrice={p.promoPrice}
+                      costPrice={p.costPrice}
+                      sku={p.sku}
+                      ean={p.ean}
+                    />
+                    <StockAdjust id={p.productId} pharmacyId={unitId} stock={p.stock} />
+                  </div>
                 )}
                 {showTransfer && unitId && (
                   <StockTransfer
@@ -154,6 +195,7 @@ export default async function AdminStockPage({
                 <th className="p-4 font-semibold">Produto</th>
                 <th className="p-4 font-semibold">Mínimo</th>
                 <th className="p-4 font-semibold">Situação</th>
+                <th className="p-4 font-semibold">Oferta da unidade</th>
                 <th className="p-4 text-right font-semibold">Estoque</th>
                 {showTransfer && (
                   <th className="p-4 font-semibold">Transferir</th>
@@ -190,6 +232,19 @@ export default async function AdminStockPage({
                         {out ? "Esgotado" : low ? "Baixo" : "Ok"}
                       </span>
                     </td>
+                    <td className="p-4 align-top">
+                      {unitId && (
+                        <UnitOfferEditor
+                          productId={p.productId}
+                          pharmacyId={unitId}
+                          price={p.price}
+                          promoPrice={p.promoPrice}
+                          costPrice={p.costPrice}
+                          sku={p.sku}
+                          ean={p.ean}
+                        />
+                      )}
+                    </td>
                     <td className="p-4">
                       <div className="flex justify-end">
                         {unitId && (
@@ -217,6 +272,67 @@ export default async function AdminStockPage({
           </div>
         </div>
       )}
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-bold">Movimentos recentes</h2>
+          <p className="text-sm text-muted-foreground">
+            Últimas 50 alterações com saldo anterior, saldo final, motivo e responsável.
+          </p>
+        </div>
+        {movements.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-sm text-muted-foreground">
+            Nenhum movimento auditado nesta unidade ainda.
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+            <table className="min-w-[760px] w-full text-sm">
+              <thead className="border-b border-border bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="p-3 font-semibold">Data</th>
+                  <th className="p-3 font-semibold">Produto</th>
+                  <th className="p-3 font-semibold">Operação</th>
+                  <th className="p-3 text-right font-semibold">Variação</th>
+                  <th className="p-3 text-right font-semibold">Saldo</th>
+                  <th className="p-3 font-semibold">Motivo / ator</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {movements.map((movement) => (
+                  <tr key={movement.id}>
+                    <td className="whitespace-nowrap p-3 text-muted-foreground">
+                      {movement.createdAt.toLocaleString("pt-BR")}
+                    </td>
+                    <td className="p-3 font-semibold">
+                      {productNames.get(movement.productId) ?? movement.productId}
+                    </td>
+                    <td className="p-3">{movementLabel[movement.kind]}</td>
+                    <td
+                      className={cn(
+                        "p-3 text-right font-bold",
+                        movement.delta > 0 ? "text-success-600" : "text-danger-500"
+                      )}
+                    >
+                      {movement.delta > 0 ? "+" : ""}{movement.delta}
+                    </td>
+                    <td className="whitespace-nowrap p-3 text-right">
+                      {movement.stockBefore} → {movement.stockAfter}
+                    </td>
+                    <td className="max-w-xs p-3">
+                      <p>{movement.reason}</p>
+                      {movement.actorEmail && (
+                        <p className="truncate text-xs text-muted-foreground">
+                          {movement.actorEmail}
+                        </p>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

@@ -46,9 +46,9 @@ describe("cepToInt", () => {
 });
 
 describe("resolvePharmacyByCep", () => {
-  it("cai na matriz quando o CEP é inválido/ausente", async () => {
+  it("recusa CEP inválido/ausente sem criar cobertura implícita", async () => {
     const r = await resolvePharmacyByCep(null);
-    expect(r?.id).toBe("m");
+    expect(r).toBeNull();
     expect(findFirst).not.toHaveBeenCalled();
   });
 
@@ -58,9 +58,9 @@ describe("resolvePharmacyByCep", () => {
     expect(r?.id).toBe("f");
   });
 
-  it("cai na matriz quando nenhuma faixa cobre o CEP", async () => {
+  it("recusa CEP que nenhuma faixa cobre", async () => {
     findFirst.mockResolvedValue(null);
     const r = await resolvePharmacyByCep("70000-000");
-    expect(r?.id).toBe("m");
+    expect(r).toBeNull();
   });
 });

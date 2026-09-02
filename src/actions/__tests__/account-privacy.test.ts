@@ -4,6 +4,15 @@ const mocks = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
   userUpdate: vi.fn(),
   recoveryDeleteMany: vi.fn(),
+  favoriteDeleteMany: vi.fn(),
+  subscriptionDeleteMany: vi.fn(),
+  addressDeleteMany: vi.fn(),
+  cartDeleteMany: vi.fn(),
+  prescriptionDeleteMany: vi.fn(),
+  passwordResetDeleteMany: vi.fn(),
+  reviewDeleteMany: vi.fn(),
+  loyaltyDeleteMany: vi.fn(),
+  auditUpdateMany: vi.fn(),
   transaction: vi.fn(),
   signOut: vi.fn(),
 }));
@@ -29,20 +38,21 @@ vi.mock("@/lib/prisma", () => ({
     user: { findUnique: mocks.userFindUnique, update: mocks.userUpdate },
     prescription: {
       findMany: vi.fn().mockResolvedValue([]),
-      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      deleteMany: mocks.prescriptionDeleteMany,
     },
     review: {
       findMany: vi.fn().mockResolvedValue([]),
-      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      deleteMany: mocks.reviewDeleteMany,
       aggregate: vi.fn(),
     },
-    favorite: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
-    subscription: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
-    address: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
-    cart: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
-    passwordResetToken: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    favorite: { deleteMany: mocks.favoriteDeleteMany },
+    subscription: { deleteMany: mocks.subscriptionDeleteMany },
+    address: { deleteMany: mocks.addressDeleteMany },
+    cart: { deleteMany: mocks.cartDeleteMany },
+    passwordResetToken: { deleteMany: mocks.passwordResetDeleteMany },
     mfaRecoveryCode: { deleteMany: mocks.recoveryDeleteMany },
-    loyaltyAccount: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    loyaltyAccount: { deleteMany: mocks.loyaltyDeleteMany },
+    auditLog: { updateMany: mocks.auditUpdateMany },
     product: { update: vi.fn() },
     $transaction: mocks.transaction,
   },
@@ -59,7 +69,34 @@ describe("anonimização da conta", () => {
     });
     mocks.userUpdate.mockResolvedValue({});
     mocks.recoveryDeleteMany.mockResolvedValue({ count: 2 });
-    mocks.transaction.mockResolvedValue([]);
+    for (const deletion of [
+      mocks.favoriteDeleteMany,
+      mocks.subscriptionDeleteMany,
+      mocks.addressDeleteMany,
+      mocks.cartDeleteMany,
+      mocks.prescriptionDeleteMany,
+      mocks.passwordResetDeleteMany,
+      mocks.reviewDeleteMany,
+      mocks.loyaltyDeleteMany,
+      mocks.auditUpdateMany,
+    ]) {
+      deletion.mockResolvedValue({ count: 0 });
+    }
+    mocks.transaction.mockImplementation(async (callback) =>
+      callback({
+        favorite: { deleteMany: mocks.favoriteDeleteMany },
+        subscription: { deleteMany: mocks.subscriptionDeleteMany },
+        address: { deleteMany: mocks.addressDeleteMany },
+        cart: { deleteMany: mocks.cartDeleteMany },
+        prescription: { deleteMany: mocks.prescriptionDeleteMany },
+        passwordResetToken: { deleteMany: mocks.passwordResetDeleteMany },
+        mfaRecoveryCode: { deleteMany: mocks.recoveryDeleteMany },
+        review: { deleteMany: mocks.reviewDeleteMany },
+        loyaltyAccount: { deleteMany: mocks.loyaltyDeleteMany },
+        auditLog: { updateMany: mocks.auditUpdateMany },
+        user: { update: mocks.userUpdate },
+      })
+    );
   });
 
   it("remove recovery codes, limpa MFA e revoga sessões sem apagar aceites", async () => {

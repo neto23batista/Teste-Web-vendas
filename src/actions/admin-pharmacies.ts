@@ -159,8 +159,6 @@ export async function archivePharmacy(id: string): Promise<PharmacyResult> {
       data: {
         active: false,
         archivedAt,
-        integrationTokenHash: null,
-        integrationTokenLastUsedAt: null,
       },
     });
   });
@@ -168,7 +166,7 @@ export async function archivePharmacy(id: string): Promise<PharmacyResult> {
     action: "pharmacy.archive",
     entity: "Pharmacy",
     entityId: id,
-    detail: `Arquivou a unidade "${ph.name}" e revogou seu token de integração`,
+    detail: `Arquivou a unidade "${ph.name}"`,
   });
   revalidatePharmacies();
   return { ok: true };

@@ -6,12 +6,22 @@ const orderUpdateMany = vi.fn();
 const txOrderFindUnique = vi.fn();
 const txOrderCreate = vi.fn();
 const inventoryUpdateMany = vi.fn();
+const inventoryFindUnique = vi.fn();
+const inventoryMovementCreate = vi.fn();
 const inventoryFindMany = vi.fn();
+const inventoryReservationCount = vi.fn();
+const inventoryReservationCreate = vi.fn();
+const inventoryReservationUpdateMany = vi.fn();
+const inventoryLotFindMany = vi.fn();
 const paymentUpdateMany = vi.fn();
 const loyaltyUpsert = vi.fn();
 const loyaltyUpdateMany = vi.fn();
 const loyaltyTxCreate = vi.fn();
 const couponUpdateMany = vi.fn();
+const couponFindUnique = vi.fn();
+const couponRedemptionCount = vi.fn();
+const couponRedemptionCreate = vi.fn();
+const queryRaw = vi.fn();
 
 const tx = {
   order: {
@@ -19,11 +29,21 @@ const tx = {
     create: txOrderCreate,
     updateMany: orderUpdateMany,
   },
-  inventory: { updateMany: inventoryUpdateMany },
+  inventory: { updateMany: inventoryUpdateMany, findUnique: inventoryFindUnique },
+  inventoryMovement: { create: inventoryMovementCreate },
+  inventoryReservation: {
+    count: inventoryReservationCount,
+    create: inventoryReservationCreate,
+    updateMany: inventoryReservationUpdateMany,
+  },
+  inventoryReservationLot: { create: vi.fn() },
+  inventoryLot: { findMany: inventoryLotFindMany, updateMany: vi.fn() },
   payment: { updateMany: paymentUpdateMany },
   loyaltyAccount: { upsert: loyaltyUpsert, updateMany: loyaltyUpdateMany },
   loyaltyTransaction: { create: loyaltyTxCreate },
-  coupon: { updateMany: couponUpdateMany },
+  coupon: { findUnique: couponFindUnique, updateMany: couponUpdateMany },
+  couponRedemption: { count: couponRedemptionCount, create: couponRedemptionCreate },
+  $queryRaw: queryRaw,
 };
 
 vi.mock("@/lib/prisma", () => ({
@@ -58,7 +78,7 @@ const pendingOrder = {
   shipping: 0,
   total: 80,
   paymentMethod: "card",
-  items: [{ productId: "p1", name: "Dipirona", price: 40, qty: 2 }],
+  items: [{ id: "oi1", productId: "p1", name: "Dipirona", price: 40, qty: 2 }],
 };
 
 const validCreateInput: CreateInput = {
@@ -97,20 +117,46 @@ beforeEach(() => {
   txOrderFindUnique.mockReset();
   txOrderCreate.mockReset();
   inventoryUpdateMany.mockReset();
+  inventoryFindUnique.mockReset();
+  inventoryMovementCreate.mockReset();
   inventoryFindMany.mockReset();
+  inventoryReservationCount.mockReset();
+  inventoryReservationCreate.mockReset();
+  inventoryReservationUpdateMany.mockReset();
+  inventoryLotFindMany.mockReset();
   paymentUpdateMany.mockReset();
   loyaltyUpsert.mockReset();
   loyaltyUpdateMany.mockReset();
   loyaltyTxCreate.mockReset();
   couponUpdateMany.mockReset();
+  couponFindUnique.mockReset();
+  couponRedemptionCount.mockReset();
+  couponRedemptionCreate.mockReset();
+  queryRaw.mockReset();
 
   orderFindUnique.mockResolvedValue(pendingOrder);
   inventoryUpdateMany.mockResolvedValue({ count: 1 });
+  inventoryFindUnique.mockResolvedValue({ id: "inv1", stock: 8 });
   inventoryFindMany.mockResolvedValue([]); // sem alerta de baixo estoque
+  inventoryReservationCount.mockResolvedValue(0); // pedido legado nos testes de fulfillment
+  inventoryReservationCreate.mockResolvedValue({ id: "res1" });
+  inventoryReservationUpdateMany.mockResolvedValue({ count: 1 });
+  inventoryLotFindMany.mockResolvedValue([]);
   paymentUpdateMany.mockResolvedValue({ count: 1 });
   loyaltyUpsert.mockResolvedValue({ id: "acc1" });
   loyaltyUpdateMany.mockResolvedValue({ count: 1 });
   couponUpdateMany.mockResolvedValue({ count: 1 });
+  couponFindUnique.mockResolvedValue({
+    id: "coupon1",
+    active: true,
+    minTotal: 0,
+    expiresAt: null,
+    usageLimit: 100,
+    usedCount: 0,
+    usageLimitPerCustomer: 1,
+  });
+  couponRedemptionCount.mockResolvedValue(0);
+  queryRaw.mockResolvedValue([]);
   txOrderFindUnique.mockResolvedValue(null);
   txOrderCreate.mockResolvedValue({
     ...pendingOrder,

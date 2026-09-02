@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 
   const now = Date.now();
   try {
-    const [resetTokens, guestCarts, syncRuns, paymentRaw, completedStorageTasks] =
+    const [resetTokens, guestCarts, paymentRaw, completedStorageTasks] =
       await prisma.$transaction([
         prisma.passwordResetToken.deleteMany({
           where: { expiresAt: { lt: new Date(now) } },
@@ -32,9 +32,6 @@ export async function GET(request: Request) {
             userId: null,
             updatedAt: { lt: new Date(now - 30 * DAY) },
           },
-        }),
-        prisma.syncRun.deleteMany({
-          where: { createdAt: { lt: new Date(now - 90 * DAY) } },
         }),
         prisma.payment.updateMany({
           where: {
@@ -59,7 +56,6 @@ export async function GET(request: Request) {
         removed: {
           expiredResetTokens: resetTokens.count,
           abandonedGuestCarts: guestCarts.count,
-          oldSyncRuns: syncRuns.count,
           minimizedPaymentPayloads: paymentRaw.count,
           storageObjects: storageDeletions.completed,
           completedStorageTasks: completedStorageTasks.count,

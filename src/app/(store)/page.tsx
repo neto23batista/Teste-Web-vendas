@@ -22,6 +22,16 @@ import {
 import { getShippingConfig, getStoreSettings } from "@/lib/settings";
 import { getSelectedPharmacyId } from "@/lib/pharmacy";
 import { jsonLdScript } from "@/lib/utils";
+import type { Metadata } from "next";
+
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "FarmaVida";
+
+export const metadata: Metadata = {
+  title: { absolute: `${APP_NAME} — Farmácia online` },
+  description:
+    "Medicamentos isentos de prescrição, dermocosméticos, vitaminas e cuidados diários com estoque e entrega conforme a unidade selecionada.",
+  alternates: { canonical: "/" },
+};
 
 const benefits = [
   { icon: Truck, title: "Acompanhamento do pedido", text: "Consulte o andamento na sua conta." },
@@ -68,7 +78,10 @@ export default async function HomePage() {
         dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       {/* HERO */}
-      <HomeHero />
+      <HomeHero
+        storeName={store.legalName || APP_NAME}
+        freeShippingMin={shipping.freeMin}
+      />
 
       {/* BANNERS PROMOCIONAIS */}
       <PromoCarousel freeShippingMin={shipping.freeMin} />

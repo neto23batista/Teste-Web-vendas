@@ -114,6 +114,9 @@ export async function getPurchaseSuggestions(selectedUnitId?: string | null) {
       stock: true,
       minStock: true,
       maxStock: true,
+      costPrice: true,
+      sku: true,
+      ean: true,
       product: {
         select: {
           id: true,
@@ -135,11 +138,13 @@ export async function getPurchaseSuggestions(selectedUnitId?: string | null) {
       productId: iv.product.id,
       name: iv.product.name,
       emoji: iv.product.emoji,
-      sku: iv.product.sku,
-      ean: iv.product.ean,
+      sku: iv.sku ?? iv.product.sku,
+      ean: iv.ean ?? iv.product.ean,
       category: iv.product.category.name,
       costPrice:
-        iv.product.costPrice == null ? null : moneyToNumber(iv.product.costPrice),
+        (iv.costPrice ?? iv.product.costPrice) == null
+          ? null
+          : moneyToNumber(iv.costPrice ?? iv.product.costPrice!),
       stock: iv.stock,
       minStock: iv.minStock,
       maxStock: iv.maxStock,

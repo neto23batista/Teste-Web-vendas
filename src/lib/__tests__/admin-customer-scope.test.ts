@@ -156,10 +156,20 @@ describe("escopo de clientes por filial", () => {
       isGlobal: true,
       pharmacyId: "matriz-1",
     });
-    const legacy = { id: "pedido-legado", pharmacyId: null };
+    const legacy = {
+      id: "pedido-legado",
+      pharmacyId: null,
+      subtotal: 0,
+      discount: 0,
+      shipping: 0,
+      total: 0,
+      items: [],
+      returnRequests: [],
+      payment: null,
+    };
     mocks.orderFindUnique.mockResolvedValue(legacy);
 
-    await expect(getAdminOrder("pedido-legado")).resolves.toBe(legacy);
+    await expect(getAdminOrder("pedido-legado")).resolves.toEqual(legacy);
   });
 });
 

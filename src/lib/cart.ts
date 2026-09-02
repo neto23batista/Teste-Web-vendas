@@ -24,7 +24,7 @@ function cartItemSelect(pharmacyId: string | null) {
         promoPrice: true,
         inventory: {
           where: pharmacyId ? { pharmacyId } : undefined,
-          select: { stock: true },
+          select: { stock: true, price: true, promoPrice: true },
         },
         images: {
           select: { url: true },
@@ -60,14 +60,16 @@ export type CartView = {
 function toItemView(row: CartItemRow): CartItemView {
   const { inventory, ...product } = row.product;
   const stock = inventory.reduce((sum, i) => sum + i.stock, 0);
+  const unitOffer = inventory.length === 1 ? inventory[0] : null;
+  const effectivePrice = unitOffer?.price ?? product.price;
+  const effectivePromo = unitOffer?.promoPrice ?? product.promoPrice;
   return {
     id: row.id,
     qty: row.qty,
     product: {
       ...product,
-      price: moneyToNumber(product.price),
-      promoPrice:
-        product.promoPrice == null ? null : moneyToNumber(product.promoPrice),
+      price: moneyToNumber(effectivePrice),
+      promoPrice: effectivePromo == null ? null : moneyToNumber(effectivePromo),
       stock,
     },
   };

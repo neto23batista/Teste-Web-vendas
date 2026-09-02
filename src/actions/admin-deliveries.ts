@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { assertArea, requireAdminAtPharmacy } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import { markOrderDelivered, transitionOrderStatus } from "@/lib/orders";
+import type { DeliveryProofMethod } from "@prisma/client";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 
@@ -99,12 +100,35 @@ export async function dispatchOrder(
 
 /** Confirma a entrega (status DELIVERED + carimbo de hora). */
 export async function markDelivered(
-  orderId: string
+  orderId: string,
+  proof: {
+    method: DeliveryProofMethod;
+    recipientName: string;
+    recipientDocumentLast4?: string;
+    notes?: string;
+  }
 ): Promise<{ ok: boolean; error?: string }> {
-  await assertArea("entregas");
+  const actor = await assertArea("entregas");
+  const recipientName = proof.recipientName.trim().slice(0, 160);
+  const documentLast4 = proof.recipientDocumentLast4?.replace(/\D/g, "") || null;
+  const notes = proof.notes?.trim().slice(0, 1000) || null;
+  if (!(["RECIPIENT", "CONCIERGE", "SAFE_PLACE", "PICKUP"] as string[]).includes(proof.method)) {
+    return { ok: false, error: "Forma de comprovação inválida." };
+  }
+  if (recipientName.length < 2) {
+    return { ok: false, error: "Informe quem recebeu o pedido." };
+  }
+  if (documentLast4 && documentLast4.length !== 4) {
+    return { ok: false, error: "Informe somente os 4 últimos dígitos do documento." };
+  }
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { status: true, number: true, pharmacyId: true },
+    select: {
+      status: true,
+      number: true,
+      pharmacyId: true,
+      courier: { select: { name: true } },
+    },
   });
   if (!order) return { ok: false, error: "Pedido não encontrado." };
   await requireAdminAtPharmacy(order.pharmacyId);
@@ -112,14 +136,24 @@ export async function markDelivered(
     return { ok: false, error: "Só um pedido que saiu para entrega pode ser concluído." };
   }
 
-  if (!(await markOrderDelivered(orderId))) {
+  if (
+    !(await markOrderDelivered(orderId, {
+      method: proof.method,
+      recipientName,
+      recipientDocumentLast4: documentLast4,
+      notes,
+      courierName: order.courier?.name ?? null,
+      confirmedById: actor.id ?? null,
+      confirmedByEmail: actor.email ?? null,
+    }))
+  ) {
     return { ok: false, error: "O pedido mudou em outra operação. Atualize a página." };
   }
   await logAudit({
     action: "delivery.done",
     entity: "Order",
     entityId: orderId,
-    detail: `Pedido ${order.number} entregue`,
+    detail: `Pedido ${order.number} entregue a ${recipientName} com comprovante ${proof.method}`,
     pharmacyId: order.pharmacyId,
   });
   revalidatePath("/admin/entregas");

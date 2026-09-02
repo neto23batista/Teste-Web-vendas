@@ -2,10 +2,21 @@ import { prisma } from "@/lib/prisma";
 import { moneyToNumber } from "@/lib/money";
 
 export async function getUserOrders(userId: string, take?: number) {
+  const now = Date.now();
   const orders = await prisma.order.findMany({
     where: { userId },
     include: {
       items: { include: { product: { select: { emoji: true, slug: true } } } },
+      returnRequests: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          id: true,
+          status: true,
+          requestedAt: true,
+          approvedAmount: true,
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
     take,
@@ -16,9 +27,18 @@ export async function getUserOrders(userId: string, take?: number) {
     discount: moneyToNumber(order.discount),
     shipping: moneyToNumber(order.shipping),
     total: moneyToNumber(order.total),
+    canRequestReturn:
+      order.status === "DELIVERED" &&
+      order.deliveredAt !== null &&
+      now <= order.deliveredAt.getTime() + 7 * 86_400_000,
     items: order.items.map((item) => ({
       ...item,
       price: moneyToNumber(item.price),
+    })),
+    returnRequests: order.returnRequests.map((request) => ({
+      ...request,
+      approvedAmount:
+        request.approvedAmount == null ? null : moneyToNumber(request.approvedAmount),
     })),
   }));
 }

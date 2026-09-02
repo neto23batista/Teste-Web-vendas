@@ -17,7 +17,7 @@ cada exercício a data, responsável, ambiente, evidências e tempo de recupera�
    ambiente de restauração.
 
 Antes de qualquer restauração real, pause checkout, webhooks mutáveis, cron de
-assinaturas e integração de catálogo. Preserve logs e confirme o ponto exato de
+assinaturas e atualização de catálogo. Preserve logs e confirme o ponto exato de
 recuperação com engenharia, financeiro e operação.
 
 ## Handover destrutivo
@@ -86,6 +86,11 @@ acesso restrito.
   crescente. Reprocessamento deve manter idempotência.
 - Compare diariamente pedidos pagos/reembolsados com o relatório do provedor e
   investigue divergências antes do fechamento.
+- O agendador chama `/api/cron/payments` a cada 10 minutos. Ele reconcilia
+  PaymentIntents, Checkout Sessions, reembolsos e devoluções e somente depois
+  cancela reservas de estoque vencidas. Monitore ausência de execução, `401`,
+  `503`, crescimento de `reconciliationAttempts` e mensagens em
+  `reconciliationError`.
 - Em reembolso, confirme o resultado do provedor antes do estado final local.
   Estados pendente e falho devem permanecer visíveis para nova tentativa segura.
 - Nunca altere manualmente banco, pontos, cupom ou estoque sem ticket, aprovação,
@@ -96,15 +101,16 @@ acesso restrito.
 - `/api/health` mede somente liveness do processo HTTP. Use-o para decidir se a
   instância precisa ser reiniciada; ele não consulta banco nem outros provedores.
 - `/api/ready` mede PostgreSQL e confirma que
-  `20260822036000_operational_integrity` é a última migration concluída, sem
+  `20260901000600_payment_reconciliation` é a última migration concluída, sem
   migration interrompida. Um `503` deve retirar a instância do tráfego e gerar
   alerta, não reinício automático indiscriminado. A resposta externa é opaca;
   consulte os logs protegidos para o diagnóstico.
 - O agendador chama `/api/cron/retention` diariamente com
   `Authorization: Bearer <CRON_SECRET>`. A rotina idempotente apaga tokens de
   redefinição expirados e carrinhos anônimos abandonados há 30 dias, remove
-  execuções de sincronização antigas e minimiza payloads terminais de pagamento
-  depois de 90 dias. Monitore `401`, `503` e ausência de execução no horário.
+  tarefas de armazenamento já concluídas e minimiza payloads terminais de
+  pagamento depois de 90 dias. Monitore `401`, `503` e ausência de execução no
+  horário.
 - Pedidos, trilha de auditoria, documentos de saúde e demais evidências não
   entram nessa limpeza genérica. A retenção deles exige matriz legal aprovada,
   legal hold e procedimento específico antes de qualquer descarte.
