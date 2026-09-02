@@ -8,16 +8,18 @@ import path from "path";
  *  - "local" (default): disco FORA de `public/` (não servido estaticamente).
  *    Bom p/ VPS/Docker com volume persistente; NÃO use em serverless (FS efêmero).
  *  - "s3": S3 ou compatível (Cloudflare R2, MinIO, DO Spaces) via `S3_*`.
+ *  - "disabled": nenhum upload/download privado. Útil somente quando o canal
+ *    não recebe arquivos e não há acervo legado a servir ou excluir.
  *
  * Interface estável (putObject/getObject) — o resto do app não conhece o driver.
  * As chaves são aleatórias (ver uploads.ts) e o driver local bloqueia path traversal.
  */
-type StorageDriver = "local" | "s3";
+type StorageDriver = "local" | "s3" | "disabled";
 
 function storageDriver(): StorageDriver {
   const configured = process.env.STORAGE_DRIVER?.trim().toLowerCase();
-  if (configured && configured !== "local" && configured !== "s3") {
-    throw new Error("STORAGE_DRIVER deve ser 'local' ou 's3'");
+  if (configured && !["local", "s3", "disabled"].includes(configured)) {
+    throw new Error("STORAGE_DRIVER deve ser 'local', 's3' ou 'disabled'");
   }
   const live =
     process.env.VERCEL_ENV === "production" ||
@@ -170,14 +172,20 @@ async function s3Delete(key: string): Promise<void> {
 
 // ───────────────────────── Interface pública ─────────────────────────
 export async function putObject(key: string, data: Buffer): Promise<void> {
-  return storageDriver() === "s3" ? s3Put(key, data) : localPut(key, data);
+  const driver = storageDriver();
+  if (driver === "disabled") throw new Error("Armazenamento privado desativado");
+  return driver === "s3" ? s3Put(key, data) : localPut(key, data);
 }
 
 export async function getObject(key: string): Promise<Buffer> {
-  return storageDriver() === "s3" ? s3Get(key) : localGet(key);
+  const driver = storageDriver();
+  if (driver === "disabled") throw new Error("Armazenamento privado desativado");
+  return driver === "s3" ? s3Get(key) : localGet(key);
 }
 
 /** Exclusão idempotente: objeto ausente já satisfaz o resultado desejado. */
 export async function deleteObject(key: string): Promise<void> {
-  return storageDriver() === "s3" ? s3Delete(key) : localDelete(key);
+  const driver = storageDriver();
+  if (driver === "disabled") throw new Error("Armazenamento privado desativado");
+  return driver === "s3" ? s3Delete(key) : localDelete(key);
 }

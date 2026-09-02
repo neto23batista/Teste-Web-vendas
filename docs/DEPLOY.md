@@ -16,6 +16,8 @@ Obrigatórias para o boot:
 | `MFA_RECOVERY_PEPPER` | segredo exclusivo usado no HMAC dos recovery codes |
 | `APP_ENV=production` | identifica produção em hospedagem própria; a Vercel usa `VERCEL_ENV` |
 | `STORAGE_DRIVER` + storage privado | `s3` + `S3_BUCKET` na Vercel; `local` exige `UPLOAD_DIR` em volume persistente self-hosted |
+| `PAYMENTS_ENABLED` | `false` até a homologação; `true` exige os dois segredos Stripe |
+| `EMAIL_ENABLED` | `false` sem provedor; `true` exige `RESEND_API_KEY` + `MAIL_FROM` |
 
 Necessárias conforme os recursos habilitados:
 
@@ -33,6 +35,13 @@ O `vercel.json` usa frequências diárias compatíveis com o plano Hobby. Para
 reconciliar pagamentos a cada 10 minutos, migre o projeto para o plano Pro e
 altere somente a expressão do cron `/api/cron/payments`; webhooks continuam
 sendo a confirmação financeira imediata em todos os planos.
+
+Desativação é explícita, não simulada: com `PAYMENTS_ENABLED=false`, o checkout
+oferece somente dinheiro na entrega e o webhook Stripe responde indisponível;
+com `EMAIL_ENABLED=false`, nenhum e-mail é alegado como enviado. Para uma loja
+MIP-only sem acervo legado, `STORAGE_DRIVER=disabled` faz operações de arquivo
+falharem fechado. Não use esse modo se ainda houver receitas antigas a consultar
+ou excluir; nesse caso configure S3 antes do deploy.
 
 O papel/usuário do bucket precisa permitir `s3:ListBucketVersions`,
 `s3:DeleteObject` e `s3:DeleteObjectVersion` (além das permissões de leitura e

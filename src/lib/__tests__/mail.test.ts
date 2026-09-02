@@ -25,6 +25,24 @@ describe("mail", () => {
     expect(String(info.mock.calls[0]?.[0])).not.toContain("segredo");
   });
 
+  it("não envia quando o e-mail está explicitamente desativado", async () => {
+    vi.stubEnv("EMAIL_ENABLED", "false");
+    vi.stubEnv("RESEND_API_KEY", "re_secret_value");
+    vi.stubEnv("MAIL_FROM", "Loja <noreply@example.test>");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "info").mockImplementation(() => {});
+
+    expect(
+      await sendMail({
+        to: "pessoa@example.com",
+        subject: "Assunto",
+        html: "Mensagem privada",
+      })
+    ).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("limita a espera e não copia o corpo de erro do provedor para logs", async () => {
     vi.stubEnv("RESEND_API_KEY", "re_secret_value");
     vi.stubEnv("MAIL_FROM", "Loja <noreply@example.test>");

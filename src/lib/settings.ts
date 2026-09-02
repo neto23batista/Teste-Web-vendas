@@ -113,8 +113,14 @@ export async function getPaymentSettings(): Promise<PaymentSettings> {
   const s = await getRawSettings().catch(
     () => ({}) as Record<string, string>
   );
-  const secretKey = process.env.STRIPE_SECRET_KEY?.trim() || "";
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim() || "";
+  // Flag explícita permite publicar a operação em dinheiro enquanto a
+  // integração financeira ainda não foi homologada. Mesmo que sobrem segredos
+  // no ambiente, false mantém checkout e webhook Stripe desativados.
+  const enabled = process.env.PAYMENTS_ENABLED?.trim().toLowerCase() !== "false";
+  const secretKey = enabled ? process.env.STRIPE_SECRET_KEY?.trim() || "" : "";
+  const webhookSecret = enabled
+    ? process.env.STRIPE_WEBHOOK_SECRET?.trim() || ""
+    : "";
   return {
     stripeSecretKey: secretKey,
     stripeWebhookSecret: webhookSecret,

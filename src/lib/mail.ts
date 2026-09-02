@@ -18,7 +18,8 @@ type MailInput = {
 };
 
 export function mailConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM);
+  const enabled = process.env.EMAIL_ENABLED?.trim().toLowerCase() !== "false";
+  return Boolean(enabled && process.env.RESEND_API_KEY && process.env.MAIL_FROM);
 }
 
 /** URL base da aplicação (sem barra final), para montar links em e-mails. */

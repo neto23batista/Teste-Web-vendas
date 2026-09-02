@@ -22,6 +22,15 @@ function isStrongRuntimeSecret(value: string | undefined): value is string {
   );
 }
 
+function explicitFeatureFlag(name: string, errors: string[]): boolean | null {
+  const value = process.env[name]?.trim().toLowerCase();
+  if (value !== "true" && value !== "false") {
+    errors.push(`${name} deve ser definido explicitamente como true ou false`);
+    return null;
+  }
+  return value === "true";
+}
+
 function hasValidDurableRateLimit(errors: string[]): boolean {
   const restPairs: Array<[string | undefined, string | undefined, string]> = [
     [
@@ -135,14 +144,18 @@ export function assertEnv(): void {
         errors.push("AUTH_URL deve ser uma URL https:// válida");
       }
     }
-    if (!/^sk_(?:test|live)_\S{16,}$/.test(process.env.STRIPE_SECRET_KEY ?? "")) {
-      errors.push("STRIPE_SECRET_KEY é obrigatória no secret manager do ambiente");
+    const paymentsEnabled = explicitFeatureFlag("PAYMENTS_ENABLED", errors);
+    if (paymentsEnabled) {
+      if (!/^sk_(?:test|live)_\S{16,}$/.test(process.env.STRIPE_SECRET_KEY ?? "")) {
+        errors.push("STRIPE_SECRET_KEY é obrigatória com PAYMENTS_ENABLED=true");
+      }
+      if (!/^whsec_\S{16,}$/.test(process.env.STRIPE_WEBHOOK_SECRET ?? "")) {
+        errors.push("STRIPE_WEBHOOK_SECRET é obrigatória com PAYMENTS_ENABLED=true");
+      }
     }
-    if (!/^whsec_\S{16,}$/.test(process.env.STRIPE_WEBHOOK_SECRET ?? "")) {
-      errors.push("STRIPE_WEBHOOK_SECRET é obrigatória no secret manager do ambiente");
-    }
-    if (!process.env.RESEND_API_KEY || !process.env.MAIL_FROM) {
-      errors.push("RESEND_API_KEY e MAIL_FROM são obrigatórios");
+    const emailEnabled = explicitFeatureFlag("EMAIL_ENABLED", errors);
+    if (emailEnabled && (!process.env.RESEND_API_KEY || !process.env.MAIL_FROM)) {
+      errors.push("RESEND_API_KEY e MAIL_FROM são obrigatórios com EMAIL_ENABLED=true");
     }
     hasValidDurableRateLimit(errors);
     if (
@@ -154,8 +167,10 @@ export function assertEnv(): void {
       errors.push("CRON_SECRET deve ser aleatório e ter ao menos 32 caracteres");
     }
     const storageDriver = process.env.STORAGE_DRIVER?.trim().toLowerCase();
-    if (storageDriver !== "s3" && storageDriver !== "local") {
-      errors.push("STORAGE_DRIVER deve ser definido explicitamente como s3 ou local");
+    if (!storageDriver || !["s3", "local", "disabled"].includes(storageDriver)) {
+      errors.push(
+        "STORAGE_DRIVER deve ser definido explicitamente como s3, local ou disabled"
+      );
     } else if (storageDriver === "local") {
       if (process.env.VERCEL_ENV === "production") {
         errors.push("STORAGE_DRIVER=local não é permitido na Vercel (filesystem efêmero)");
@@ -163,7 +178,7 @@ export function assertEnv(): void {
       if (!process.env.UPLOAD_DIR?.trim()) {
         errors.push("UPLOAD_DIR persistente é obrigatório com STORAGE_DRIVER=local");
       }
-    } else {
+    } else if (storageDriver === "s3") {
       if (!process.env.S3_BUCKET?.trim()) {
         errors.push("S3_BUCKET é obrigatório com STORAGE_DRIVER=s3");
       }

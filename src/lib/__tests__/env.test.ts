@@ -50,8 +50,10 @@ describe("assertEnv", () => {
     vi.stubEnv("MFA_ENCRYPTION_KEY", validMfaEncryption);
     vi.stubEnv("MFA_RECOVERY_PEPPER", validMfaPepper);
     vi.stubEnv("NEXT_PUBLIC_BASE_URL", "https://loja.example.test");
+    vi.stubEnv("PAYMENTS_ENABLED", "true");
     vi.stubEnv("STRIPE_SECRET_KEY", `sk_live_${"a".repeat(24)}`);
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", `whsec_${"b".repeat(24)}`);
+    vi.stubEnv("EMAIL_ENABLED", "true");
     vi.stubEnv("RESEND_API_KEY", "re_test_value");
     vi.stubEnv("MAIL_FROM", "Loja <noreply@example.test>");
     vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://redis.example.test");
@@ -59,6 +61,25 @@ describe("assertEnv", () => {
     vi.stubEnv("CRON_SECRET", validSecret);
     vi.stubEnv("STORAGE_DRIVER", "s3");
     vi.stubEnv("S3_BUCKET", "private-prescriptions");
+    expect(() => assertEnv()).not.toThrow();
+  });
+
+  it("aceita integrações externas explicitamente desativadas", () => {
+    vi.stubEnv("APP_ENV", "production");
+    vi.stubEnv(
+      "DATABASE_URL",
+      "postgresql://user:pass@db.example.test/store?sslmode=require"
+    );
+    vi.stubEnv("AUTH_SECRET", validSecret);
+    vi.stubEnv("MFA_ENCRYPTION_KEY", validMfaEncryption);
+    vi.stubEnv("MFA_RECOVERY_PEPPER", validMfaPepper);
+    vi.stubEnv("NEXT_PUBLIC_BASE_URL", "https://loja.example.test");
+    vi.stubEnv("PAYMENTS_ENABLED", "false");
+    vi.stubEnv("EMAIL_ENABLED", "false");
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://redis.example.test");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "redis-token-with-entropy-123");
+    vi.stubEnv("CRON_SECRET", validSecret);
+    vi.stubEnv("STORAGE_DRIVER", "disabled");
     expect(() => assertEnv()).not.toThrow();
   });
 
@@ -94,8 +115,10 @@ describe("assertEnv", () => {
       vi.stubEnv("MFA_ENCRYPTION_KEY", validMfaEncryption);
       vi.stubEnv("MFA_RECOVERY_PEPPER", validMfaPepper);
       vi.stubEnv("NEXT_PUBLIC_BASE_URL", "https://loja.example.test");
+      vi.stubEnv("PAYMENTS_ENABLED", "true");
       vi.stubEnv("STRIPE_SECRET_KEY", `sk_live_${"a".repeat(24)}`);
       vi.stubEnv("STRIPE_WEBHOOK_SECRET", `whsec_${"b".repeat(24)}`);
+      vi.stubEnv("EMAIL_ENABLED", "true");
       vi.stubEnv("RESEND_API_KEY", "re_test_value");
       vi.stubEnv("MAIL_FROM", "Loja <noreply@example.test>");
       vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
