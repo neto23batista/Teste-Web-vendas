@@ -21,7 +21,7 @@ import {
 const trust = [
   { icon: ShieldCheck, label: "Controles de acesso" },
   { icon: Stethoscope, label: "Dados regulatórios publicados" },
-  { icon: CreditCard, label: "Pagamento via Stripe" },
+  { icon: CreditCard, label: "Formas informadas no checkout" },
   { icon: Truck, label: "Entrega rápida" },
 ];
 

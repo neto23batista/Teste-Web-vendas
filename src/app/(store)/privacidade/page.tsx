@@ -22,7 +22,7 @@ const sections = [
   },
   {
     h: "4. Compartilhamento",
-    p: "Não vendemos dados pessoais. Compartilhamos o necessário com a Stripe para pagamento e prevenção a fraude; operadores de entrega; ViaCEP quando a consulta de CEP é usada; e fornecedores de hospedagem, banco de dados, armazenamento, e-mail, monitoramento, métricas e suporte. O cartão é informado na página hospedada da Stripe; a loja conserva identificadores, valores e estados da transação, não o número completo. Dados também podem ser apresentados a autoridades quando houver dever legal.",
+    p: "Não vendemos dados pessoais. Compartilhamos o necessário com operadores de entrega; ViaCEP quando a consulta de CEP é usada; e fornecedores de hospedagem, banco de dados, armazenamento, e-mail, monitoramento, métricas e suporte. Quando o pagamento online estiver habilitado, os dados estritamente necessários também serão tratados pelo provedor financeiro para processar a transação e prevenir fraude; a loja não armazenará o número completo do cartão. Dados também podem ser apresentados a autoridades quando houver dever legal.",
   },
   {
     h: "5. Retenção e eliminação",

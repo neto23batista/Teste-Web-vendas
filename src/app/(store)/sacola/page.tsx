@@ -141,7 +141,7 @@ export default async function CartPage() {
               </Link>
             </Button>
             <p className="text-center text-xs text-muted-foreground">
-              Pagamento online processado pelo provedor, sem armazenar o número completo do cartão
+              A forma de pagamento disponível será confirmada no checkout
             </p>
           </div>
         </aside>

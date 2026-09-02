@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 
 const benefits = [
   { icon: Truck, title: "Acompanhamento do pedido", text: "Consulte o andamento na sua conta." },
-  { icon: ShieldCheck, title: "Controles de segurança", text: "Pagamento processado por provedor especializado e acesso protegido em camadas." },
+  { icon: ShieldCheck, title: "Controles de segurança", text: "Acesso protegido em camadas e confirmação clara antes do pedido." },
   { icon: Stethoscope, title: "Somente venda livre", text: "O canal não vende medicamentos sujeitos a prescrição." },
   { icon: Clock, title: "Atendimento transparente", text: "Canais e horários ficam publicados no rodapé." },
 ];

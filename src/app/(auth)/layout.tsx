@@ -30,7 +30,7 @@ export default function AuthLayout({
           <ul className="space-y-3 text-white/85">
             {[
               { icon: Truck, t: "Modalidades e custos informados no checkout" },
-              { icon: ShieldCheck, t: "Pagamento processado por provedor especializado" },
+              { icon: ShieldCheck, t: "Formas de pagamento informadas no checkout" },
               { icon: Stethoscope, t: "Canais de atendimento nos horários publicados" },
             ].map(({ icon: Icon, t }) => (
               <li key={t} className="flex items-center gap-3">

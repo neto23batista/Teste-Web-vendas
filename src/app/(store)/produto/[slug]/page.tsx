@@ -271,7 +271,7 @@ export default async function ProductPage({
           <div className="grid grid-cols-3 gap-3">
             {[
               { icon: Truck, label: "Entrega rápida" },
-              { icon: ShieldCheck, label: "Pagamento via provedor" },
+              { icon: ShieldCheck, label: "Formas no checkout" },
               { icon: RefreshCw, label: "Política de troca publicada" },
             ].map(({ icon: Icon, label }) => (
               <RevealItem
