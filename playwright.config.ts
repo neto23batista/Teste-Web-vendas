@@ -43,7 +43,9 @@ export default defineConfig({
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
   workers: 1,
-  reporter: [["list"]],
+  // No Actions, além do log textual, publica cada falha como anotação do job.
+  // Assim o diagnóstico continua acessível mesmo sem baixar o artefato de trace.
+  reporter: isCI ? [["github"], ["list"]] : [["list"]],
   timeout: 60_000,
   expect: { timeout: 15_000 },
   use: {
