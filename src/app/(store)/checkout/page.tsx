@@ -2,10 +2,10 @@ import { randomUUID } from "crypto";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireUserPage } from "@/lib/session";
-import { getCart } from "@/lib/cart";
+import { requireUserPage } from "@/lib/auth/session";
+import { getCart } from "@/lib/commerce/cart";
 import { getShippingConfig, getPaymentSettings, resolveKm } from "@/lib/settings";
-import { paymentAvailability } from "@/lib/payment-methods";
+import { paymentAvailability } from "@/lib/payments/methods";
 import { CheckoutForm } from "@/components/store/checkout-form";
 import { isValidCpf } from "@/lib/cpf";
 

@@ -1,5 +1,5 @@
 import { getStoreSettings, getPaymentSettings } from "@/lib/settings";
-import { getAdminScope, getCurrentUser } from "@/lib/session";
+import { getAdminScope, getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { SettingsForm } from "@/components/admin/settings-form";
 import { PharmaciesManager } from "@/components/admin/pharmacies-manager";

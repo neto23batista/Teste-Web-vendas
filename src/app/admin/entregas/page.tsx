@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Truck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { requireArea } from "@/lib/session";
+import { requireArea } from "@/lib/auth/session";
 import { resolveUnitFilter } from "@/lib/admin";
 import { listPharmaciesSafe } from "@/lib/pharmacy";
 import { AutoRefresh } from "@/components/auto-refresh";

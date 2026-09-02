@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { assertArea } from "@/lib/session";
+import { assertArea } from "@/lib/auth/session";
 import { resolveUnitFilter } from "@/lib/admin";
 
 export const runtime = "nodejs";

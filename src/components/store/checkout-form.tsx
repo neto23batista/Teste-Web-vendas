@@ -2,65 +2,26 @@
 
 import * as React from "react";
 import { useActionState } from "react";
-import {
-  AlertCircle,
-  Loader2,
-  MapPin,
-  Plus,
-  QrCode,
-  CreditCard,
-  Wallet,
-  ShieldCheck,
-  Gift,
-  MessageSquareText,
-  Truck,
-  Zap,
-} from "lucide-react";
+import { AlertCircle, MessageSquareText } from "lucide-react";
 import { toast } from "sonner";
-import { placeOrder, previewCheckoutQuote } from "@/actions/checkout";
-import { Button } from "@/components/ui/button";
-import { Input, Field } from "@/components/ui/input";
-import { maxRedeemablePoints, pointsToBRL } from "@/lib/loyalty";
+import { placeOrder } from "@/actions/store/checkout";
+import { useCheckoutQuote } from "@/hooks/use-checkout-quote";
+import { maxRedeemablePoints, pointsToBRL } from "@/lib/commerce/loyalty";
 import {
   deliveryOptions,
   DEFAULT_SHIPPING_CONFIG,
-  type ShippingConfig,
   type DeliveryMethod,
-} from "@/lib/shipping";
+} from "@/lib/shipping/rates";
 import {
-  availablePaymentMethods,
   defaultPaymentMethod,
-  type PaymentAvailability,
   type PaymentMethodId,
-} from "@/lib/payment-methods";
-import { lookupCep } from "@/lib/viacep";
-import { formatBRL, cn } from "@/lib/utils";
-
-type Address = {
-  id: string;
-  label: string;
-  recipient: string;
-  street: string;
-  number: string;
-  complement: string | null;
-  district: string;
-  city: string;
-  state: string;
-  zip: string;
-  /** Distância (km) resolvida pela faixa de CEP da unidade. */
-  km: number;
-  /** O CEP pertence a uma faixa ativa da unidade selecionada. */
-  covered: boolean;
-};
-
-const METHOD_INFO: Record<
-  PaymentMethodId,
-  { label: string; desc: string; icon: typeof QrCode }
-> = {
-  pix: { label: "Pix", desc: "Aprovação imediata", icon: QrCode },
-  card: { label: "Cartão de crédito", desc: "Em até 3x sem juros", icon: CreditCard },
-  cash: { label: "Dinheiro na entrega", desc: "Pague ao receber", icon: Wallet },
-};
+} from "@/lib/payments/methods";
+import { lookupCep } from "@/lib/shipping/viacep";
+import { CheckoutAddressSection } from "./checkout/address-section";
+import { CheckoutDeliverySection } from "./checkout/delivery-section";
+import { CheckoutPaymentSection } from "./checkout/payment-section";
+import { CheckoutSummary } from "./checkout/summary";
+import type { CheckoutFormProps } from "./checkout/types";
 
 export function CheckoutForm({
   initialCheckoutAttempt,
@@ -71,27 +32,12 @@ export function CheckoutForm({
   defaultKm = 0,
   hasCpf = false,
   availability,
-}: {
-  initialCheckoutAttempt: string;
-  addresses: Address[];
-  subtotal: number;
-  points: number;
-  shippingConfig?: ShippingConfig;
-  defaultKm?: number;
-  /** Se o usuário já tem CPF salvo — o PIX exige CPF do pagador. */
-  hasCpf?: boolean;
-  /** O que o provedor consegue cobrar agora (sem chave/sem Pix, não oferece). */
-  availability: PaymentAvailability;
-}) {
-  // Só mostra o que o servidor consegue processar — ver lib/payment-methods.
-  const methods = availablePaymentMethods(availability).map((id) => ({
-    id,
-    ...METHOD_INFO[id],
-  }));
+}: CheckoutFormProps) {
+  const errorRef = React.useRef<HTMLDivElement>(null);
   const formRef = React.useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState(placeOrder, undefined);
   const [checkoutAttempt, setCheckoutAttempt] = React.useState(
-    initialCheckoutAttempt
+    initialCheckoutAttempt,
   );
 
   // O banner de erro fica no topo do form; o toast garante que o aviso seja
@@ -99,18 +45,19 @@ export function CheckoutForm({
   React.useEffect(() => {
     if (state?.error) {
       toast.error(state.error);
+      errorRef.current?.focus();
       // Uma tentativa que chegou a criar/cancelar pedido não deve ser reutilizada
       // no retry; um novo token continua idempotente contra duplo clique.
       const timer = window.setTimeout(
         () => setCheckoutAttempt(crypto.randomUUID()),
-        0
+        0,
       );
       return () => window.clearTimeout(timer);
     }
   }, [state]);
   const [addressId, setAddressId] = React.useState(addresses[0]?.id ?? "new");
   const [method, setMethod] = React.useState<PaymentMethodId>(
-    defaultPaymentMethod(availability)
+    defaultPaymentMethod(availability),
   );
   const [delivery, setDelivery] = React.useState<DeliveryMethod>("standard");
   const [newZip, setNewZip] = React.useState("");
@@ -121,7 +68,7 @@ export function CheckoutForm({
   // Frete pela distância (km) do endereço + modalidade. Endereço novo ainda não
   // tem km resolvido, então usa o default (o servidor recalcula na confirmação).
   const selectedAddress = addresses.find((a) => a.id === addressId);
-  const currentKm = isNew ? defaultKm : selectedAddress?.km ?? defaultKm;
+  const currentKm = isNew ? defaultKm : (selectedAddress?.km ?? defaultKm);
   const options = deliveryOptions(subtotal, currentKm, shippingConfig);
   const shipping =
     options.find((o) => o.method === delivery)?.price ?? options[0].price;
@@ -132,70 +79,15 @@ export function CheckoutForm({
   const redeemPoints = usePoints ? maxRedeem : 0;
   const redeemDiscount = pointsToBRL(redeemPoints);
   const total = Math.max(0, subtotal - redeemDiscount) + shipping;
-  type PreviewResult = Awaited<ReturnType<typeof previewCheckoutQuote>>;
-  const zipDigits = newZip.replace(/\D/g, "");
-  const canQuote = !isNew || zipDigits.length === 8;
-  const quoteRequestKey = JSON.stringify([
-    isNew ? null : addressId,
-    isNew ? zipDigits : null,
-    coupon,
-    redeemPoints,
-    delivery,
-  ]);
-  const [quoteResult, setQuoteResult] = React.useState<{
-    key: string;
-    result: PreviewResult;
-  } | null>(null);
-  const [, startQuoteTransition] = React.useTransition();
-
-  React.useEffect(() => {
-    let active = true;
-    if (!canQuote) {
-      return () => {
-        active = false;
-      };
-    }
-
-    const timer = window.setTimeout(() => {
-      startQuoteTransition(async () => {
-        const result = await previewCheckoutQuote({
-          addressId: isNew ? null : addressId,
-          zip: isNew ? newZip : null,
-          coupon,
-          redeemPoints,
-          deliveryMethod: delivery,
-        });
-        if (!active) return;
-        setQuoteResult({ key: quoteRequestKey, result });
-      });
-    }, 300);
-
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [
+  const quoteState = useCheckoutQuote({
     addressId,
-    canQuote,
-    coupon,
-    delivery,
     isNew,
     newZip,
-    quoteRequestKey,
+    coupon,
     redeemPoints,
-  ]);
-
-  const currentQuoteResult =
-    quoteResult?.key === quoteRequestKey ? quoteResult.result : null;
-  const quote = currentQuoteResult?.ok ? currentQuoteResult.quote : null;
-  const quoteError = !canQuote
-    ? zipDigits.length > 0
-      ? "Informe um CEP com 8 dígitos."
-      : null
-    : currentQuoteResult && !currentQuoteResult.ok
-      ? currentQuoteResult.error
-      : null;
-  const quoteRefreshing = canQuote && currentQuoteResult === null;
+    delivery,
+  });
+  const { quote } = quoteState;
 
   const displayedShipping = quote?.shipping ?? shipping;
   const displayedSubtotal = quote?.subtotal ?? subtotal;
@@ -207,9 +99,9 @@ export function CheckoutForm({
     const found = await lookupCep(newZip).finally(() => setCepLoading(false));
     if (!found || !formRef.current) return;
     const set = (name: string, value: string) => {
-      const el = formRef.current!.elements.namedItem(name) as
-        | HTMLInputElement
-        | null;
+      const el = formRef.current!.elements.namedItem(
+        name,
+      ) as HTMLInputElement | null;
       if (el && value) el.value = value;
     };
     set("street", found.street);
@@ -219,371 +111,83 @@ export function CheckoutForm({
   }
 
   return (
-    <form ref={formRef} action={formAction} className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+    <form
+      ref={formRef}
+      action={formAction}
+      className="grid gap-6 lg:grid-cols-[1fr_22rem]"
+    >
       <input type="hidden" name="checkoutAttempt" value={checkoutAttempt} />
       <div className="space-y-6">
         {state?.error && (
-          <div className="flex items-center gap-2 rounded-xl bg-danger-500/10 px-4 py-3 text-sm font-medium text-danger-500">
+          <div
+            ref={errorRef}
+            role="alert"
+            tabIndex={-1}
+            className="flex items-center gap-2 rounded-xl bg-danger-500/10 px-4 py-3 text-sm font-medium text-danger-500"
+          >
             <AlertCircle className="size-4 shrink-0" /> {state.error}
           </div>
         )}
-
-        {/* Endereço */}
-        <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
-          <h2 className="flex items-center gap-2.5 font-bold">
-            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-extrabold text-white">
-              1
-            </span>
-            <MapPin className="size-5 text-brand-600 dark:text-brand-400" /> Endereço de entrega
-          </h2>
-
-          <div className="space-y-2">
-            {addresses.map((a) => (
-              <label
-                key={a.id}
-                className={cn(
-                  "flex cursor-pointer gap-3 rounded-xl border p-3 transition",
-                  addressId === a.id
-                    ? "border-brand-600 bg-brand-50 dark:bg-brand-600/10"
-                    : "border-border hover:border-brand-300"
-                )}
-              >
-                <input
-                  type="radio"
-                  name="addressId"
-                  value={a.id}
-                  checked={addressId === a.id}
-                  onChange={() => setAddressId(a.id)}
-                  className="mt-1 size-4 accent-brand-600"
-                />
-                <div className="text-sm">
-                  <p className="font-semibold">
-                    {a.label} · {a.recipient}
-                  </p>
-                  <p className="text-muted-foreground">
-                    {a.street}, {a.number}
-                    {a.complement ? ` - ${a.complement}` : ""} · {a.district},{" "}
-                    {a.city}/{a.state} · {a.zip}
-                  </p>
-                  {!a.covered && (
-                    <p className="mt-1 font-semibold text-danger-500">
-                      Fora da área de entrega desta unidade
-                    </p>
-                  )}
-                </div>
-              </label>
-            ))}
-
-            <label
-              className={cn(
-                "flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition",
-                isNew
-                  ? "border-brand-600 bg-brand-50 dark:bg-brand-600/10"
-                  : "border-border hover:border-brand-300"
-              )}
-            >
-              <input
-                type="radio"
-                name="addressId"
-                value="new"
-                checked={isNew}
-                onChange={() => setAddressId("new")}
-                className="size-4 accent-brand-600"
-              />
-              <span className="inline-flex items-center gap-1.5 text-sm font-semibold">
-                <Plus className="size-4" /> Usar um novo endereço
-              </span>
-            </label>
-          </div>
-
-          {isNew && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Destinatário" htmlFor="recipient">
-                <Input id="recipient" name="recipient" placeholder="Nome de quem recebe" />
-              </Field>
-              <Field
-                label="CEP"
-                htmlFor="zip"
-                hint={cepLoading ? "Buscando endereço…" : "Preenche o endereço automaticamente"}
-              >
-                <Input
-                  id="zip"
-                  name="zip"
-                  placeholder="00000-000"
-                  inputMode="numeric"
-                  value={newZip}
-                  onChange={(e) => setNewZip(e.target.value)}
-                  onBlur={handleCepBlur}
-                />
-              </Field>
-              <Field label="Rua" htmlFor="street">
-                <Input id="street" name="street" placeholder="Av. Paulista" />
-              </Field>
-              <Field label="Número" htmlFor="number">
-                <Input id="number" name="number" placeholder="1000" />
-              </Field>
-              <Field label="Complemento" htmlFor="complement">
-                <Input id="complement" name="complement" placeholder="Apto 12 (opcional)" />
-              </Field>
-              <Field label="Bairro" htmlFor="district">
-                <Input id="district" name="district" placeholder="Centro" />
-              </Field>
-              <Field label="Cidade" htmlFor="city">
-                <Input id="city" name="city" placeholder="São Paulo" />
-              </Field>
-              <Field label="Estado (UF)" htmlFor="state">
-                <Input id="state" name="state" placeholder="SP" maxLength={2} />
-              </Field>
-            </div>
-          )}
-        </section>
-
-        {/* Modalidade de entrega */}
-        <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
-          <h2 className="flex items-center gap-2.5 font-bold">
-            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-extrabold text-white">
-              2
-            </span>
-            <Truck className="size-5 text-brand-600 dark:text-brand-400" /> Como
-            quer receber
-          </h2>
-          <input type="hidden" name="deliveryMethod" value={delivery} />
-          <div className="grid gap-3 sm:grid-cols-2">
-            {options.map((o) => {
-              const Icon = o.method === "express" ? Zap : Truck;
-              return (
-                <label
-                  key={o.method}
-                  className={cn(
-                    "relative cursor-pointer rounded-xl border p-4 transition active:scale-[0.98]",
-                    delivery === o.method
-                      ? "border-brand-600 bg-brand-50 ring-2 ring-brand-500/25 dark:bg-brand-600/10"
-                      : "border-border hover:border-brand-300"
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="deliveryChoice"
-                    value={o.method}
-                    checked={delivery === o.method}
-                    onChange={() => setDelivery(o.method)}
-                    className="sr-only"
-                  />
-                  <div className="flex items-center gap-2">
-                    <Icon
-                      className={cn(
-                        "size-5",
-                        delivery === o.method
-                          ? "text-brand-600 dark:text-brand-400"
-                          : "text-muted-foreground"
-                      )}
-                    />
-                    <span className="text-sm font-bold">{o.label}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{o.eta}</p>
-                  <p className="mt-1.5 text-sm font-extrabold">
-                    {o.price === 0 ? (
-                      <span className="text-success-600">Grátis</span>
-                    ) : (
-                      formatBRL(o.price)
-                    )}
-                  </p>
-                </label>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Pagamento */}
-        <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
-          <h2 className="flex items-center gap-2.5 font-bold">
-            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-extrabold text-white">
-              3
-            </span>
-            Forma de pagamento
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {methods.map((m) => (
-              <label
-                key={m.id}
-                className={cn(
-                  "relative cursor-pointer rounded-xl border p-4 text-center transition active:scale-[0.98]",
-                  method === m.id
-                    ? "border-brand-600 bg-brand-50 ring-2 ring-brand-500/25 dark:bg-brand-600/10"
-                    : "border-border hover:border-brand-300"
-                )}
-              >
-                {method === m.id && (
-                  <span className="absolute right-2.5 top-2.5 grid size-5 place-items-center rounded-full bg-brand-600 text-white">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" className="size-3">
-                      <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </span>
-                )}
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value={m.id}
-                  checked={method === m.id}
-                  onChange={() => setMethod(m.id)}
-                  className="sr-only"
-                />
-                <m.icon
-                  className={cn(
-                    "mx-auto size-6",
-                    method === m.id ? "text-brand-600 dark:text-brand-400" : "text-muted-foreground"
-                  )}
-                />
-                <p className="mt-2 text-sm font-bold">{m.label}</p>
-                <p className="text-xs text-muted-foreground">{m.desc}</p>
-              </label>
-            ))}
-          </div>
-
-          {/* PIX exige o CPF do pagador; só pede se o cadastro ainda não tem. */}
-          {method === "pix" && !hasCpf && (
-            <Field
-              label="CPF do pagador"
-              htmlFor="cpf"
-              hint="O PIX exige o CPF de quem paga. Fica salvo para as próximas compras."
-            >
-              <Input
-                id="cpf"
-                name="cpf"
-                inputMode="numeric"
-                placeholder="000.000.000-00"
-                required
-                aria-required="true"
-              />
-            </Field>
-          )}
-        </section>
-
+        <CheckoutAddressSection
+          addresses={addresses}
+          addressId={addressId}
+          setAddressId={setAddressId}
+          isNew={isNew}
+          newZip={newZip}
+          setNewZip={setNewZip}
+          cepLoading={cepLoading}
+          handleCepBlur={handleCepBlur}
+        />
+        <CheckoutDeliverySection
+          options={options}
+          delivery={delivery}
+          setDelivery={setDelivery}
+        />
+        <CheckoutPaymentSection
+          availability={availability}
+          method={method}
+          setMethod={setMethod}
+          hasCpf={hasCpf}
+        />
         {/* Observações */}
         <section className="space-y-3 rounded-2xl border border-border bg-card p-5">
-          <h2 className="flex items-center gap-2 font-bold">
+          <h2
+            id="checkout-notes-label"
+            className="flex items-center gap-2 font-bold"
+          >
             <MessageSquareText className="size-5 text-brand-600 dark:text-brand-400" />{" "}
-            Observações <span className="text-sm font-medium text-muted-foreground">(opcional)</span>
+            Observações{" "}
+            <span className="text-sm font-medium text-muted-foreground">
+              (opcional)
+            </span>
           </h2>
           <textarea
             name="notes"
+            aria-labelledby="checkout-notes-label"
             rows={3}
             maxLength={500}
             placeholder="Ex.: entregar na portaria, interfone 12, troco para R$ 100…"
             className="w-full resize-y rounded-xl border border-border bg-card px-4 py-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
           />
         </section>
-
       </div>
-
-      {/* Resumo */}
-      <aside className="lg:sticky lg:top-24 lg:h-fit">
-        <div className="space-y-4 rounded-2xl border border-border bg-card p-5">
-          <h2 className="flex items-center gap-2.5 font-bold">
-            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-extrabold text-white">
-              4
-            </span>
-            Revisão do pedido
-          </h2>
-          <Field label="Cupom de desconto" htmlFor="coupon">
-            <Input
-              id="coupon"
-              name="coupon"
-              placeholder="Ex.: BEMVINDO10"
-              value={coupon}
-              onChange={(event) => setCoupon(event.target.value)}
-            />
-          </Field>
-          {quoteError && (
-            <p role="alert" className="text-xs font-semibold text-danger-500">
-              {quoteError}
-            </p>
-          )}
-
-          {/* Resgate de pontos de fidelidade */}
-          <input
-            type="hidden"
-            name="redeemPoints"
-            value={usePoints ? (quote?.redeemPoints ?? 0) : 0}
-          />
-          {maxRedeem > 0 && (
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-3 transition hover:border-brand-300">
-              <input
-                type="checkbox"
-                checked={usePoints}
-                onChange={(e) => setUsePoints(e.target.checked)}
-                className="mt-0.5 size-4 accent-brand-600"
-              />
-              <span className="text-sm">
-                <span className="inline-flex items-center gap-1.5 font-semibold">
-                  <Gift className="size-4 text-brand-600 dark:text-brand-400" />
-                  Usar {maxRedeem.toLocaleString("pt-BR")} pontos
-                </span>
-                <span className="block text-muted-foreground">
-                  Abate {formatBRL(pointsToBRL(maxRedeem))} · você tem{" "}
-                  {points.toLocaleString("pt-BR")} pts
-                </span>
-              </span>
-            </label>
-          )}
-
-          <dl className="space-y-2 border-t border-border pt-4 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Subtotal</dt>
-              <dd className="font-semibold">{formatBRL(displayedSubtotal)}</dd>
-            </div>
-            {quote && quote.couponDiscount > 0 && (
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">
-                  Cupom{quote.couponCode ? ` (${quote.couponCode})` : ""}
-                </dt>
-                <dd className="font-semibold text-success-600">
-                  −{formatBRL(quote.couponDiscount)}
-                </dd>
-              </div>
-            )}
-            {displayedRedeemDiscount > 0 && (
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Pontos de fidelidade</dt>
-                <dd className="font-semibold text-success-600">
-                  −{formatBRL(displayedRedeemDiscount)}
-                </dd>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">
-                Frete{delivery === "express" ? " · Entrega Rápida" : ""}
-              </dt>
-              <dd className="font-semibold">
-                {displayedShipping === 0 ? (
-                  <span className="text-success-600">Grátis</span>
-                ) : (
-                  formatBRL(displayedShipping)
-                )}
-              </dd>
-            </div>
-          </dl>
-          <div className="flex items-end justify-between border-t border-border pt-4">
-            <span className="font-bold">Total</span>
-            <span className="text-2xl font-extrabold text-brand-700 dark:text-brand-400">
-              {quoteRefreshing ? "Calculando…" : formatBRL(displayedTotal)}
-            </span>
-          </div>
-          <Button
-            type="submit"
-            variant="primary"
-            size="lg"
-            className="w-full"
-            disabled={pending || quoteRefreshing || !quote}
-          >
-            {pending ? <Loader2 className="size-5 animate-spin" /> : <ShieldCheck className="size-5" />}
-            Finalizar pedido
-          </Button>
-          <p className="text-center text-xs text-muted-foreground">
-            Ambiente seguro · total calculado e validado no servidor
-          </p>
-        </div>
-      </aside>
+      <CheckoutSummary
+        {...quoteState}
+        coupon={coupon}
+        setCoupon={setCoupon}
+        usePoints={usePoints}
+        setUsePoints={setUsePoints}
+        maxRedeem={maxRedeem}
+        points={points}
+        delivery={delivery}
+        pending={pending}
+        amounts={{
+          subtotal: displayedSubtotal,
+          shipping: displayedShipping,
+          redeemDiscount: displayedRedeemDiscount,
+          total: displayedTotal,
+        }}
+      />
     </form>
   );
 }

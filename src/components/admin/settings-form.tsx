@@ -14,7 +14,7 @@ import {
   Plug,
 } from "lucide-react";
 import { toast } from "sonner";
-import { saveSettings, testStripeConnection } from "@/actions/admin-settings";
+import { saveSettings, testStripeConnection } from "@/actions/admin/settings";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 import type { StoreSettings } from "@/lib/settings";

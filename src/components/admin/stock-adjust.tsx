@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Minus, Plus, Loader2 } from "lucide-react";
-import { adjustStock } from "@/actions/admin-products";
+import { adjustStock } from "@/actions/admin/inventory";
 import { toast } from "sonner";
 
 export function StockAdjust({

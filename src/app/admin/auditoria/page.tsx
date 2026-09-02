@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { ScrollText } from "lucide-react";
 import { Prisma } from "@prisma/client";
-import { getAdminScope } from "@/lib/session";
+import { getAdminScope } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 
 export const metadata = { title: "Auditoria" };

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { SearchX, ChevronLeft, ChevronRight } from "lucide-react";
-import { getCategories, getBrands, searchProducts, type CatalogParams } from "@/lib/products";
+import { getCategories, getBrands, searchProducts, type CatalogParams } from "@/lib/catalog";
 import { getSelectedPharmacyId } from "@/lib/pharmacy";
 import { ProductGrid } from "@/components/store/product-grid";
 import { CatalogControls } from "@/components/store/catalog-controls";

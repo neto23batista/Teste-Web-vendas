@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { updateOrderStatus } from "@/actions/admin-orders";
+import { updateOrderStatus } from "@/actions/admin/orders";
 import { Button } from "@/components/ui/button";
 import type { OrderStatus } from "@prisma/client";
 
@@ -45,24 +46,35 @@ export function OrderStatusControl({
   }
 
   return (
-    <div className="flex flex-col gap-2 sm:flex-row">
-      <select
-        value={value}
-        onChange={(e) => setValue(e.target.value as OrderStatus)}
-        className="h-11 flex-1 rounded-xl border border-border bg-card px-3 text-sm font-semibold outline-none focus:border-brand-400"
-      >
-        {options
-          .filter((o) => o.value === current || allowed.includes(o.value))
-          .map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-          ))}
-      </select>
-      <Button onClick={apply} variant="primary" disabled={pending || value === current}>
-        {pending ? <Loader2 className="size-5 animate-spin" /> : <RefreshCw className="size-5" />}
-        Atualizar
-      </Button>
+    <div className="space-y-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <select
+          aria-label="Status do pedido"
+          value={value}
+          onChange={(e) => setValue(e.target.value as OrderStatus)}
+          className="h-11 flex-1 rounded-xl border border-border bg-card px-3 text-sm font-semibold outline-none focus:border-brand-400"
+        >
+          {options
+            .filter((o) => o.value === current || (allowed.includes(o.value) && o.value !== "SHIPPED" && o.value !== "DELIVERED"))
+            .map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+        </select>
+        <Button onClick={apply} variant="primary" disabled={pending || value === current}>
+          {pending ? <Loader2 className="size-5 animate-spin" /> : <RefreshCw className="size-5" />}
+          Atualizar
+        </Button>
+      </div>
+      {(current === "PREPARING" || current === "SHIPPED") && (
+        <p className="text-xs text-muted-foreground">
+          O despacho e a confirmação com comprovante são feitos no{" "}
+          <Link href="/admin/entregas" className="font-semibold text-brand-600 underline underline-offset-2 dark:text-brand-400">
+            painel de Entregas
+          </Link>.
+        </p>
+      )}
     </div>
   );
 }

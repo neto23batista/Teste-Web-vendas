@@ -4,10 +4,10 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { authConfig } from "@/auth.config";
 import { prisma } from "@/lib/prisma";
-import { mergeGuestCartIntoUser } from "@/lib/cart-merge";
-import { clientIpFromHeaders, rateLimit } from "@/lib/rate-limit";
-import { verifyMfaChallenge } from "@/lib/mfa-challenge";
-import { DUMMY_PASSWORD_HASH, verifyPassword } from "@/lib/password";
+import { mergeGuestCartIntoUser } from "@/lib/commerce/cart-merge";
+import { clientIpFromHeaders, rateLimit } from "@/lib/security/rate-limit";
+import { verifyMfaChallenge } from "@/lib/auth/mfa-challenge";
+import { DUMMY_PASSWORD_HASH, verifyPassword } from "@/lib/auth/password";
 
 const credentialsSchema = z.object({
   email: z.string().email(),

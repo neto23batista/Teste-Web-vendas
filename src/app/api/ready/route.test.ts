@@ -13,7 +13,7 @@ vi.mock("@/lib/monitoring", () => ({
 }));
 
 import { GET } from "@/app/api/ready/route";
-import { EXPECTED_MIGRATION } from "@/lib/readiness";
+import { EXPECTED_MIGRATION } from "@/lib/operations/readiness";
 
 describe("GET /api/ready", () => {
   beforeEach(() => {

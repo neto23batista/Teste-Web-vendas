@@ -14,10 +14,10 @@ import {
   getProductBySlug,
   getProductMetadataBySlug,
   getRelatedProducts,
-} from "@/lib/products";
-import { getUserSubscriptionFor } from "@/lib/subscriptions";
+} from "@/lib/catalog";
+import { getUserSubscriptionFor } from "@/lib/commerce/subscriptions";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser } from "@/lib/auth/session";
 import { getSelectedPharmacyId } from "@/lib/pharmacy";
 import { formatBRL, discountPercent, jsonLdScript } from "@/lib/utils";
 import { ProductGallery } from "@/components/store/product-gallery";

@@ -1,8 +1,8 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
-import { assertDestructiveSeedAllowed } from "../src/lib/seed-safety";
-// Fotos reais validadas por scripts/check-product-images.cjs (name → url).
+import { assertDestructiveSeedAllowed } from "../src/lib/operations/seed-safety";
+// Fotos opcionais do catálogo de demonstração (name → url).
 // DESATIVADAS por padrão (o dono preferiu o visual de emoji estilizado).
 // Para popular com fotos: SEED_PRODUCT_PHOTOS=1 npm run db:seed
 import productImages from "./product-images.json";

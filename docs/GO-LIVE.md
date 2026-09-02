@@ -62,11 +62,19 @@ npm run test:e2e
 - [ ] Produto MIP pode ser comprado normalmente.
 - [ ] Produto com receita não aparece em catálogo, URL, busca, favoritos ou sitemap.
 - [ ] Tentativas diretas de assinar, repor ou ativar produto com receita são recusadas.
-- [ ] Importação/sync com `tarja=true` desativa o produto imediatamente.
+- [ ] Importação manual mantém produtos sujeitos a prescrição inativos.
 - [ ] Cupom, pontos, CEP, frete e total cobrado coincidem com o total confirmado.
 - [ ] Cartão e Pix de teste são confirmados somente pelo webhook válido.
 - [ ] Falha de pagamento/reembolso é visível e reconciliável.
 - [ ] Cancelamento restaura estoque, pontos e cupom uma única vez.
+- [ ] Reservas e transferências não usam lotes vencidos como saldo sem lote.
+- [ ] Recebimentos simultâneos, baixas e transferências foram testados contra
+      PostgreSQL descartável, inclusive reversão integral após falha.
+- [ ] Transferência física preserva lote/validade e ajustes negativos não deixam
+      a soma dos lotes maior que o saldo da unidade.
+- [ ] Devoluções concorrentes respeitam saldo por item e não duplicam reposição.
+- [ ] Despacho exige entregador da unidade; entrega exige comprovante, inclusive
+      em tentativas diretas pelas Server Actions do seletor de status.
 - [ ] Rotas e Server Actions administrativas validam autorização no servidor.
 - [ ] Todo OWNER e membro da equipe ativou MFA TOTP, guardou os códigos de
       recuperação fora do dispositivo principal e testou um novo login.

@@ -128,18 +128,20 @@ política de retenção/exclusão; não é requisito para novas compras.
 
 ```bash
 npm ci
-npm run lint
-npm run typecheck
-npm test
+npm run check
 npm run build
+npm run test:integration
 npm run test:e2e
 ```
 
-Os E2E que escrevem exigem `E2E_DATABASE_URL` apontando para um PostgreSQL
-descartável e
+Os E2E que escrevem exigem `E2E_DATABASE_URL` apontando para PostgreSQL em
+loopback, banco descartável com nome terminado em `_test` e
 `E2E_ALLOW_WRITES=I_UNDERSTAND_THIS_IS_A_DISPOSABLE_DATABASE`. O Playwright
-recusa escrita sem essas duas condições e não permite reutilizar servidor
-externo nesse modo. Nunca aponte testes para produção.
+recusa escrita sem essas condições e inicia um servidor local próprio nesse
+modo, sem reutilizar um processo existente. Nunca aponte testes para produção.
+A suíte de integração também exige URL e confirmação próprias. Execute ambas
+em ambiente descartável conforme [Desenvolvimento](./DEVELOPMENT.md), antes de
+configurar o destino do deploy. Não rode testes mutáveis no ambiente de release.
 
 Os procedimentos de backup, restauração, incidentes, webhook e conciliação
 estão em [OPERATIONS.md](./OPERATIONS.md).

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { MapPin, X, Loader2, Check, Store } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { setSelectedPharmacy } from "@/actions/pharmacy";
+import { setSelectedPharmacy } from "@/actions/store/pharmacy";
 
 type Unit = { id: string; name: string };
 

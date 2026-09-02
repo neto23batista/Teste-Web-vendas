@@ -8,7 +8,7 @@ import {
   decideReturnRequest,
   receiveReturnRequest,
   retryReturnRefund,
-} from "@/actions/returns";
+} from "@/actions/account/returns";
 import type { ReturnReason, ReturnRefundStatus, ReturnStatus } from "@prisma/client";
 import { formatBRL } from "@/lib/utils";
 

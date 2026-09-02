@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { productCardSelect, toProductCard } from "@/lib/products";
+import { productCardSelect, toProductCard } from "@/lib/catalog";
 import { getSelectedPharmacyId } from "@/lib/pharmacy";
-import { SALEABLE_PRODUCT_WHERE } from "@/lib/product-policy";
+import { SALEABLE_PRODUCT_WHERE } from "@/lib/catalog/policy";
 
 // Busca produtos por uma lista de IDs (usado pela página de Favoritos, que
 // guarda os IDs no localStorage do cliente). Somente leitura.

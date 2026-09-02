@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, Loader2, Plus, ShoppingBag } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
-import { addToCart } from "@/actions/cart";
+import { addToCart } from "@/actions/store/cart";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 

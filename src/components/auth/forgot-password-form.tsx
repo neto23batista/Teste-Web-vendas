@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { AlertCircle, Loader2, Mail, CheckCircle2, ArrowLeft } from "lucide-react";
-import { requestPasswordReset, type ResetState } from "@/actions/password-reset";
+import { requestPasswordReset, type ResetState } from "@/actions/account/password-reset";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 

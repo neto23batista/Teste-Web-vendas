@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Repeat, PauseCircle, CalendarClock } from "lucide-react";
-import { getAdminScope } from "@/lib/session";
-import { listAllSubscriptions, intervalLabel } from "@/lib/subscriptions";
+import { getAdminScope } from "@/lib/auth/session";
+import { listAllSubscriptions } from "@/lib/commerce/subscriptions";
+import { intervalLabel } from "@/lib/commerce/subscription-policy";
 
 export const metadata: Metadata = { title: "Assinaturas" };
 

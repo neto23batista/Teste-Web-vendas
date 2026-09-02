@@ -1,6 +1,6 @@
 "use client";
 
-import { SUBSCRIPTION_INTERVALS, intervalLabel } from "@/lib/subscriptions";
+import { SUBSCRIPTION_INTERVALS, intervalLabel } from "@/lib/commerce/subscription-policy";
 import { cn } from "@/lib/utils";
 
 /**

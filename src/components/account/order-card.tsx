@@ -3,7 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { formatBRL } from "@/lib/utils";
 import { StatusBadge } from "@/components/store/order-status";
 import { ReorderButton } from "@/components/store/reorder-button";
-import type { UserOrder } from "@/lib/account";
+import type { UserOrder } from "@/lib/auth/account";
 import { ReturnRequestControl } from "@/components/account/return-request";
 
 export function OrderCard({ order }: { order: UserOrder }) {

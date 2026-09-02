@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/auth/session";
 import { centsToDecimal, moneyToCents } from "@/lib/money";
 
 /**

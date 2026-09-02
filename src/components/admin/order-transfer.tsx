@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Building2, ArrowRightLeft, Loader2 } from "lucide-react";
-import { transferOrderToUnit } from "@/actions/admin-orders";
+import { transferOrderToUnit } from "@/actions/admin/orders";
 
 /**
  * Reatribui um pedido a outra unidade (move o estoque entre elas). Aparece só

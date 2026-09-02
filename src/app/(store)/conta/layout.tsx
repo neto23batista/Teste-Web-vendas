@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireUserPage } from "@/lib/session";
+import { requireUserPage } from "@/lib/auth/session";
 import { AccountNav } from "@/components/account/account-nav";
 
 export const metadata: Metadata = {

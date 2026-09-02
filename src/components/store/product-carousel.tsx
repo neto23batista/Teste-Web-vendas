@@ -6,7 +6,7 @@ import useEmblaCarousel from "embla-carousel-react";
 import { useReducedMotion } from "framer-motion";
 import { ArrowRight, ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import { ProductCard } from "@/components/store/product-card";
-import type { ProductCard as ProductCardData } from "@/lib/products";
+import type { ProductCard as ProductCardData } from "@/lib/catalog";
 
 const AUTOPLAY_MS = 3800;
 

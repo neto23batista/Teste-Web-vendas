@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Search, Star, ChevronRight } from "lucide-react";
 import { getAdminCustomers } from "@/lib/admin";
 import { Pagination } from "@/components/admin/pagination";
-import { requireArea } from "@/lib/session";
+import { requireArea } from "@/lib/auth/session";
 
 type SP = Record<string, string | string[] | undefined>;
 

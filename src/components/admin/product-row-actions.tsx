@@ -5,7 +5,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Trash2, Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { toggleProductActive, deleteProduct } from "@/actions/admin-products";
+import { toggleProductActive, deleteProduct } from "@/actions/admin/products";
 
 export function ProductRowActions({
   id,

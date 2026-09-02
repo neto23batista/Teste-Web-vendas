@@ -4,8 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { Repeat, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
-import { subscribeToProduct } from "@/actions/subscriptions";
-import { intervalLabel } from "@/lib/subscriptions";
+import { subscribeToProduct } from "@/actions/account/subscriptions";
+import { intervalLabel } from "@/lib/commerce/subscription-policy";
 import { IntervalPicker } from "@/components/store/interval-picker";
 
 /**

@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   reportError: vi.fn(),
 }));
 
-vi.mock("@/lib/session", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getCurrentUser: mocks.getCurrentUser,
 }));
 vi.mock("@/lib/prisma", () => ({

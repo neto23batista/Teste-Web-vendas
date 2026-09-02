@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Minus, Plus, ShoppingBag, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { addToCart } from "@/actions/cart";
+import { addToCart } from "@/actions/store/cart";
 import { Button } from "@/components/ui/button";
 
 const MAX_ITEM_QUANTITY = 99;

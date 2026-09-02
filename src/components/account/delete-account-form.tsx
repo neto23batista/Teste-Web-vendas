@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useActionState } from "react";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
-import { deleteAccount } from "@/actions/account-privacy";
+import { deleteAccount } from "@/actions/account/privacy";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 

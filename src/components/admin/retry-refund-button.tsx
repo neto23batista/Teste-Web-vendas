@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { retryOrderRefund } from "@/actions/admin-orders";
+import { retryOrderRefund } from "@/actions/admin/orders";
 import { Button } from "@/components/ui/button";
 
 export function RetryRefundButton({ orderId }: { orderId: string }) {

@@ -1,5 +1,5 @@
-import { assertArea } from "@/lib/session";
-import { getAbcReport } from "@/lib/admin-reports";
+import { assertArea } from "@/lib/auth/session";
+import { getAbcReport } from "@/lib/admin/reports";
 import { toCsv } from "@/lib/csv";
 
 export const runtime = "nodejs";

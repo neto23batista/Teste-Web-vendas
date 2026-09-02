@@ -1,6 +1,6 @@
 import type { NextAuthConfig } from "next-auth";
 import type { PharmacyType, Role, StaffProfile } from "@prisma/client";
-import { hasVersionedSessionClaims } from "@/lib/session-claims";
+import { hasVersionedSessionClaims } from "@/lib/auth/session-claims";
 
 // Config edge-safe (sem bcrypt/Prisma) — usada pelo middleware.
 export const authConfig = {

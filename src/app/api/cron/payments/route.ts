@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { cronRequestAuthorized } from "@/lib/cron-auth";
+import { cronRequestAuthorized } from "@/lib/security/cron-auth";
 import { reportError } from "@/lib/monitoring";
-import { reconcilePaymentsAndReservations } from "@/lib/payment-reconciliation";
+import { reconcilePaymentsAndReservations } from "@/lib/payments/reconciliation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

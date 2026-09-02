@@ -17,14 +17,14 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
-import { lookupCep } from "@/lib/viacep";
+import { lookupCep } from "@/lib/shipping/viacep";
 import {
   createAddress,
   updateAddress,
   deleteAddress,
   setDefaultAddress,
   type AddressState,
-} from "@/actions/addresses";
+} from "@/actions/account/addresses";
 
 export type Address = {
   id: string;

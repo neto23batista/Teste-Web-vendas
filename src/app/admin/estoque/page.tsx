@@ -1,6 +1,6 @@
 import { AlertTriangle, PackageCheck, PackageSearch } from "lucide-react";
 import { getStockRows } from "@/lib/admin";
-import { getAdminScope } from "@/lib/session";
+import { getAdminScope } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { cn } from "@/lib/utils";
 import { ProductImage } from "@/components/store/product-image";

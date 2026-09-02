@@ -5,10 +5,10 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Minus, Plus, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { updateCartItem, removeCartItem } from "@/actions/cart";
+import { updateCartItem, removeCartItem } from "@/actions/store/cart";
 import { ProductImage } from "@/components/store/product-image";
 import { formatBRL } from "@/lib/utils";
-import type { CartItemView } from "@/lib/cart";
+import type { CartItemView } from "@/lib/commerce/cart";
 
 // Mantido em sincronia com a validação server-side de varejo. Não importe
 // `lib/orders` neste Client Component: esse módulo também depende do Prisma.

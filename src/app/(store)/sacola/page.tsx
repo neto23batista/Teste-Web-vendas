@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ShoppingBag, ArrowRight, Truck, Tag } from "lucide-react";
-import { getCart } from "@/lib/cart";
-import { shippingFor, missingForFreeShipping } from "@/lib/shipping";
+import { getCart } from "@/lib/commerce/cart";
+import { shippingFor, missingForFreeShipping } from "@/lib/shipping/rates";
 import { getShippingConfig } from "@/lib/settings";
 import { formatBRL } from "@/lib/utils";
 import { Button } from "@/components/ui/button";

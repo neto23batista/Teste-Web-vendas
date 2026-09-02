@@ -17,7 +17,7 @@ import {
   assignUnitAdmin,
   removeUnitAdmin,
   type PharmacyResult,
-} from "@/actions/admin-pharmacies";
+} from "@/actions/admin/pharmacies";
 import type { PharmacyType } from "@prisma/client";
 
 type RangeView = { id: string; start: number; end: number; km: number | null };

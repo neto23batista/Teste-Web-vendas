@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { IdCard } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { requireArea } from "@/lib/session";
+import { requireArea } from "@/lib/auth/session";
 import { listPharmaciesSafe } from "@/lib/pharmacy";
 import { TeamManager, type StaffRow } from "@/components/admin/team-manager";
 

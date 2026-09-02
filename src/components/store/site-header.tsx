@@ -6,7 +6,7 @@ import { CartBadge } from "@/components/store/cart-badge";
 import { PharmacySelector } from "@/components/store/pharmacy-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser } from "@/lib/auth/session";
 import { listPharmaciesSafe, getSelectedPharmacyId } from "@/lib/pharmacy";
 
 export async function SiteHeader({ cartCount }: { cartCount: number }) {

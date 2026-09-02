@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Bell, BellRing, BellOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { isNewOrder, type OrderSignal } from "@/lib/order-chime";
+import { isNewOrder, type OrderSignal } from "@/lib/orders/chime";
 
 const STORAGE_KEY = "fv_order_chime";
 const CHANGE_EVENT = "fv-chime-change";

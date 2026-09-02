@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { AlertCircle, CheckCircle2, Loader2, Save } from "lucide-react";
-import { updateProfile } from "@/actions/profile";
+import { updateProfile } from "@/actions/account/profile";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 

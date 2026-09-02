@@ -1,4 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
+import {
+  assertDisposableTestDatabase,
+  assertLocalTestServer,
+} from "./src/lib/operations/test-database-safety";
 
 const PORT = 3210;
 // Por padrão usa o dev na 3210; PW_BASE_URL permite apontar para outro servidor
@@ -12,26 +16,44 @@ const e2eDatabaseUrl = process.env.E2E_DATABASE_URL;
 
 if (writesRequested && !allowWrites) {
   throw new Error(
-    `E2E_ALLOW_WRITES deve ser exatamente ${WRITE_CONFIRMATION}.`
+    `E2E_ALLOW_WRITES deve ser exatamente ${WRITE_CONFIRMATION}.`,
   );
 }
 
 if (allowWrites && !e2eDatabaseUrl) {
   throw new Error(
-    "Testes E2E de escrita exigem E2E_DATABASE_URL apontando para um banco descartável."
+    "Testes E2E de escrita exigem E2E_DATABASE_URL apontando para um banco descartável.",
   );
 }
 
 if (allowWrites && process.env.PW_NO_SERVER) {
   throw new Error(
-    "Testes E2E de escrita não podem reutilizar servidor externo (PW_NO_SERVER)."
+    "Testes E2E de escrita não podem reutilizar servidor externo (PW_NO_SERVER).",
   );
+}
+
+if (allowWrites) {
+  assertDisposableTestDatabase({
+    url: e2eDatabaseUrl,
+    confirmation: writesRequested,
+    appEnv: process.env.APP_ENV,
+    vercelEnv: process.env.VERCEL_ENV,
+  });
+  if (process.env.E2E_DATABASE_URL_UNPOOLED) {
+    assertDisposableTestDatabase({
+      url: process.env.E2E_DATABASE_URL_UNPOOLED,
+      confirmation: writesRequested,
+      appEnv: process.env.APP_ENV,
+      vercelEnv: process.env.VERCEL_ENV,
+    });
+  }
+  assertLocalTestServer(BASE_URL);
 }
 
 /**
  * Config de E2E.
  * - Local: usa o Microsoft Edge do sistema (`channel: "msedge"`) para NÃO
- *   baixar o Chromium — mesmo binário do scripts/shot.cjs. ATENÇÃO: o banco
+ *   baixar o Chromium — mesmo binário do scripts/qa/screenshots.cjs. ATENÇÃO: o banco
  *   local deve ser separado de produção; specs que ESCREVEM (pedido, salvar
  *   perfil) exigem confirmação explícita e E2E_DATABASE_URL descartável.
  * - CI: Chromium baixado pelo Playwright + Postgres de serviço descartável
@@ -57,7 +79,10 @@ export default defineConfig({
   projects: [
     isCI
       ? { name: "chromium", use: { ...devices["Desktop Chrome"] } }
-      : { name: "edge", use: { ...devices["Desktop Edge"], channel: "msedge" } },
+      : {
+          name: "edge",
+          use: { ...devices["Desktop Edge"], channel: "msedge" },
+        },
   ],
   // Por padrão o Playwright sobe o app sozinho (dev local; em CI o
   // PW_WEB_COMMAND aponta para o build de produção — CSP estrita ativa).
@@ -65,10 +90,9 @@ export default defineConfig({
   webServer: process.env.PW_NO_SERVER
     ? undefined
     : {
-        command:
-          process.env.PW_WEB_COMMAND || `npm run dev -- --port ${PORT}`,
+        command: process.env.PW_WEB_COMMAND || `npm run dev -- --port ${PORT}`,
         url: BASE_URL,
-        reuseExistingServer: !isCI,
+        reuseExistingServer: !isCI && !allowWrites,
         timeout: 240_000,
         env: e2eDatabaseUrl
           ? {

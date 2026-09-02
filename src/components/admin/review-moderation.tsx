@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Check, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { approveReview, rejectReview } from "@/actions/admin-reviews";
+import { approveReview, rejectReview } from "@/actions/admin/reviews";
 import { Button } from "@/components/ui/button";
 
 export function ReviewModeration({

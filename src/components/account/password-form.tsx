@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { AlertCircle, CheckCircle2, KeyRound, Loader2 } from "lucide-react";
-import { changePassword } from "@/actions/profile";
+import { changePassword } from "@/actions/account/profile";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 

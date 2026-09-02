@@ -7,15 +7,15 @@ import {
   failStripePayment,
   recordStripeRefund,
 } from "@/lib/orders";
-import { getStripeForWebhook } from "@/lib/stripe";
-import { recordStripeReturnRefund } from "@/lib/return-refunds";
+import { getStripeForWebhook } from "@/lib/payments/stripe";
+import { recordStripeReturnRefund } from "@/lib/payments/return-refunds";
 import { reportError } from "@/lib/monitoring";
 import { moneyToCents } from "@/lib/money";
 import {
   DEFAULT_MAX_REQUEST_BODY_BYTES,
   readTextBodyLimited,
   RequestBodyTooLargeError,
-} from "@/lib/request-body";
+} from "@/lib/security/request-body";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
-import { setStockLevels } from "@/actions/admin-purchasing";
+import { setStockLevels } from "@/actions/admin/purchasing";
 
 /** Editor inline dos níveis de reposição (mín/máx) de um item de estoque. */
 export function StockLevels({

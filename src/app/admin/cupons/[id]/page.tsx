@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { updateCoupon } from "@/actions/admin-coupons";
+import { updateCoupon } from "@/actions/admin/coupons";
 import { CouponForm } from "@/components/admin/coupon-form";
 import { moneyToNumber } from "@/lib/money";
 

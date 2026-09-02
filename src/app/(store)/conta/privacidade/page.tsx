@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Download, ShieldCheck, AlertTriangle, FileText } from "lucide-react";
-import { requireUserPage } from "@/lib/session";
+import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { DeleteAccountForm } from "@/components/account/delete-account-form";

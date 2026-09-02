@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { mergeFavorites } from "@/actions/favorites";
-import { getLocalFavorites, mergeLocalFavorites } from "@/lib/use-favorites";
+import { mergeFavorites } from "@/actions/account/favorites";
+import { getLocalFavorites, mergeLocalFavorites } from "@/hooks/use-favorites";
 
 /**
  * Sincroniza (uma vez por visita) os favoritos do dispositivo com a conta:

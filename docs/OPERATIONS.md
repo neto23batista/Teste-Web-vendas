@@ -22,7 +22,7 @@ recuperação com engenharia, financeiro e operação.
 
 ## Handover destrutivo
 
-O utilitário `scripts/handover-cleanup.ts` é reservado a uma entrega formal e
+O utilitário `scripts/ops/handover-cleanup.ts` é reservado a uma entrega formal e
 falha fechado. Antes de executá-lo, valide um backup criptografado e uma
 restauração/PITR em ambiente isolado. Ele é proibido em produção e na Vercel.
 
@@ -77,6 +77,56 @@ acesso restrito.
   continuam válidos até o primeiro uso. Remova `*_PREVIOUS` somente depois da
   janela aprovada. Qualquer limpeza emergencial deve zerar os campos MFA, apagar
   recovery codes, incrementar `sessionVersion` e deixar evidência auditável.
+
+## Estoque, lotes e transferências
+
+- O cadastro de produto aceita estoque inicial e registra o movimento. Na
+  edição, o saldo é somente leitura: salvar descrição/preço não deve reaplicar
+  uma quantidade antiga. Use os fluxos próprios de estoque/lotes para ajustes.
+- A importação CSV com contagem explícita registra o movimento da diferença e
+  recusa saldo inferior às quantidades rastreadas em lotes. Produtos novos
+  importados também registram o saldo inicial no livro-razão. Oferta, estoque e
+  movimentos pertencem à mesma transação e devem reverter juntos em falha.
+  Estoque vazio preserva o saldo existente; para produtos novos, começa em zero.
+  Valores inválidos, fracionários, negativos ou fora do limite são recusados,
+  nunca arredondados. Em linhas duplicadas, vale a última contagem explícita.
+- Receba mercadorias em **Compras → Receber lote**. Quantidades devem ser
+  inteiras; datas inexistentes ou vencidas são recusadas. A validade considera
+  o dia civil de `America/Sao_Paulo`, inclusive o dia informado.
+- O mesmo produto/lote/unidade não pode receber uma nova validade pelo fluxo de
+  recebimento. Uma divergência exige conferência física e tratamento específico;
+  não use um novo recebimento para prolongar a validade cadastrada.
+- O saldo físico pode conter lotes vencidos enquanto a baixa não for registrada.
+  Reservas de pedidos e transferências físicas descontam essa parcela do saldo
+  utilizável. Saldo sem lote só representa a parcela realmente não rastreada.
+- A transferência física entre unidades usa primeiro os lotes válidos com
+  vencimento mais próximo (FEFO) e preserva código, validade e dados de origem
+  no destino. Unidades inativas e conflitos de validade no destino são recusados.
+- Ajustes manuais negativos só podem consumir saldo não rastreado. Para perdas,
+  avarias e vencimento de unidades rastreadas, registre a baixa no próprio lote,
+  em **Compras**, para manter lote, estoque e livro-razão consistentes.
+- Recebimentos, baixas e reservas travam o estoque agregado antes dos lotes.
+  A transferência física trava as duas unidades em ordem estável. Em falha,
+  toda a transação deve ser revertida, inclusive movimentos e auditoria.
+- Se a soma dos lotes superar o estoque agregado, a reserva/transferência é
+  recusada. Investigue ajustes legados e confira o saldo físico antes de corrigir;
+  não apague lotes nem acrescente estoque apenas para contornar o bloqueio.
+
+## Devoluções e comprovação de entrega
+
+- Solicitações de devolução validam propriedade do pedido, saldo por item,
+  quantidades inteiras e itens duplicados. Novas solicitações do mesmo pedido
+  são serializadas no PostgreSQL antes do cálculo do saldo devolvível.
+- Aprovação e recebimento usam transições condicionais. Outra tentativa não
+  deve repetir a reposição nem registrar sucesso de uma operação já concluída.
+- O recebimento físico é confirmado separadamente do reembolso. Se a liquidação
+  estiver indisponível, o painel informa que os itens já foram recebidos e que
+  a liquidação precisa ser retomada. Não repita a reposição de estoque.
+- Despacho e entrega devem usar **Entregas**, com entregador da mesma unidade e
+  comprovante do destinatário. O seletor genérico de status em Pedidos não pode
+  efetuar essas transições sem as informações obrigatórias.
+- Quando informado, o comprovante guarda somente os quatro últimos dígitos do
+  documento do destinatário, nunca o documento completo.
 
 ## Pagamentos, webhooks e reembolsos
 

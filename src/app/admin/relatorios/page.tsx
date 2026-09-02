@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BarChart3, Download } from "lucide-react";
-import { requireArea } from "@/lib/session";
-import { getAbcReport } from "@/lib/admin-reports";
+import { requireArea } from "@/lib/auth/session";
+import { getAbcReport } from "@/lib/admin/reports";
 import { formatBRL, cn } from "@/lib/utils";
-import type { AbcClass } from "@/lib/management";
+import type { AbcClass } from "@/lib/admin/management";
 
 export const metadata: Metadata = { title: "Relatórios" };
 export const dynamic = "force-dynamic";

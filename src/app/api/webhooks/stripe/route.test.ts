@@ -25,7 +25,7 @@ vi.mock("@/lib/prisma", () => ({
     order: { findUnique: mocks.orderFindUnique },
   },
 }));
-vi.mock("@/lib/stripe", () => ({
+vi.mock("@/lib/payments/stripe", () => ({
   getStripeForWebhook: vi.fn().mockResolvedValue({
     client: { webhooks: { constructEvent: mocks.constructEvent } },
     webhookSecret: "whsec_test",
@@ -36,7 +36,7 @@ vi.mock("@/lib/orders", () => ({
   failStripePayment: mocks.failStripePayment,
   recordStripeRefund: mocks.recordStripeRefund,
 }));
-vi.mock("@/lib/return-refunds", () => ({
+vi.mock("@/lib/payments/return-refunds", () => ({
   recordStripeReturnRefund: mocks.recordStripeReturnRefund,
 }));
 vi.mock("@/lib/monitoring", () => ({ reportError: mocks.reportError }));

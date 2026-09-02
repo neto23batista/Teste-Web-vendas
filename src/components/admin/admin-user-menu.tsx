@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { KeyRound, Store, LogOut } from "lucide-react";
-import { logout } from "@/actions/auth";
+import { logout } from "@/actions/account/auth";
 
 /**
  * Avatar do admin no cabeçalho, agora CLICÁVEL: abre um menu com "Ver loja" e

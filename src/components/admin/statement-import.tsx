@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { importStatement } from "@/actions/admin-finance";
+import { importStatement } from "@/actions/admin/finance";
 import { Button } from "@/components/ui/button";
 
 /** Upload do extrato bancário (OFX/CSV) com conciliação automática. */

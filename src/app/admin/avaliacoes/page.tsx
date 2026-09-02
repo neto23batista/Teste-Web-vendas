@@ -4,7 +4,7 @@ import { getReviewsByApproval } from "@/lib/admin";
 import { ReviewModeration } from "@/components/admin/review-moderation";
 import { StarRating } from "@/components/store/star-rating";
 import { cn } from "@/lib/utils";
-import { requireArea } from "@/lib/session";
+import { requireArea } from "@/lib/auth/session";
 
 export const metadata = { title: "Avaliações" };
 

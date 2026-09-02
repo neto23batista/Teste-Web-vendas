@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/auth/session";
 
 // Status do pedido para os pollers da página do pedido (PIX + acompanhamento
 // ao vivo). Só o dono do pedido lê.

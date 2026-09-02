@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { reportError } from "@/lib/monitoring";
 import { prisma } from "@/lib/prisma";
-import { EXPECTED_MIGRATION } from "@/lib/readiness";
+import { EXPECTED_MIGRATION } from "@/lib/operations/readiness";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Gift, TrendingUp, Sparkles } from "lucide-react";
-import { requireUserPage } from "@/lib/session";
-import { getLoyalty } from "@/lib/account";
+import { requireUserPage } from "@/lib/auth/session";
+import { getLoyalty } from "@/lib/auth/account";
 
 export const metadata: Metadata = { title: "Fidelidade" };
 

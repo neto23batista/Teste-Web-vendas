@@ -18,7 +18,7 @@ import {
   getFeaturedProducts,
   getPromoProducts,
   getProductsByCategory,
-} from "@/lib/products";
+} from "@/lib/catalog";
 import { getShippingConfig, getStoreSettings } from "@/lib/settings";
 import { getSelectedPharmacyId } from "@/lib/pharmacy";
 import { jsonLdScript } from "@/lib/utils";

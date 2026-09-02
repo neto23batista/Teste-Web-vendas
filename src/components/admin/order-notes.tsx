@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Loader2, Save, StickyNote } from "lucide-react";
 import { toast } from "sonner";
-import { saveOrderNotes } from "@/actions/admin-orders";
+import { saveOrderNotes } from "@/actions/admin/orders";
 import { Button } from "@/components/ui/button";
 
 export function OrderNotes({

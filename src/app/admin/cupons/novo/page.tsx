@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { createCoupon } from "@/actions/admin-coupons";
+import { createCoupon } from "@/actions/admin/coupons";
 import { CouponForm } from "@/components/admin/coupon-form";
 
 export const metadata = { title: "Novo cupom" };

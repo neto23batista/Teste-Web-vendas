@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireUserPage } from "@/lib/session";
+import { requireUserPage } from "@/lib/auth/session";
 import { isLiveProduction } from "@/lib/env";
 import { PasswordForm } from "@/components/account/password-form";
 import { MfaSetup } from "@/components/account/mfa-setup";

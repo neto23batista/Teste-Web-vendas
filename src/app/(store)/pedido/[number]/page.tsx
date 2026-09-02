@@ -12,7 +12,7 @@ import {
   Truck,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser } from "@/lib/auth/session";
 import { formatBRL } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ProductImage } from "@/components/store/product-image";
@@ -22,7 +22,7 @@ import {
 } from "@/components/store/order-status";
 import { PixPayment } from "@/components/store/pix-payment";
 import { OrderLiveStatus } from "@/components/store/order-live-status";
-import { readCheckoutRaw, readPixRaw } from "@/lib/stripe";
+import { readCheckoutRaw, readPixRaw } from "@/lib/payments/stripe";
 import { qrPngBase64 } from "@/lib/qrcode";
 import { CancelOrderButton } from "@/components/store/cancel-order-button";
 import { ReorderButton } from "@/components/store/reorder-button";

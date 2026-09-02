@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { cronRequestAuthorized } from "@/lib/cron-auth";
-import { mailConfigured } from "@/lib/mail";
+import { cronRequestAuthorized } from "@/lib/security/cron-auth";
+import { mailConfigured } from "@/lib/communications/mail";
 import { reportError } from "@/lib/monitoring";
 import {
   enqueueDueSubscriptionNotifications,
   processSubscriptionNotifications,
-} from "@/lib/subscription-notifications";
+} from "@/lib/communications/subscription-notifications";
 
 // Cron diário (vercel.json): lembra por e-mail as assinaturas vencidas e
 // reinicia o ciclo. Sem cobrança automática — o cliente confirma o pedido.

@@ -5,7 +5,7 @@ import {
   adminNeedsMfaEnrollment,
   getAdminScope,
   getCurrentUser,
-} from "@/lib/session";
+} from "@/lib/auth/session";
 import { getAdminBadges } from "@/lib/admin";
 import { listPharmaciesSafe } from "@/lib/pharmacy";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";

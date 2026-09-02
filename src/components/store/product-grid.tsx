@@ -1,6 +1,6 @@
 import { ProductCard } from "@/components/store/product-card";
 import { RevealGroup, RevealItem } from "@/components/motion/motion";
-import type { ProductCard as ProductCardData } from "@/lib/products";
+import type { ProductCard as ProductCardData } from "@/lib/catalog";
 
 export function ProductGrid({ products }: { products: ProductCardData[] }) {
   return (

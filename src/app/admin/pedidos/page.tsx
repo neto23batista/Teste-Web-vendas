@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { ChevronRight, Download, Search } from "lucide-react";
 import { getAdminOrders } from "@/lib/admin";
-import { getCurrentUser } from "@/lib/session";
-import { isOwnerProfile } from "@/lib/permissions";
+import { getCurrentUser } from "@/lib/auth/session";
+import { isOwnerProfile } from "@/lib/auth/permissions";
 import { formatBRL, cn } from "@/lib/utils";
 import { StatusBadge, STATUS_META } from "@/components/store/order-status";
 import { Pagination } from "@/components/admin/pagination";

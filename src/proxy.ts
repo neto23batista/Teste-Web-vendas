@@ -1,9 +1,9 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "@/auth.config";
-import { canAccess, type Area } from "@/lib/permissions";
+import { canAccess, type Area } from "@/lib/auth/permissions";
 import { isLiveProduction } from "@/lib/env";
-import { hasVersionedSessionClaims } from "@/lib/session-claims";
+import { hasVersionedSessionClaims } from "@/lib/auth/session-claims";
 
 const { auth } = NextAuth(authConfig);
 

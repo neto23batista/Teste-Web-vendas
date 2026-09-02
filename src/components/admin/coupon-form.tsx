@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { AlertCircle, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
-import type { CouponFormState } from "@/actions/admin-coupons";
+import type { CouponFormState } from "@/actions/admin/coupons";
 
 type Coupon = {
   code: string;

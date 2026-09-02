@@ -16,7 +16,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { logout } from "@/actions/auth";
+import { logout } from "@/actions/account/auth";
 
 const items = [
   { href: "/conta", label: "Visão geral", icon: LayoutDashboard, exact: true },

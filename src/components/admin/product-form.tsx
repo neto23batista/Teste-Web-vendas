@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { AlertCircle, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
-import type { ProductFormState } from "@/actions/admin-products";
+import type { ProductFormState } from "@/lib/catalog/product-form";
 
 type Option = { id: string; name: string };
 type Product = {
@@ -124,8 +124,12 @@ export function ProductForm({
               >
                 <Input id="costPrice" name="costPrice" inputMode="decimal" defaultValue={p?.costPrice ?? ""} />
               </Field>
-              <Field label="Estoque (matriz)" htmlFor="stock">
-                <Input id="stock" name="stock" inputMode="numeric" defaultValue={p?.stock ?? 0} />
+              <Field
+                label={p ? "Estoque atual (matriz)" : "Estoque inicial (matriz)"}
+                htmlFor="stock"
+                hint={p ? "Para movimentar o saldo, use Controle de estoque ou os lotes em Compras." : "O saldo inicial será registrado no histórico de movimentos."}
+              >
+                <Input id="stock" name={p ? undefined : "stock"} inputMode="numeric" defaultValue={p?.stock ?? 0} readOnly={Boolean(p)} />
               </Field>
               <Field label="Estoque mínimo" htmlFor="minStock">
                 <Input id="minStock" name="minStock" inputMode="numeric" defaultValue={p?.minStock ?? 5} />

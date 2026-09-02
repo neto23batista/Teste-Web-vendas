@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { AlertCircle, Loader2, LogIn } from "lucide-react";
 import { toast } from "sonner";
-import { authenticate } from "@/actions/auth";
+import { authenticate } from "@/actions/account/auth";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 

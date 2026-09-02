@@ -1,9 +1,9 @@
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
-import { cronRequestAuthorized } from "@/lib/cron-auth";
+import { cronRequestAuthorized } from "@/lib/security/cron-auth";
 import { reportError } from "@/lib/monitoring";
 import { prisma } from "@/lib/prisma";
-import { processStorageDeletionTasks } from "@/lib/storage-deletions";
+import { processStorageDeletionTasks } from "@/lib/storage/deletions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

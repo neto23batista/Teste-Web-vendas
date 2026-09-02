@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireUserPage } from "@/lib/session";
+import { requireUserPage } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { AddressBook } from "@/components/account/address-book";
 

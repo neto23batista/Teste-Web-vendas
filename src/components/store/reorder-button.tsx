@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { RotateCcw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { reorder } from "@/actions/reorder";
+import { reorder } from "@/actions/store/reorder";
 import { Button, type ButtonProps } from "@/components/ui/button";
 
 export function ReorderButton({

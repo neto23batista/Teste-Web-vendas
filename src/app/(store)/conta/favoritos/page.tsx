@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireUserPage } from "@/lib/session";
+import { requireUserPage } from "@/lib/auth/session";
 import { FavoritesList } from "@/components/store/favorites-list";
 import { FavoritesSync } from "@/components/store/favorites-sync";
 

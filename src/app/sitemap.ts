@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
-import { SALEABLE_PRODUCT_WHERE } from "@/lib/product-policy";
+import { SALEABLE_PRODUCT_WHERE } from "@/lib/catalog/policy";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
 

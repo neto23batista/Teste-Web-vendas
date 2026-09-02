@@ -1,88 +1,91 @@
 # FarmaVida Next
 
-E-commerce de farmácia com **cara de app premium** — **Next.js 16 + React 19 + TypeScript + Prisma (PostgreSQL/Neon)**.
+E-commerce de farmácia com loja, conta do cliente e administração por unidade.
+O canal online é **MIP-only**: produtos sujeitos a prescrição permanecem inativos.
+A integração com InovaFarma foi removida; suas migrações históricas foram preservadas.
 
-## Stack
+## Começar
 
-- **Next.js 16** (App Router, Server Components/Actions) + **React 19** + **TypeScript**
-- **Tailwind CSS v4** + UI kit próprio sobre **Radix** · ícones **lucide-react** · animações **framer-motion** · toasts **sonner**
-- **Prisma 6** → **PostgreSQL** (Neon serverless; conexão *pooled* na app + *direta* nas migrations)
-- **Auth.js v5** (credentials, papéis CUSTOMER/ADMIN)
-- **Stripe** (cartão e Pix, quando habilitado) · **recharts** (gráficos do admin)
+Requisitos: **Node 22**, npm e **PostgreSQL**. O CI usa PostgreSQL 16.
+Configure um `.env` local a partir de `.env.example`, sem substituir arquivos
+existentes nem copiar credenciais de produção para os testes.
 
-## Pré-requisitos
+No Windows/PowerShell:
 
-- **Node 22 LTS** (engine do projeto: `22.x`)
-- Um banco **PostgreSQL** — recomendado **Neon** (console.neon.tech). Copie do painel as strings `DATABASE_URL` (*pooled*, com `-pooler` no host) e `DATABASE_URL_UNPOOLED` (direta).
-
-## Setup
-
-```bash
-npm install
-cp .env.example .env        # cole DATABASE_URL + DATABASE_URL_UNPOOLED (Neon) e gere AUTH_SECRET (npx auth secret)
-npm run db:migrate          # aplica as migrations (cria as tabelas)
-# SOMENTE com PostgreSQL local descartável; exige confirmação explícita:
-$env:ALLOW_DESTRUCTIVE_SEED="I_UNDERSTAND_THIS_WILL_DELETE_DATA" # PowerShell
-npm run db:seed
-npm run dev                 # http://localhost:3000
+```powershell
+npm.cmd ci
+npm.cmd run db:migrate:deploy
+npm.cmd run dev
 ```
 
-## Scripts
+O servidor de desenvolvimento usa `http://localhost:3000`. A aplicação precisa
+de banco migrado, `DATABASE_URL`, `DATABASE_URL_UNPOOLED` e `AUTH_SECRET` válido.
+O seed não faz parte da inicialização normal: ele apaga dados e é reservado a
+ambientes locais descartáveis com confirmação explícita.
 
-| Script | O que faz |
-| --- | --- |
-| `npm run dev` | Servidor de desenvolvimento |
-| `npm run build` / `start` | Build e execução de produção |
-| `npm run lint` / `typecheck` | ESLint / checagem de tipos |
-| `npm run db:migrate` | Aplica migrations (Prisma) |
-| `npm run db:seed` | Recria dados demo; exige confirmação explícita e recusa produção/hosts remotos |
-| `npm run db:studio` | Abre o Prisma Studio |
-| `npm test` | Testes unitários (Vitest) |
-| `npm run test:e2e` | Testes de navegador (Playwright) — fluxo completo roda no CI |
-| `npm run shots` | Screenshots de QA (Edge + Playwright) em `screenshots/` |
+Passo a passo, ambiente de testes e comandos de validação:
+[Desenvolvimento local](docs/DEVELOPMENT.md).
 
-## Estrutura
+## Stack e fluxos
 
-```
+- Next.js 16, React 19 e TypeScript, com App Router e Server Actions.
+- Prisma 6 e PostgreSQL; ofertas e estoque separados por unidade.
+- Auth.js, autorização por perfil/unidade e MFA para a equipe.
+- Lotes, validade, reservas, transferências, devoluções e comprovante de entrega.
+- Tailwind CSS 4, Radix, Lucide, Framer Motion e componentes próprios.
+- Stripe para cartão/Pix quando habilitado; credenciais e homologação são externas
+  ao repositório. Assinaturas de reposição não fazem cobrança automática.
+
+## Organização
+
+```text
 src/
-  app/(store)/      loja (home, catálogo, produto, sacola, checkout)
-  app/(account)/    conta do cliente
-  app/admin/        painel administrativo
-  app/api/          auth, webhooks
-  components/       ui/ (kit) + store/ + admin/
-  lib/              prisma, auth, utils, validators
-prisma/             schema.prisma, seed.ts
+  app/              Rotas, páginas, layouts e APIs do Next.js
+  actions/          Entradas de servidor: admin/, account/ e store/
+  components/       Interface por área; checkout dividido em seções
+  hooks/            Estado e interações do cliente
+  lib/              Regras e serviços por domínio; infraestrutura compartilhada
+  types/            Tipos de integração e augmentations
+prisma/             Schema, migrações históricas e seed protegido
+integration/        Testes com PostgreSQL real e dados descartáveis
+e2e/                Fluxos de navegador
+scripts/            assets/, ops/, qa/ e quality/
+docs/               Arquitetura, desenvolvimento, operação e liberação
 ```
 
-## Primeiro acesso (produção)
+O mapa dos domínios e as regras de dependência estão em
+[Arquitetura](docs/ARCHITECTURE.md).
 
-O banco de produção é entregue **limpo** (sem dados de demonstração), com um único
-administrador inicial — `admin@farmavida.local` — cuja senha é entregue **fora do
-repositório**. Troque-a no primeiro acesso (*Minha conta → Segurança*) e cadastre
-os demais usuários pelo próprio painel. Na loja pública, o primeiro login
-administrativo é direcionado ao cadastro de MFA antes de liberar `/admin`;
-clientes seguem para `/conta`.
+## Comandos principais
 
-## Pagamento (Stripe)
+| Comando                       | Finalidade                                               |
+| ----------------------------- | -------------------------------------------------------- |
+| `npm run dev`                 | Desenvolvimento local                                    |
+| `npm run build` / `npm start` | Build e execução de produção                             |
+| `npm run check`               | Arquitetura, lint, tipos e testes locais sem banco       |
+| `npm test`                    | Testes unitários, de ações e renderização de componentes |
+| `npm run test:integration`    | Concorrência e rollback em PostgreSQL descartável        |
+| `npm run test:e2e`            | Testes de navegador; escrita exige ambiente isolado      |
+| `npm run db:migrate:deploy`   | Aplica migrações existentes no banco configurado         |
+| `npm run db:migrate`          | Cria/aplica migrações durante desenvolvimento            |
+| `npm run db:seed`             | Recria dados demo; exige confirmação e recusa produção   |
+| `npm run check:ratelimit`     | Verifica o rate limit configurado com chamadas reais     |
+| `npm run shots`               | Capturas de QA de um servidor já disponível              |
+| `npm run assets:icons`        | Regenera ícones do PWA a partir do SVG existente         |
 
-O checkout usa Stripe: cartão pela página hospedada e Pix nativo quando a conta
-tem essa capability habilitada. Configure `STRIPE_SECRET_KEY` e
-`STRIPE_WEBHOOK_SECRET` no secret manager e teste a conexão no painel. Sem
-credenciais válidas, pagamentos online ficam indisponíveis.
+No PowerShell, prefira `npm.cmd` no lugar de `npm`.
 
-## Política de catálogo
+## Documentação de referência
 
-O canal é **MIP-only**: produtos classificados com `requiresPrescription=true`
-ficam inativos e são excluídos do catálogo, busca, favoritos, assinaturas e
-sitemap. O sistema não recebe nem valida novas receitas.
+- [Arquitetura e convenções](docs/ARCHITECTURE.md)
+- [Ambiente local e testes](docs/DEVELOPMENT.md)
+- [Pagamentos e homologação](docs/PAYMENTS.md)
+- [Operação e procedimentos sensíveis](docs/OPERATIONS.md)
+- [Deploy e migrações controladas](docs/DEPLOY.md)
+- [Checklist de go-live](docs/GO-LIVE.md)
+- [Validação local de 02/09/2026 e pendências](docs/VALIDATION.md)
 
-## Deploy
-
-Hospedado na **Vercel** (deploy automático a cada push na `main`).
-
-1. **Banco:** **PostgreSQL na Neon**. Use a integração **Storage → Neon** da Vercel — ela injeta `DATABASE_URL` (pooled) e `DATABASE_URL_UNPOOLED` (direta) automaticamente no ambiente.
-2. **App:** importe o repositório na Vercel e configure as demais variáveis do `.env.example` (`AUTH_SECRET`, `AUTH_TRUST_HOST`, `NEXT_PUBLIC_BASE_URL`, `STRIPE_SECRET_KEY`, etc.).
-3. **Migrations:** após o deploy do código, rode `npm run db:migrate:deploy` (= `prisma migrate deploy`) apontando para a Neon. O build **não** depende do banco.
-4. `npm run build` já gera o Prisma Client (também no `postinstall`).
-
-Detalhes de variáveis e operação: ver [docs/DEPLOY.md](docs/DEPLOY.md) (técnico) e [docs/GO-LIVE.md](docs/GO-LIVE.md) (checklist regulatório + operacional).
+Uma suíte local verde não comprova prontidão de produção. A liberação exige
+validar banco, migrações, navegador, provedores e os responsáveis pela operação.
+Nenhuma credencial de produção, senha inicial ou cópia de dados pessoais deve
+ser incluída no Git.

@@ -2,9 +2,18 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Loader2, Download, CheckCircle2, AlertTriangle } from "lucide-react";
+import {
+  Upload,
+  Loader2,
+  Download,
+  CheckCircle2,
+  AlertTriangle,
+} from "lucide-react";
 import { toast } from "sonner";
-import { importProducts, type ImportResult } from "@/actions/admin-products";
+import {
+  importProducts,
+  type ImportResult,
+} from "@/actions/admin/product-import";
 import { Button } from "@/components/ui/button";
 
 const TEMPLATE_HEADER =
@@ -59,16 +68,29 @@ export function ProductImport() {
       <div className="rounded-2xl border border-border bg-card p-6">
         <form ref={formRef} onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm font-semibold">Arquivo CSV</label>
+            <label
+              htmlFor="catalog-csv"
+              className="mb-1.5 block text-sm font-semibold"
+            >
+              Arquivo CSV
+            </label>
             <input
+              id="catalog-csv"
               type="file"
               name="file"
+              aria-describedby="catalog-csv-help"
               accept=".csv,text/csv"
               className="block w-full cursor-pointer rounded-xl border border-border bg-background text-sm file:mr-4 file:cursor-pointer file:border-0 file:bg-brand-600 file:px-4 file:py-2.5 file:font-semibold file:text-white hover:file:bg-brand-700"
             />
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p
+              id="catalog-csv-help"
+              className="mt-2 text-xs text-muted-foreground"
+            >
               Máx. 2 MB e 2.000 linhas. A primeira linha deve ser o cabeçalho.
-              Categoria e marca precisam já existir no sistema (busca por nome ou slug).
+              Categoria e marca precisam já existir no sistema (busca por nome
+              ou slug). Estoque vazio preserva o saldo existente; produtos novos
+              começam em zero. Uma contagem informada deve ser inteira e não
+              negativa.
             </p>
           </div>
 
@@ -99,7 +121,8 @@ export function ProductImport() {
             </div>
             {result.errors.length > 0 && (
               <div className="flex items-center gap-2 rounded-xl bg-amber-100 px-4 py-2 text-sm font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
-                <AlertTriangle className="size-4" /> {result.errors.length} avisos
+                <AlertTriangle className="size-4" /> {result.errors.length}{" "}
+                avisos
               </div>
             )}
           </div>

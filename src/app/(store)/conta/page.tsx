@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Gift, Package, Clock, ArrowRight, ShoppingBag } from "lucide-react";
-import { requireUserPage } from "@/lib/session";
-import { getAccountSummary, getUserOrders } from "@/lib/account";
+import { requireUserPage } from "@/lib/auth/session";
+import { getAccountSummary, getUserOrders } from "@/lib/auth/account";
 import { OrderCard } from "@/components/account/order-card";
 import { Button } from "@/components/ui/button";
 

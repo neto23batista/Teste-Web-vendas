@@ -4,7 +4,7 @@ import * as React from "react";
 import { Loader2, Pencil, Save } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { updateUnitOffer } from "@/actions/admin-products";
+import { updateUnitOffer } from "@/actions/admin/inventory";
 
 type Props = {
   productId: string;

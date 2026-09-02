@@ -26,8 +26,8 @@ import {
 } from "lucide-react";
 import type { StaffProfile } from "@prisma/client";
 import { cn } from "@/lib/utils";
-import { canAccess, type Area } from "@/lib/permissions";
-import { logout } from "@/actions/auth";
+import { canAccess, type Area } from "@/lib/auth/permissions";
+import { logout } from "@/actions/account/auth";
 
 const items: {
   href: string;

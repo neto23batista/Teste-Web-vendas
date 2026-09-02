@@ -12,8 +12,8 @@ import {
   cancelSubscription,
   updateSubscriptionInterval,
   refillNow,
-} from "@/actions/subscriptions";
-import { intervalLabel } from "@/lib/subscriptions";
+} from "@/actions/account/subscriptions";
+import { intervalLabel } from "@/lib/commerce/subscription-policy";
 import { IntervalPicker } from "@/components/store/interval-picker";
 import { cn, formatBRL } from "@/lib/utils";
 

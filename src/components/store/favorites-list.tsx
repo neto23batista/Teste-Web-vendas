@@ -3,10 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { AlertCircle, Heart, Loader2, PackageSearch, RefreshCw } from "lucide-react";
-import { useFavorites } from "@/lib/use-favorites";
+import { useFavorites } from "@/hooks/use-favorites";
 import { ProductCard } from "@/components/store/product-card";
 import { Button } from "@/components/ui/button";
-import type { ProductCard as ProductCardData } from "@/lib/products";
+import type { ProductCard as ProductCardData } from "@/lib/catalog";
 
 export function FavoritesList() {
   const { favorites, ready } = useFavorites();

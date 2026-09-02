@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCategoriesAndBrands } from "@/lib/admin";
-import { updateProduct } from "@/actions/admin-products";
+import { updateProduct } from "@/actions/admin/products";
 import { ProductForm } from "@/components/admin/product-form";
 import { moneyToNumber } from "@/lib/money";
 

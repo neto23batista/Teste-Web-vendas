@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Repeat, BellRing } from "lucide-react";
-import { requireUserPage } from "@/lib/session";
-import { getUserSubscriptions } from "@/lib/subscriptions";
+import { requireUserPage } from "@/lib/auth/session";
+import { getUserSubscriptions } from "@/lib/commerce/subscriptions";
 import {
   SubscriptionCard,
   type SubscriptionCardData,

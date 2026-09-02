@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getProductSuggestions } from "@/lib/products";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { getProductSuggestions } from "@/lib/catalog";
+import { rateLimit, clientIp } from "@/lib/security/rate-limit";
 import { getSelectedPharmacyId } from "@/lib/pharmacy";
 
 // Sugestões de busca (autocomplete do header). Leve e somente leitura.

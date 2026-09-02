@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   getObject: vi.fn(),
 }));
 
-vi.mock("@/lib/session", () => ({
+vi.mock("@/lib/auth/session", () => ({
   requireUser: mocks.requireUser,
   assertOwner: mocks.assertOwner,
   requireAdminAtPharmacy: mocks.requireAdminAtPharmacy,
@@ -19,7 +19,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("@/lib/storage", () => ({ getObject: mocks.getObject }));
-vi.mock("@/lib/uploads", () => ({
+vi.mock("@/lib/storage/uploads", () => ({
   CONTENT_TYPE_BY_EXT: { ".pdf": "application/pdf" },
 }));
 

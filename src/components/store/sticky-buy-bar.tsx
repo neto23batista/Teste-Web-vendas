@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ShoppingBag, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { addToCart } from "@/actions/cart";
+import { addToCart } from "@/actions/store/cart";
 import { formatBRL } from "@/lib/utils";
 
 /**

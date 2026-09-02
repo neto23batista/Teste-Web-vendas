@@ -3,8 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Archive, ArchiveRestore, Loader2 } from "lucide-react";
-import { archiveOrder, restoreOrder } from "@/actions/admin-orders";
-import { useConfirmAction } from "@/components/use-confirm-action";
+import { archiveOrder, restoreOrder } from "@/actions/admin/orders";
+import { useConfirmAction } from "@/hooks/use-confirm-action";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 

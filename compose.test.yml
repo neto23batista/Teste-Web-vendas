@@ -1,0 +1,19 @@
+name: farmavida-test
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: farmavida
+      POSTGRES_PASSWORD: farmavida
+      POSTGRES_DB: farmavida_test
+    ports:
+      - "127.0.0.1:55432:5432"
+    # Banco deliberadamente descartável. Não usar este serviço para dados reais.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U farmavida -d farmavida_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 20

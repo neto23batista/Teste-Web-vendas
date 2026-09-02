@@ -9,7 +9,7 @@ import {
   toggleCourier,
   dispatchOrder,
   markDelivered,
-} from "@/actions/admin-deliveries";
+} from "@/actions/admin/deliveries";
 import { formatBRL } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";

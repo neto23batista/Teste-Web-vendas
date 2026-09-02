@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { getCategoriesAndBrands } from "@/lib/admin";
-import { createProduct } from "@/actions/admin-products";
+import { createProduct } from "@/actions/admin/products";
 import { ProductForm } from "@/components/admin/product-form";
 
 export const metadata = { title: "Novo produto" };

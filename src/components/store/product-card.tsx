@@ -5,7 +5,7 @@ import { ProductImage } from "@/components/store/product-image";
 import { StarRating } from "@/components/store/star-rating";
 import { AddToCartButton } from "@/components/store/add-to-cart-button";
 import { FavoriteButton } from "@/components/store/favorite-button";
-import type { ProductCard as ProductCardData } from "@/lib/products";
+import type { ProductCard as ProductCardData } from "@/lib/catalog";
 
 export function ProductCard({
   product,

@@ -5,7 +5,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Trash2, Power, PowerOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { toggleCoupon, deleteCoupon } from "@/actions/admin-coupons";
+import { toggleCoupon, deleteCoupon } from "@/actions/admin/coupons";
 
 export function CouponRowActions({
   id,

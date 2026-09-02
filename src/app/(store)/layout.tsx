@@ -2,7 +2,7 @@ import { SiteHeader } from "@/components/store/site-header";
 import { SiteFooter } from "@/components/store/site-footer";
 import { BottomNav } from "@/components/store/bottom-nav";
 import { WhatsAppFab } from "@/components/store/whatsapp-fab";
-import { getCartCount } from "@/lib/cart";
+import { getCartCount } from "@/lib/commerce/cart";
 import { getStoreSettings } from "@/lib/settings";
 
 // A loja lê dados do banco (produtos, sacola, conta) a cada requisição.

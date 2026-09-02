@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowRight, Flame } from "lucide-react";
 import { ProductCarousel } from "@/components/store/product-carousel";
 import { Reveal } from "@/components/motion/motion";
-import type { ProductCard as ProductCardData } from "@/lib/products";
+import type { ProductCard as ProductCardData } from "@/lib/catalog";
 
 export function ProductRow({
   title,

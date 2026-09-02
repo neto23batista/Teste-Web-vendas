@@ -11,7 +11,7 @@ import {
   Loader2,
   ShieldCheck,
 } from "lucide-react";
-import { beginMfaSetup, confirmMfaSetup, disableMfa } from "@/actions/mfa";
+import { beginMfaSetup, confirmMfaSetup, disableMfa } from "@/actions/account/mfa";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 

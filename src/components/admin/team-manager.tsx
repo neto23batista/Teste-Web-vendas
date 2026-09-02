@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { Loader2, UserPlus, Trash2, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import type { StaffProfile } from "@prisma/client";
-import { createStaff, updateStaffProfile, revokeStaff } from "@/actions/admin-team";
-import { PROFILE_LABEL, PROFILE_DESCRIPTION } from "@/lib/permissions";
+import { createStaff, updateStaffProfile, revokeStaff } from "@/actions/admin/team";
+import { PROFILE_LABEL, PROFILE_DESCRIPTION } from "@/lib/auth/permissions";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 

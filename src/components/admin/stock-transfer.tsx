@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeftRight, Loader2 } from "lucide-react";
-import { transferStock } from "@/actions/admin-products";
+import { transferStock } from "@/actions/admin/inventory";
 
 /**
  * Transfere estoque de um produto da unidade exibida para outra unidade.

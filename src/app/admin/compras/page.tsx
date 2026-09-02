@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { ShoppingBasket, Download, PackageCheck, Clock3 } from "lucide-react";
-import { requireArea } from "@/lib/session";
-import { getPurchaseSuggestions } from "@/lib/admin-reports";
+import { requireArea } from "@/lib/auth/session";
+import { getPurchaseSuggestions } from "@/lib/admin/reports";
 import { formatBRL, cn } from "@/lib/utils";
 import { ProductImage } from "@/components/store/product-image";
 import { StockLevels } from "@/components/admin/stock-levels";
 import { LotReceipt, LotWriteOff } from "@/components/admin/inventory-lot-controls";
 import { prisma } from "@/lib/prisma";
+import { inventoryLotDateCutoff } from "@/lib/inventory/lots";
 
 export const metadata: Metadata = { title: "Compras" };
 export const dynamic = "force-dynamic";
@@ -21,10 +22,10 @@ async function getInventoryLotsWithExpiry(pharmacyId: string) {
     orderBy: [{ expiresAt: "asc" }, { receivedAt: "desc" }],
     take: 100,
   });
-  const now = Date.now();
+  const today = inventoryLotDateCutoff().getTime();
   return lots.map((lot) => ({
     ...lot,
-    daysToExpiry: Math.ceil((lot.expiresAt.getTime() - now) / 86_400_000),
+    daysToExpiry: Math.floor((lot.expiresAt.getTime() - today) / 86_400_000),
   }));
 }
 
@@ -213,10 +214,10 @@ export default async function AdminPurchasesPage({
                       <td className="p-3 font-semibold">{lot.product.name}</td>
                       <td className="p-3 font-mono text-xs">{lot.lotCode}</td>
                       <td className="p-3">
-                        {lot.expiresAt.toLocaleDateString("pt-BR")}
+                        {lot.expiresAt.toLocaleDateString("pt-BR", { timeZone: "UTC" })}
                         {days <= 90 && (
                           <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">
-                            {days <= 0 ? "vencido" : `${days} dias`}
+                            {days < 0 ? "vencido" : days === 0 ? "vence hoje" : `${days} dias`}
                           </span>
                         )}
                       </td>

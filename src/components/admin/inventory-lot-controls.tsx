@@ -4,7 +4,7 @@ import * as React from "react";
 import { Loader2, PackagePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { receiveInventoryLot, writeOffInventoryLot } from "@/actions/inventory-lots";
+import { receiveInventoryLot, writeOffInventoryLot } from "@/actions/admin/inventory-lots";
 
 const inputClass =
   "h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-brand-500";

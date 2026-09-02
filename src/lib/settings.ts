@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_SHIPPING_CONFIG, type ShippingConfig } from "@/lib/shipping";
+import { DEFAULT_SHIPPING_CONFIG, type ShippingConfig } from "@/lib/shipping/rates";
 import { moneyToNumber } from "@/lib/money";
 
 // Configurações da loja (tabela Setting, chave/valor). Lidas de uma vez e

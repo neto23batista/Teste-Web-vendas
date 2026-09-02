@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { assertArea } from "@/lib/session";
+import { assertArea } from "@/lib/auth/session";
 import {
   getAdminStats,
   getSalesByDay,

@@ -4,7 +4,7 @@ import * as React from "react";
 import { Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { cancelReturnRequest, requestReturn } from "@/actions/returns";
+import { cancelReturnRequest, requestReturn } from "@/actions/account/returns";
 import type { ReturnReason, ReturnStatus } from "@prisma/client";
 
 const STATUS: Record<ReturnStatus, string> = {

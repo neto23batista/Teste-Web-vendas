@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { Loader2, XCircle } from "lucide-react";
-import { cancelMyOrder } from "@/actions/checkout";
-import { useConfirmAction } from "@/components/use-confirm-action";
+import { cancelMyOrder } from "@/actions/store/checkout";
+import { useConfirmAction } from "@/hooks/use-confirm-action";
 import { Button } from "@/components/ui/button";
 
 export function CancelOrderButton({ orderNumber }: { orderNumber: string }) {

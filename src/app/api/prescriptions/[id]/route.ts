@@ -5,9 +5,9 @@ import {
   assertOwner,
   requireAdminAtPharmacy,
   requireUser,
-} from "@/lib/session";
+} from "@/lib/auth/session";
 import { getObject } from "@/lib/storage";
-import { CONTENT_TYPE_BY_EXT } from "@/lib/uploads";
+import { CONTENT_TYPE_BY_EXT } from "@/lib/storage/uploads";
 
 /**
  * A loja NÃO trabalha mais com receita: nada envia arquivo novo por aqui. A rota
