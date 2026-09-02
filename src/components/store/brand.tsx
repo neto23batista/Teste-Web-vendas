@@ -7,9 +7,11 @@ const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "FarmaVida";
 export function Brand({
   className,
   href = "/",
+  compactOnMobile = false,
 }: {
   className?: string;
   href?: string;
+  compactOnMobile?: boolean;
 }) {
   return (
     <Link
@@ -20,7 +22,12 @@ export function Brand({
       <span className="grid size-10 place-items-center rounded-2xl gradient-brand text-white shadow-[var(--shadow-glow)] transition-transform group-hover:scale-105">
         <Plus className="size-5" strokeWidth={3} />
       </span>
-      <span className="text-lg font-extrabold tracking-tight">
+      <span
+        className={cn(
+          "text-lg font-extrabold tracking-tight",
+          compactOnMobile && "hidden sm:inline"
+        )}
+      >
         Farma<span className="text-brand-600 dark:text-brand-400">Vida</span>
       </span>
     </Link>

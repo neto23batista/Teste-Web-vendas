@@ -86,11 +86,12 @@ acesso restrito.
   crescente. Reprocessamento deve manter idempotência.
 - Compare diariamente pedidos pagos/reembolsados com o relatório do provedor e
   investigue divergências antes do fechamento.
-- O agendador chama `/api/cron/payments` a cada 10 minutos. Ele reconcilia
+- No plano Hobby, o agendador chama `/api/cron/payments` diariamente. Ele reconcilia
   PaymentIntents, Checkout Sessions, reembolsos e devoluções e somente depois
   cancela reservas de estoque vencidas. Monitore ausência de execução, `401`,
   `503`, crescimento de `reconciliationAttempts` e mensagens em
-  `reconciliationError`.
+  `reconciliationError`. Em produção com maior volume, use Vercel Pro e altere
+  a frequência para cada 10 minutos; o webhook permanece o caminho imediato.
 - Em reembolso, confirme o resultado do provedor antes do estado final local.
   Estados pendente e falho devem permanecer visíveis para nova tentativa segura.
 - Nunca altere manualmente banco, pontos, cupom ou estoque sem ticket, aprovação,

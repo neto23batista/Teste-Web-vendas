@@ -25,7 +25,7 @@ export async function SiteHeader({ cartCount }: { cartCount: number }) {
         className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-brand-400/60 to-transparent dark:via-brand-400/40"
       />
       <div className="container-page flex h-16 items-center gap-3 md:h-18">
-        <Brand />
+        <Brand compactOnMobile />
 
         <SearchBox className="ml-2 hidden flex-1 md:block" />
 

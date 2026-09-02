@@ -32,6 +32,10 @@ test.describe("Qualidade / CSP", () => {
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("frame-ancestors 'none'");
+    // Chunks externos do App Router podem ser emitidos sem nonce. Eles devem
+    // continuar restritos à própria origem, sem strict-dynamic descartar self.
+    expect(csp).toContain("script-src 'self' 'nonce-");
+    expect(csp).not.toContain("'strict-dynamic'");
   });
 
   for (const path of PAGES) {

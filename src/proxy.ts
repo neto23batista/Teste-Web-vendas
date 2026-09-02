@@ -42,11 +42,12 @@ function makeNonce(): string {
 }
 
 /**
- * CSP estrita por nonce (produção). O Next aplica o nonce nos seus <script>
- * inline ao ler o header Content-Security-Policy DA REQUISIÇÃO; com
- * 'strict-dynamic', os chunks que o bootstrap injeta herdam a confiança.
- * 'unsafe-inline' e https: em script-src são IGNORADOS por browsers modernos
- * quando há nonce — ficam só como fallback para browsers antigos.
+ * CSP por nonce (produção). O Next aplica o nonce nos seus <script> inline ao
+ * ler o header Content-Security-Policy DA REQUISIÇÃO. Alguns chunks externos
+ * compartilhados do App Router podem ser emitidos sem nonce; por isso 'self'
+ * autoriza apenas os arquivos JavaScript servidos pela própria aplicação.
+ * 'unsafe-inline' é ignorado por browsers modernos quando há nonce e fica como
+ * fallback para browsers antigos.
  *
  * Em dev, Turbopack/React Refresh usam eval e scripts inline sem nonce —
  * política relaxada (o e2e de qualidade valida a estrita no build de produção).
@@ -54,7 +55,7 @@ function makeNonce(): string {
 function buildCsp(nonce: string): string {
   const script = isDev
     ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-    : `script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline' https:`;
+    : `script-src 'self' 'nonce-${nonce}' 'unsafe-inline'`;
   // Stripe: a conversa com a API é server-side; o cartão navega para a URL
   // hospedada retornada pelo provedor. Nenhum script remoto é carregado na loja.
   const connect = `connect-src 'self'${isDev ? " ws: wss:" : ""} https://viacep.com.br https://*.sentry.io`;
@@ -69,8 +70,8 @@ function buildCsp(nonce: string): string {
     "style-src 'self' 'unsafe-inline'",
     script,
     connect,
-    // strict-dynamic descarta allowlist de host em script-src; o service
-    // worker (sw.js) e workers blob (Sentry) precisam de worker-src explícito.
+    // O service worker (sw.js) e workers blob (Sentry) precisam de
+    // worker-src explícito.
     "worker-src 'self' blob:",
     "frame-src 'self'",
     "frame-ancestors 'none'",

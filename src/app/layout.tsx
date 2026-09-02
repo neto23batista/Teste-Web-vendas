@@ -79,8 +79,8 @@ export default async function RootLayout({
         <Providers nonce={nonce}>{children}</Providers>
         <RegisterSW />
         {/* Só na Vercel: fora dela os scripts /_vercel/... não existem (404 no
-            console — e o e2e de qualidade exige console limpo). Os scripts são
-            injetados no cliente, então a CSP strict-dynamic já os permite. */}
+            console — e o e2e de qualidade exige console limpo). Como são
+            servidos na própria origem, a diretiva 'self' da CSP os permite. */}
         {process.env.VERCEL ? (
           <>
             <Analytics />

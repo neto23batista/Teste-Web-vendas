@@ -29,6 +29,11 @@ Necessárias conforme os recursos habilitados:
 | `NEXT_PUBLIC_BASE_URL` / `AUTH_URL` | URLs públicas HTTPS |
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | monitoramento de erros |
 
+O `vercel.json` usa frequências diárias compatíveis com o plano Hobby. Para
+reconciliar pagamentos a cada 10 minutos, migre o projeto para o plano Pro e
+altere somente a expressão do cron `/api/cron/payments`; webhooks continuam
+sendo a confirmação financeira imediata em todos os planos.
+
 O papel/usuário do bucket precisa permitir `s3:ListBucketVersions`,
 `s3:DeleteObject` e `s3:DeleteObjectVersion` (além das permissões de leitura e
 gravação). A fila de exclusão remove também versões e delete markers; sem essas
