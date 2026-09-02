@@ -42,6 +42,9 @@ test.describe("Painel admin", () => {
 
     await page.getByRole("button", { name: "Conta do administrador" }).click();
     await page.getByRole("menuitem", { name: "Sair" }).click();
+    // Aguarda a Server Action terminar e limpar o cookie antes de iniciar uma
+    // nova navegação; navegar imediatamente pode abortar o POST de logout.
+    await expect(page).toHaveURL(/\/$/, { timeout: 30_000 });
 
     // Deslogado: /admin passa a redirecionar para o login.
     await page.goto("/admin");

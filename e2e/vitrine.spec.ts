@@ -24,9 +24,9 @@ test.describe("Vitrine", () => {
     await box.fill("vita");
 
     // Dropdown de sugestões (debounce + /api/search).
-    await expect(page.locator("#search-suggestions")).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(
+      page.getByRole("listbox", { name: "Sugestões de produtos" })
+    ).toBeVisible({ timeout: 15_000 });
   });
 
   test("página de produto mostra preço, compra e assinatura", async ({

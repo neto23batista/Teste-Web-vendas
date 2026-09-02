@@ -210,6 +210,7 @@ async function main() {
       email: "owner@farmavida.local",
       passwordHash: await bcrypt.hash(ownerPassword.value, 10),
       role: "ADMIN",
+      staffProfile: "OWNER",
       // Admin da matriz = escopo global (vê todas as unidades).
       pharmacyId: matriz.id,
     },
@@ -221,6 +222,9 @@ async function main() {
       email: "filial@farmavida.local",
       passwordHash: await bcrypt.hash(branchPassword.value, 10),
       role: "ADMIN",
+      // Gerente tem todas as áreas operacionais, mas continua limitado à filial
+      // pelo pharmacyId e pelo escopo calculado no servidor.
+      staffProfile: "OWNER",
       pharmacyId: filial.id,
     },
   });
