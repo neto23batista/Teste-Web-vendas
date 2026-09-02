@@ -230,8 +230,10 @@ async function main() {
       email: "cliente@farmavida.local",
       passwordHash: await bcrypt.hash(customerPassword.value, 10),
       role: "CUSTOMER",
-      cpf: "529.982.247-25",
-      phone: "(11) 90000-0000",
+      // Persistência canônica: as Server Actions também removem pontuação
+      // antes da escrita, e a constraint do banco valida somente os dígitos.
+      cpf: "52998224725",
+      phone: "11900000000",
       loyalty: { create: { points: 320 } },
       addresses: {
         create: {
