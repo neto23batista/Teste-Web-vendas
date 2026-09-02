@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "vercel-build": "prisma migrate resolve --rolled-back 20260822030000_payment_integrity && prisma migrate deploy && prisma generate && next build",
+    "vercel-build": "prisma migrate resolve --rolled-back 20260831000200_unit_offer_integrity && prisma migrate deploy && prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",

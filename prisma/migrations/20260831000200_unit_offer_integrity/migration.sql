@@ -25,7 +25,10 @@ BEGIN
   END IF;
 END $$;
 
-CREATE UNIQUE INDEX "Product_ean_key" ON "Product"("ean");
+-- Bancos legados podem já ter este índice por um db push anterior à adoção
+-- integral do histórico de migrations. O preflight acima continua garantindo
+-- que o conteúdo é compatível com a unicidade esperada.
+CREATE UNIQUE INDEX IF NOT EXISTS "Product_ean_key" ON "Product"("ean");
 
 ALTER TABLE "Inventory"
   ADD COLUMN "price" DECIMAL(12, 2),
