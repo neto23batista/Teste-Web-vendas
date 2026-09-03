@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
+import { useOperation } from "@/hooks/use-operation";
 import { useRouter } from "next/navigation";
 import { ShoppingBag, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { addToCart } from "@/actions/store/cart";
+import { addToCart } from "@/client/api/cart";
 import { formatBRL } from "@/lib/utils";
 
 /**
@@ -25,7 +26,7 @@ export function StickyBuyBar({
   disabled?: boolean;
 }) {
   const router = useRouter();
-  const [pending, start] = React.useTransition();
+  const { pending, run: start } = useOperation();
   const [added, setAdded] = React.useState(false);
 
   function add() {
@@ -38,6 +39,7 @@ export function StickyBuyBar({
         setTimeout(() => setAdded(false), 1500);
       } else {
         toast.error(res.error ?? "Não foi possível adicionar.");
+        router.refresh();
       }
     });
   }

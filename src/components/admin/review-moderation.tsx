@@ -1,10 +1,8 @@
 "use client";
 
-import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Check, X, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { approveReview, rejectReview } from "@/actions/admin/reviews";
+import { approveReview, rejectReview } from "@/client/api/admin";
+import { useConfirmAction } from "@/hooks/use-confirm-action";
 import { Button } from "@/components/ui/button";
 
 export function ReviewModeration({
@@ -14,37 +12,29 @@ export function ReviewModeration({
   id: string;
   approved: boolean;
 }) {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
+  const { pending, run, confirm, dialog } = useConfirmAction();
 
   function approve() {
-    start(async () => {
-      const res = await approveReview(id);
-      if (res.ok) {
-        toast.success("Avaliação aprovada");
-        router.refresh();
-      } else {
-        toast.error("Não foi possível aprovar.");
-      }
+    void run({
+      action: () => approveReview(id),
+      successMessage: "Avaliação aprovada.",
     });
   }
 
   function reject() {
-    if (!window.confirm("Excluir esta avaliação? O cliente poderá reenviar outra."))
-      return;
-    start(async () => {
-      const res = await rejectReview(id);
-      if (res.ok) {
-        toast.success("Avaliação excluída");
-        router.refresh();
-      } else {
-        toast.error("Não foi possível excluir.");
-      }
+    confirm({
+      title: "Remover avaliação",
+      confirmLabel: "Remover avaliação",
+      destructive: true,
+      confirmMessage: "Esta avaliação será removida e deixará de aparecer na loja. O cliente poderá enviar uma nova avaliação.",
+      action: () => rejectReview(id),
+      successMessage: "Avaliação removida.",
     });
   }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {dialog}
       {!approved && (
         <Button size="sm" variant="success" disabled={pending} onClick={approve}>
           {pending ? (

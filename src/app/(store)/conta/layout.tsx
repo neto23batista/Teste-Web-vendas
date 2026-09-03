@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireUserPage } from "@/lib/auth/session";
-import { AccountNav } from "@/components/account/account-nav";
+import { AccountNav } from "@/components/store/account/account-nav";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true },

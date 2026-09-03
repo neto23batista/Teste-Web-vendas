@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Gift, Package, Clock, ArrowRight, ShoppingBag } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import { getAccountSummary, getUserOrders } from "@/lib/auth/account";
-import { OrderCard } from "@/components/account/order-card";
+import { OrderCard } from "@/components/store/account/order-card";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Minha conta" };

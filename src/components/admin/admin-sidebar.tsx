@@ -24,10 +24,10 @@ import {
   ChevronDown,
   Menu,
 } from "lucide-react";
-import type { StaffProfile } from "@prisma/client";
+import type { StaffProfile } from "@/contracts/domain";
 import { cn } from "@/lib/utils";
 import { canAccess, type Area } from "@/lib/auth/permissions";
-import { logout } from "@/actions/account/auth";
+import { logout } from "@/client/api/auth";
 
 const items: {
   href: string;

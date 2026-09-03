@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { prisma } from "@/lib/prisma";
+import { getAdminCouponEditorView } from "@/server/queries/admin/catalog";
 import { updateCoupon } from "@/actions/admin/coupons";
 import { CouponForm } from "@/components/admin/coupon-form";
-import { moneyToNumber } from "@/lib/money";
 
 export const metadata = { title: "Editar cupom" };
 
@@ -14,7 +13,7 @@ export default async function EditCouponPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const coupon = await prisma.coupon.findUnique({ where: { id } });
+  const coupon = await getAdminCouponEditorView(id);
   if (!coupon) notFound();
 
   const action = updateCoupon.bind(null, id);
@@ -33,11 +32,7 @@ export default async function EditCouponPage({
       </div>
       <CouponForm
         action={action}
-        coupon={{
-          ...coupon,
-          value: moneyToNumber(coupon.value),
-          minTotal: moneyToNumber(coupon.minTotal),
-        }}
+        coupon={coupon}
         submitLabel="Salvar alterações"
       />
     </div>

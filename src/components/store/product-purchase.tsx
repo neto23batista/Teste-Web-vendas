@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
+import { useOperation } from "@/hooks/use-operation";
 import { useRouter } from "next/navigation";
 import { Minus, Plus, ShoppingBag, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { addToCart } from "@/actions/store/cart";
+import { addToCart } from "@/client/api/cart";
 import { Button } from "@/components/ui/button";
 
 const MAX_ITEM_QUANTITY = 99;
@@ -22,7 +23,7 @@ export function ProductPurchase({
 }) {
   const router = useRouter();
   const [qty, setQty] = React.useState(1);
-  const [pending, start] = React.useTransition();
+  const { pending, run: start } = useOperation();
   const [added, setAdded] = React.useState(false);
 
   const dec = () => setQty((q) => Math.max(1, q - 1));
@@ -39,6 +40,7 @@ export function ProductPurchase({
         setTimeout(() => setAdded(false), 1500);
       } else {
         toast.error(res.error ?? "Não foi possível adicionar.");
+        router.refresh();
       }
     });
   }
@@ -48,7 +50,7 @@ export function ProductPurchase({
       <div className="inline-flex h-13 items-center rounded-2xl border border-border bg-card">
         <button
           onClick={dec}
-          disabled={disabled || qty <= 1}
+          disabled={disabled || pending || qty <= 1}
           aria-label="Diminuir"
           className="grid size-12 place-items-center rounded-l-2xl text-muted-foreground transition hover:bg-muted disabled:opacity-40"
         >
@@ -57,7 +59,7 @@ export function ProductPurchase({
         <span className="w-10 text-center text-base font-bold">{qty}</span>
         <button
           onClick={inc}
-          disabled={disabled || qty >= maxQuantity}
+          disabled={disabled || pending || qty >= maxQuantity}
           aria-label="Aumentar"
           className="grid size-12 place-items-center rounded-r-2xl text-muted-foreground transition hover:bg-muted disabled:opacity-40"
         >

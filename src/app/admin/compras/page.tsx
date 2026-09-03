@@ -1,13 +1,10 @@
 import type { Metadata } from "next";
 import { ShoppingBasket, Download, PackageCheck, Clock3 } from "lucide-react";
-import { requireArea } from "@/lib/auth/session";
-import { getPurchaseSuggestions } from "@/lib/admin/reports";
+import { getAdminPurchasesView } from "@/server/queries/admin/inventory";
 import { formatBRL, cn } from "@/lib/utils";
 import { ProductImage } from "@/components/store/product-image";
-import { StockLevels } from "@/components/admin/stock-levels";
-import { LotReceipt, LotWriteOff } from "@/components/admin/inventory-lot-controls";
-import { prisma } from "@/lib/prisma";
-import { inventoryLotDateCutoff } from "@/lib/inventory/lots";
+import { StockLevels } from "@/components/admin/inventory/stock-levels";
+import { LotReceipt, LotWriteOff } from "@/components/admin/inventory/inventory-lot-controls";
 
 export const metadata: Metadata = { title: "Compras" };
 export const dynamic = "force-dynamic";
@@ -15,39 +12,14 @@ export const dynamic = "force-dynamic";
 type SP = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
-async function getInventoryLotsWithExpiry(pharmacyId: string) {
-  const lots = await prisma.inventoryLot.findMany({
-    where: { pharmacyId, qty: { gt: 0 } },
-    include: { product: { select: { name: true } } },
-    orderBy: [{ expiresAt: "asc" }, { receivedAt: "desc" }],
-    take: 100,
-  });
-  const today = inventoryLotDateCutoff().getTime();
-  return lots.map((lot) => ({
-    ...lot,
-    daysToExpiry: Math.floor((lot.expiresAt.getTime() - today) / 86_400_000),
-  }));
-}
-
 export default async function AdminPurchasesPage({
   searchParams,
 }: {
   searchParams: Promise<SP>;
 }) {
-  await requireArea("compras");
   const sp = await searchParams;
   const unit = one(sp.unit) || undefined;
-  const { unitId, rows } = await getPurchaseSuggestions(unit);
-  const lots = unitId
-    ? await getInventoryLotsWithExpiry(unitId)
-    : [];
-
-  const toBuy = rows.filter((r) => r.suggested > 0);
-  const estimated = toBuy.reduce(
-    (s, r) => s + (r.costPrice ?? 0) * r.suggested,
-    0
-  );
-  const missingCost = toBuy.some((r) => r.costPrice == null);
+  const { unitId, rows, lots, toBuy, estimated, missingCost } = await getAdminPurchasesView(unit);
   const exportHref = `/api/admin/purchases/export${unit ? `?unit=${unit}` : ""}`;
 
   return (

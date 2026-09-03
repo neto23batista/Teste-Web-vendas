@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ShoppingBag, User } from "lucide-react";
 import { Brand } from "@/components/store/brand";
 import { SearchBox } from "@/components/store/search-box";
-import { CartBadge } from "@/components/store/cart-badge";
+import { CartBadge } from "@/components/store/cart/cart-badge";
 import { PharmacySelector } from "@/components/store/pharmacy-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";

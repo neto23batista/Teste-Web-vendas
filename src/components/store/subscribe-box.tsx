@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
+import { useOperation } from "@/hooks/use-operation";
 import Link from "next/link";
 import { Repeat, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
-import { subscribeToProduct } from "@/actions/account/subscriptions";
+import { subscribeToProduct } from "@/client/api/account";
 import { intervalLabel } from "@/lib/commerce/subscription-policy";
 import { IntervalPicker } from "@/components/store/interval-picker";
 
@@ -28,7 +29,7 @@ export function SubscribeBox({
   // "Ativa" só quando o status é ACTIVE — uma assinatura PAUSADA cai no ramo de
   // ativação (o cliente pode religá-la aqui), não no selo verde "ativa".
   const [active, setActive] = React.useState(existing?.status === "ACTIVE");
-  const [pending, startTransition] = React.useTransition();
+  const { pending, run: startTransition } = useOperation();
 
   function activate() {
     startTransition(async () => {

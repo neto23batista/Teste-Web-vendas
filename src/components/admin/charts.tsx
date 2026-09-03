@@ -15,8 +15,8 @@ import {
   Cell,
 } from "recharts";
 import { formatBRL } from "@/lib/utils";
-import { STATUS_META } from "@/components/store/order-status";
-import type { OrderStatus } from "@prisma/client";
+import { STATUS_META } from "@/components/store/orders/order-status";
+import type { OrderStatus } from "@/contracts/domain";
 
 const BRAND = "#e11d33";
 const ACCENT = "#0ea5e9";

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { KeyRound, Store, LogOut } from "lucide-react";
-import { logout } from "@/actions/account/auth";
+import { logout } from "@/client/api/auth";
 
 /**
  * Avatar do admin no cabeçalho, agora CLICÁVEL: abre um menu com "Ver loja" e
@@ -12,12 +12,20 @@ import { logout } from "@/actions/account/auth";
  */
 export function AdminUserMenu({ name }: { name: string }) {
   const [open, setOpen] = React.useState(false);
+  const menuId = React.useId();
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
   const initial = name.trim()[0]?.toUpperCase() ?? "A";
 
   // Fecha com Esc.
   React.useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
@@ -26,9 +34,12 @@ export function AdminUserMenu({ name }: { name: string }) {
     <div className="relative">
       <button
         type="button"
+        ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        onKeyDown={(event) => { if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); } }}
         aria-label="Conta do administrador"
         className="flex min-h-11 min-w-11 items-center justify-center gap-2.5 rounded-full pr-1 outline-none transition active:scale-95 focus-visible:ring-2 focus-visible:ring-brand-500/40"
       >
@@ -52,7 +63,21 @@ export function AdminUserMenu({ name }: { name: string }) {
             className="fixed inset-0 z-40 cursor-default"
           />
           <div
+            id={menuId}
+            ref={menuRef}
             role="menu"
+            aria-label="Conta do administrador"
+            onBlur={(event) => {
+              if (event.relatedTarget instanceof Node && event.relatedTarget !== triggerRef.current && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+            }}
+            onKeyDown={(event) => {
+              if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+              event.preventDefault();
+              const entries = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+              const current = entries.indexOf(document.activeElement as HTMLElement);
+              const next = event.key === "Home" ? 0 : event.key === "End" ? entries.length - 1 : (current + (event.key === "ArrowDown" ? 1 : -1) + entries.length) % entries.length;
+              entries[next]?.focus();
+            }}
             className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-2xl border border-border bg-card p-1.5 shadow-[var(--shadow-card)]"
           >
             {/* No mobile o nome não cabe no cabeçalho — mostra aqui. */}

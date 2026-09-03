@@ -2,7 +2,7 @@
 
 import { Truck, Zap } from "lucide-react";
 import { cn, formatBRL } from "@/lib/utils";
-import type { DeliveryMethod, DeliveryOption } from "@/lib/shipping/rates";
+import type { DeliveryMethod, DeliveryOption } from "@/contracts/commerce";
 
 export function CheckoutDeliverySection({
   options,

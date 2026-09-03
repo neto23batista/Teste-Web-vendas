@@ -19,7 +19,7 @@ import {
   getRecentOrders,
 } from "@/lib/admin";
 import { formatBRL } from "@/lib/utils";
-import { StatusBadge } from "@/components/store/order-status";
+import { StatusBadge } from "@/components/store/orders/order-status";
 import { SalesAreaChart, TopProductsBar, StatusDonut } from "@/components/admin/charts";
 import { PrintButton } from "@/components/admin/print-button";
 import { AutoRefresh } from "@/components/auto-refresh";

@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Pencil, Trash2, Eye, EyeOff, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { toggleProductActive, deleteProduct } from "@/actions/admin/products";
+import { toggleProductActive, deleteProduct } from "@/client/api/admin";
+import { useConfirmAction } from "@/hooks/use-confirm-action";
 
 export function ProductRowActions({
   id,
@@ -16,34 +14,36 @@ export function ProductRowActions({
   active: boolean;
   name: string;
 }) {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
+  const { pending, confirm, dialog } = useConfirmAction();
 
   const toggle = () =>
-    start(async () => {
-      const result = await toggleProductActive(id);
-      if (!result.ok) {
-        toast.error(result.error ?? "Não foi possível alterar o produto.");
-      }
-      router.refresh();
+    confirm({
+      title: active ? "Desativar produto" : "Ativar produto",
+      confirmLabel: active ? "Desativar produto" : "Ativar produto",
+      confirmMessage: `${name} ${active ? "deixará de aparecer para novas compras" : "poderá aparecer para novas compras, conforme a disponibilidade"}. O histórico dos pedidos será preservado.`,
+      action: () => toggleProductActive(id),
+      successMessage: active ? "Produto desativado." : "Produto ativado.",
     });
 
   const remove = () =>
-    start(async () => {
-      if (!confirm(`Excluir "${name}"? Esta ação não pode ser desfeita.`)) return;
-      const res = await deleteProduct(id);
-      if (res.ok) toast.success("Produto excluído");
-      else toast.error("Não foi possível excluir o produto. Tente novamente.");
-      router.refresh();
+    confirm({
+      title: "Excluir produto",
+      confirmLabel: "Excluir produto",
+      destructive: true,
+      confirmMessage: `Excluir “${name}”? Esta operação não pode ser desfeita. O servidor verificará os vínculos existentes antes de permitir a exclusão. Para apenas suspender vendas, use Desativar.`,
+      action: () => deleteProduct(id),
+      successMessage: "Produto excluído.",
     });
 
   return (
     <div className="flex items-center justify-end gap-1">
+      {dialog}
       <button
         onClick={toggle}
         disabled={pending}
         title={active ? "Desativar" : "Ativar"}
-        className="grid size-9 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted"
+        aria-label={`${active ? "Desativar" : "Ativar"} produto ${name}`}
+        className="grid size-11 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted"
       >
         {pending ? (
           <Loader2 className="size-4 animate-spin" />
@@ -56,7 +56,8 @@ export function ProductRowActions({
       <Link
         href={`/admin/produtos/${id}`}
         title="Editar"
-        className="grid size-9 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-brand-600"
+        aria-label={`Editar produto ${name}`}
+        className="grid size-11 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-brand-600"
       >
         <Pencil className="size-4" />
       </Link>
@@ -64,7 +65,8 @@ export function ProductRowActions({
         onClick={remove}
         disabled={pending}
         title="Excluir"
-        className="grid size-9 place-items-center rounded-lg text-muted-foreground transition hover:bg-danger-500/10 hover:text-danger-500"
+        aria-label={`Excluir produto ${name}`}
+        className="grid size-11 place-items-center rounded-lg text-muted-foreground transition hover:bg-danger-500/10 hover:text-danger-500"
       >
         <Trash2 className="size-4" />
       </button>

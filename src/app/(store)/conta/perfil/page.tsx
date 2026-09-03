@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { MapPin, Star } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import { getUserWithAddresses } from "@/lib/auth/account";
-import { ProfileForm } from "@/components/account/profile-form";
+import { ProfileForm } from "@/components/store/account/profile-form";
 
 export const metadata: Metadata = { title: "Meus dados" };
 

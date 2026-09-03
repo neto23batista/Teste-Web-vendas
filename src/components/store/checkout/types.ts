@@ -1,5 +1,5 @@
-import type { PaymentAvailability } from "@/lib/payments/methods";
-import type { ShippingConfig } from "@/lib/shipping/rates";
+import type { PaymentAvailability, PaymentMethodId } from "@/contracts/commerce";
+import type { DeliveryOption } from "@/contracts/commerce";
 
 export type CheckoutAddress = {
   id: string;
@@ -23,8 +23,11 @@ export type CheckoutFormProps = {
   addresses: CheckoutAddress[];
   subtotal: number;
   points: number;
-  shippingConfig?: ShippingConfig;
-  defaultKm?: number;
+  initialDeliveryOptions: DeliveryOption[];
+  deliveryOptionsByAddress: Record<string, DeliveryOption[]>;
+  maxRedeem: number;
+  maxRedeemDiscount: number;
+  initialPaymentMethod: PaymentMethodId;
   hasCpf?: boolean;
   availability: PaymentAvailability;
 };

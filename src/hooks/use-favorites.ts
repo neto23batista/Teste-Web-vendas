@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { toggleFavorite } from "@/actions/account/favorites";
+import { toggleFavorite } from "@/client/api/account";
 
 const KEY = "farmavida:favorites";
 const EVENT = "favorites:changed";

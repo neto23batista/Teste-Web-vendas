@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { previewCheckoutQuote } from "@/actions/store/checkout";
+import { previewCheckoutQuote } from "@/client/api/checkout";
 import type { DeliveryMethod } from "@/lib/shipping/rates";
 
 type PreviewResult = Awaited<ReturnType<typeof previewCheckoutQuote>>;
 
 type QuoteInput = {
+  revision: string;
   addressId: string;
   isNew: boolean;
   newZip: string;
@@ -17,6 +18,7 @@ type QuoteInput = {
 
 /** Debounce e descarte de respostas antigas; os valores vêm sempre do servidor. */
 export function useCheckoutQuote({
+  revision,
   addressId,
   isNew,
   newZip,
@@ -28,6 +30,7 @@ export function useCheckoutQuote({
   const canQuote = !isNew || zipDigits.length === 8;
   const [retry, setRetry] = useState(0);
   const requestKey = JSON.stringify([
+    revision,
     isNew ? null : addressId,
     isNew ? zipDigits : null,
     coupon,
@@ -83,6 +86,7 @@ export function useCheckoutQuote({
     newZip,
     redeemPoints,
     requestKey,
+    revision,
   ]);
 
   const current = response?.key === requestKey ? response.result : null;

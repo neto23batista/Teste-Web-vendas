@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { mergeFavorites } from "@/actions/account/favorites";
+import { mergeFavorites } from "@/client/api/account";
 import { getLocalFavorites, mergeLocalFavorites } from "@/hooks/use-favorites";
 
 /**

@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import {
   importProducts,
   type ImportResult,
-} from "@/actions/admin/product-import";
+} from "@/client/api/admin";
 import { Button } from "@/components/ui/button";
 
 const TEMPLATE_HEADER =

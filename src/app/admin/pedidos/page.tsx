@@ -1,14 +1,12 @@
 import Link from "next/link";
 import { ChevronRight, Download, Search } from "lucide-react";
-import { getAdminOrders } from "@/lib/admin";
-import { getCurrentUser } from "@/lib/auth/session";
-import { isOwnerProfile } from "@/lib/auth/permissions";
+import { getAdminOrdersView } from "@/server/queries/admin/orders";
 import { formatBRL, cn } from "@/lib/utils";
-import { StatusBadge, STATUS_META } from "@/components/store/order-status";
+import { StatusBadge, STATUS_META } from "@/components/store/orders/order-status";
 import { Pagination } from "@/components/admin/pagination";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { OrderArchiveButton } from "@/components/admin/order-archive-button";
-import type { OrderStatus } from "@prisma/client";
+import { OrderArchiveButton } from "@/components/admin/orders/order-archive-button";
+import type { OrderStatus } from "@/contracts/domain";
 
 type SP = Record<string, string | string[] | undefined>;
 const filters: (OrderStatus | "ALL")[] = ["ALL", "PENDING", "PAID", "PREPARING", "SHIPPED", "DELIVERED", "CANCELED"];
@@ -20,19 +18,14 @@ export default async function AdminOrdersPage({
   searchParams: Promise<SP>;
 }) {
   const sp = await searchParams;
-  const status = one(sp.status) as OrderStatus | undefined;
   const q = one(sp.q)?.trim() || undefined;
   const from = one(sp.from) || undefined;
   const to = one(sp.to) || undefined;
   const page = Number(one(sp.page)) || 1;
   const unit = one(sp.unit) || undefined;
   const archived = one(sp.archived) === "1";
-  const [{ items: orders, total, pages, page: current }, user] = await Promise.all([
-    getAdminOrders({ status, q, from, to, archived }, page, unit),
-    getCurrentUser(),
-  ]);
-  // Só o dono/gerente vê o atalho de excluir pedidos direto na lista.
-  const isOwner = isOwnerProfile(user?.staffProfile);
+  const { items: orders, total, pages, page: current, isOwner, status } =
+    await getAdminOrdersView({ status: one(sp.status), q, from, to, archived, page, unit });
 
   // Links das abas de status preservam busca e período.
   const statusHref = (f: OrderStatus | "ALL") => {

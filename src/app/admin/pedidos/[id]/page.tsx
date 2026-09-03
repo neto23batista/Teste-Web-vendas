@@ -1,23 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, User, MapPin, CreditCard } from "lucide-react";
-import { getAdminOrder } from "@/lib/admin";
-import { getStoreSettings } from "@/lib/settings";
-import { listPharmaciesSafe } from "@/lib/pharmacy";
-import { getCurrentUser } from "@/lib/auth/session";
-import { isOwnerProfile } from "@/lib/auth/permissions";
+import { getAdminOrderDetailView } from "@/server/queries/admin/orders";
 import { formatBRL } from "@/lib/utils";
-import { StatusBadge } from "@/components/store/order-status";
-import { OrderStatusControl } from "@/components/admin/order-status-control";
-import { OrderTransfer } from "@/components/admin/order-transfer";
+import { StatusBadge } from "@/components/store/orders/order-status";
+import { OrderStatusControl } from "@/components/admin/orders/order-status-control";
+import { OrderTransfer } from "@/components/admin/orders/order-transfer";
 import { ProductImage } from "@/components/store/product-image";
 import { PrintButton } from "@/components/admin/print-button";
-import { OrderNotes } from "@/components/admin/order-notes";
-import { OrderArchiveButton } from "@/components/admin/order-archive-button";
-import { allowedOrderTransitions } from "@/lib/orders";
-import { RetryRefundButton } from "@/components/admin/retry-refund-button";
-import { moneyToNumber } from "@/lib/money";
-import { ReturnManagement } from "@/components/admin/return-management";
+import { OrderNotes } from "@/components/admin/orders/order-notes";
+import { OrderArchiveButton } from "@/components/admin/orders/order-archive-button";
+import { RetryRefundButton } from "@/components/admin/orders/retry-refund-button";
+import { ReturnManagement } from "@/components/admin/orders/return-management";
 
 export const metadata = { title: "Pedido" };
 
@@ -27,28 +21,10 @@ export default async function AdminOrderDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [order, store, pharmacies, user] = await Promise.all([
-    getAdminOrder(id),
-    getStoreSettings(),
-    listPharmaciesSafe(),
-    getCurrentUser(),
-  ]);
-  if (!order) notFound();
-  // Arquivar/restaurar o histórico é ação do dono/gerente (OWNER).
-  const isOwner = isOwnerProfile(user?.staffProfile);
-  const subtotal = moneyToNumber(order.subtotal);
-  const discount = moneyToNumber(order.discount);
-  const shipping = moneyToNumber(order.shipping);
-  const total = moneyToNumber(order.total);
-
-  // Transferência: só faz sentido enquanto a unidade ainda trata o pedido.
-  const canTransfer =
-    order.status === "PENDING" ||
-    order.status === "PAID" ||
-    order.status === "PREPARING";
-  const transferTargets = pharmacies
-    .filter((p) => p.id !== order.pharmacyId)
-    .map((p) => ({ id: p.id, name: p.name }));
+  const view = await getAdminOrderDetailView(id);
+  if (!view) notFound();
+  const { order, store, isOwner, canTransfer, hasMultiplePharmacies, transferTargets, allowedTransitions } = view;
+  const { subtotal, discount, shipping, total } = order;
 
   return (
     <div className="space-y-6">
@@ -105,9 +81,9 @@ export default async function AdminOrderDetail({
                 <ProductImage emoji={it.product?.emoji} name={it.name} className="size-12 rounded-xl" emojiClassName="text-xl" />
                 <div className="flex-1">
                   <p className="text-sm font-semibold">{it.name}</p>
-                  <p className="text-xs text-muted-foreground">{it.qty} × {formatBRL(moneyToNumber(it.price))}</p>
+                  <p className="text-xs text-muted-foreground">{it.qty} × {formatBRL(it.price)}</p>
                 </div>
-                <p className="font-bold">{formatBRL(moneyToNumber(it.price) * it.qty)}</p>
+                <p className="font-bold">{formatBRL(it.price * it.qty)}</p>
               </div>
             ))}
           </div>
@@ -143,11 +119,11 @@ export default async function AdminOrderDetail({
             <OrderStatusControl
               id={order.id}
               current={order.status}
-              allowed={allowedOrderTransitions(order.status, order.paymentMethod)}
+              allowed={allowedTransitions}
             />
           </div>}
 
-          {pharmacies.length > 1 &&
+          {hasMultiplePharmacies &&
             (canTransfer && transferTargets.length > 0 ? (
               <OrderTransfer
                 orderId={order.id}
@@ -214,6 +190,17 @@ export default async function AdminOrderDetail({
             {order.payment?.status === "REFUND_PENDING" && (
               <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
                 Estorno solicitado; aguardando confirmação do Stripe.
+              </p>
+            )}
+            {order.payment?.status === "QUARANTINED" && (
+              <div role="status" className="space-y-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                <p>Pagamento com divergência, aguardando análise. Evite solicitar nova cobrança.</p>
+                <Link href="/admin/financeiro" className="underline underline-offset-2">Conferir no financeiro</Link>
+              </div>
+            )}
+            {order.payment?.status === "REFUNDED" && (
+              <p role="status" className="text-xs font-semibold text-success-700 dark:text-success-400">
+                Reembolso confirmado pelo provedor.
               </p>
             )}
             {order.payment?.status === "REFUND_FAILED" && (

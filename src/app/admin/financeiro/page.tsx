@@ -1,15 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Wallet, ChevronLeft, ChevronRight, Landmark, AlertTriangle } from "lucide-react";
-import { prisma } from "@/lib/prisma";
-import { requireArea } from "@/lib/auth/session";
-import { getFinanceReport } from "@/lib/admin/reports";
+import { getAdminFinanceView } from "@/server/queries/admin/finance";
 import { EXPENSE_LABEL } from "@/lib/admin/management";
-import { listPharmaciesSafe } from "@/lib/pharmacy";
 import { formatBRL, cn } from "@/lib/utils";
-import { ExpenseManager, type ExpenseRow } from "@/components/admin/expense-manager";
-import { StatementImport } from "@/components/admin/statement-import";
-import { moneyToNumber } from "@/lib/money";
+import { ExpenseManager } from "@/components/admin/finance/expense-manager";
+import { StatementImport } from "@/components/admin/finance/statement-import";
+import { PaymentQuarantine } from "@/components/admin/finance/payment-quarantine";
 
 export const metadata: Metadata = { title: "Financeiro" };
 export const dynamic = "force-dynamic";
@@ -44,39 +41,11 @@ export default async function AdminFinancePage({
 }: {
   searchParams: Promise<SP>;
 }) {
-  await requireArea("financeiro");
   const sp = await searchParams;
   const unit = one(sp.unit) || undefined;
-  const mesRaw = one(sp.mes) ?? "";
-  const mes = /^\d{4}-\d{2}$/.test(mesRaw) ? mesRaw : monthKey(new Date());
-
-  const report = await getFinanceReport(mes, unit);
-  const { dre, cashFlow, expensesByCategory, itemsWithoutCost, from, to } = report;
-
-  const [expenses, bankTx, unmatchedTotal, pharmacies] = await Promise.all([
-    prisma.expense.findMany({
-      where: { paidAt: { gte: from, lt: to } },
-      orderBy: { paidAt: "desc" },
-      include: { pharmacy: { select: { name: true } } },
-    }),
-    prisma.bankTransaction.findMany({
-      where: { date: { gte: from, lt: to } },
-      orderBy: { date: "desc" },
-      take: 100,
-      include: { payment: { select: { order: { select: { number: true } } } } },
-    }),
-    prisma.bankTransaction.count({ where: { paymentId: null, amount: { gt: 0 } } }),
-    listPharmaciesSafe(),
-  ]);
-
-  const expenseRows: ExpenseRow[] = expenses.map((e) => ({
-    id: e.id,
-    description: e.description,
-    category: e.category,
-    amount: moneyToNumber(e.amount),
-    paidAt: e.paidAt.toLocaleDateString("pt-BR"),
-    pharmacyName: e.pharmacy?.name ?? null,
-  }));
+  const { mes, dre, cashFlow, expensesByCategory, itemsWithoutCost, from,
+    quarantined, expenseRows, bankTx, unmatchedTotal, pharmacies } =
+    await getAdminFinanceView(one(sp.mes), unit);
 
   const monthLabel = from.toLocaleDateString("pt-BR", {
     month: "long",
@@ -98,6 +67,7 @@ export default async function AdminFinancePage({
 
   return (
     <div className="space-y-6">
+      <PaymentQuarantine rows={quarantined} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-extrabold">
@@ -237,7 +207,7 @@ export default async function AdminFinancePage({
 
       <ExpenseManager
         expenses={expenseRows}
-        pharmacies={pharmacies.map((p) => ({ id: p.id, name: p.name }))}
+        pharmacies={pharmacies}
       />
 
       {/* Conciliação bancária */}
@@ -268,7 +238,7 @@ export default async function AdminFinancePage({
             </p>
           )}
           {bankTx.map((t) => {
-            const amount = moneyToNumber(t.amount, true);
+            const amount = t.amount;
             return (
             <div key={t.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
               <div className="min-w-0">

@@ -3,10 +3,9 @@
 import { Gift, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
-import { pointsToBRL } from "@/lib/commerce/loyalty";
 import { formatBRL } from "@/lib/utils";
-import type { CheckoutQuote } from "@/lib/commerce/checkout-quote";
-import type { DeliveryMethod } from "@/lib/shipping/rates";
+import type { CheckoutQuote } from "@/contracts/commerce";
+import type { DeliveryMethod } from "@/contracts/commerce";
 
 export function CheckoutSummary({
   coupon,
@@ -19,6 +18,7 @@ export function CheckoutSummary({
   usePoints,
   setUsePoints,
   maxRedeem,
+  maxRedeemDiscount,
   points,
   delivery,
   pending,
@@ -26,7 +26,7 @@ export function CheckoutSummary({
 }: {
   coupon: string;
   setCoupon: (value: string) => void;
-  quote: Omit<CheckoutQuote, "couponUsageLimit" | "loyaltyAccountId"> | null;
+  quote: CheckoutQuote | null;
   quoteError: string | null;
   quoteRefreshing: boolean;
   canQuote: boolean;
@@ -34,14 +34,15 @@ export function CheckoutSummary({
   usePoints: boolean;
   setUsePoints: (value: boolean) => void;
   maxRedeem: number;
+  maxRedeemDiscount: number;
   points: number;
   delivery: DeliveryMethod;
   pending: boolean;
   amounts: {
     subtotal: number;
-    shipping: number;
+    shipping: number | null;
     redeemDiscount: number;
-    total: number;
+    total: number | null;
   };
 }) {
   const {
@@ -52,7 +53,7 @@ export function CheckoutSummary({
   } = amounts;
   return (
     <aside className="lg:sticky lg:top-24 lg:h-fit">
-      <div className="space-y-4 rounded-2xl border border-border bg-card p-5">
+      <fieldset disabled={pending} className="min-w-0 space-y-4 rounded-2xl border border-border bg-card p-5">
         <h2 className="flex items-center gap-2.5 font-bold">
           <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-extrabold text-white">
             4
@@ -100,7 +101,7 @@ export function CheckoutSummary({
                 Usar {maxRedeem.toLocaleString("pt-BR")} pontos
               </span>
               <span className="block text-muted-foreground">
-                Abate {formatBRL(pointsToBRL(maxRedeem))} · você tem{" "}
+                Abate {formatBRL(maxRedeemDiscount)} · você tem{" "}
                 {points.toLocaleString("pt-BR")} pts
               </span>
             </span>
@@ -138,7 +139,7 @@ export function CheckoutSummary({
               {displayedShipping === 0 ? (
                 <span className="text-success-600">Grátis</span>
               ) : (
-                formatBRL(displayedShipping)
+                displayedShipping === null ? "A calcular" : formatBRL(displayedShipping)
               )}
             </dd>
           </div>
@@ -150,7 +151,7 @@ export function CheckoutSummary({
             aria-busy={quoteRefreshing}
             className="text-2xl font-extrabold text-brand-700 dark:text-brand-400"
           >
-            {quoteRefreshing ? "Calculando…" : formatBRL(displayedTotal)}
+            {quoteRefreshing ? "Calculando…" : displayedTotal === null ? "A calcular" : formatBRL(displayedTotal)}
           </span>
         </div>
         <Button
@@ -165,12 +166,18 @@ export function CheckoutSummary({
           ) : (
             <ShieldCheck className="size-5" />
           )}
-          Finalizar pedido
+          {pending ? "Confirmando pedido…" : "Finalizar pedido"}
         </Button>
         <p className="text-center text-xs text-muted-foreground">
           Ambiente seguro · total calculado e validado no servidor
         </p>
-      </div>
+        <noscript>
+          <p role="status" className="rounded-xl border border-border p-3 text-sm">
+            Ative o JavaScript para consultar frete e estoque antes de confirmar.
+            Sua sacola permanece salva; nenhum pedido foi enviado.
+          </p>
+        </noscript>
+      </fieldset>
     </aside>
   );
 }

@@ -1,57 +1,11 @@
-import { getStoreSettings, getPaymentSettings } from "@/lib/settings";
-import { getAdminScope, getCurrentUser } from "@/lib/auth/session";
-import { prisma } from "@/lib/prisma";
+import { getAdminSettingsView } from "@/server/queries/admin/access";
 import { SettingsForm } from "@/components/admin/settings-form";
 import { PharmaciesManager } from "@/components/admin/pharmacies-manager";
-import { moneyToNumber } from "@/lib/money";
 
 export const metadata = { title: "Configurações" };
 
 export default async function AdminSettingsPage() {
-  const [settings, payment, scope, user] = await Promise.all([
-    getStoreSettings(),
-    getPaymentSettings(),
-    getAdminScope(),
-    getCurrentUser(),
-  ]);
-  // As chaves nunca vão para o cliente — só se existem.
-  const paymentView = {
-    hasSecretKey: payment.stripeSecretKey.length > 0,
-    hasWebhook: payment.stripeWebhookSecret.length > 0,
-  };
-
-  // Gestão de unidades só para a matriz (escopo global).
-  const [units, admins] = scope.isGlobal
-    ? await Promise.all([
-        prisma.pharmacy.findMany({
-          orderBy: [{ type: "asc" }, { name: "asc" }],
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            active: true,
-            archivedAt: true,
-            city: true,
-            state: true,
-            shippingFlat: true,
-            shippingFreeMin: true,
-            cnpj: true,
-            pharmacistName: true,
-            pharmacistCrf: true,
-            cepRanges: {
-              where: { archivedAt: null },
-              orderBy: { start: "asc" },
-              select: { id: true, start: true, end: true, km: true },
-            },
-          },
-        }),
-        prisma.user.findMany({
-          where: { role: "ADMIN" },
-          select: { id: true, name: true, email: true, pharmacyId: true },
-          orderBy: { name: "asc" },
-        }),
-      ])
-    : [[], []];
+  const { settings, paymentView, isGlobal, units, admins, currentUserId } = await getAdminSettingsView();
 
   return (
     <div className="space-y-6">
@@ -61,20 +15,11 @@ export default async function AdminSettingsPage() {
           Frete, dados da farmácia e informações exibidas para os clientes.
         </p>
       </div>
-      {scope.isGlobal && (
+      {isGlobal && (
         <PharmaciesManager
-          units={units.map((unit) => ({
-            ...unit,
-            archivedAt: unit.archivedAt?.toISOString() ?? null,
-            shippingFlat:
-              unit.shippingFlat == null ? null : moneyToNumber(unit.shippingFlat),
-            shippingFreeMin:
-              unit.shippingFreeMin == null
-                ? null
-                : moneyToNumber(unit.shippingFreeMin),
-          }))}
+          units={units}
           admins={admins}
-          currentUserId={user?.id ?? ""}
+          currentUserId={currentUserId}
         />
       )}
       <SettingsForm settings={settings} payment={paymentView} />

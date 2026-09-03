@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useConfirmAction } from "@/hooks/use-confirm-action";
 import { Plus, Trash2, MapPin, Loader2, Building2, Archive, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
@@ -17,8 +17,8 @@ import {
   assignUnitAdmin,
   removeUnitAdmin,
   type PharmacyResult,
-} from "@/actions/admin/pharmacies";
-import type { PharmacyType } from "@prisma/client";
+} from "@/client/api/admin";
+import type { PharmacyType } from "@/contracts/domain";
 
 type RangeView = { id: string; start: number; end: number; km: number | null };
 type UnitView = {
@@ -52,25 +52,15 @@ export function PharmaciesManager({
   admins: AdminView[];
   currentUserId: string;
 }) {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
-  const [error, setError] = React.useState<string | null>(null);
+  const { pending, run: mutate, confirm, dialog, error } = useConfirmAction();
 
   function run(fn: () => Promise<PharmacyResult>, after?: () => void) {
-    setError(null);
-    start(async () => {
-      const res = await fn();
-      if (!res.ok) {
-        setError(res.error ?? "Não foi possível concluir a ação.");
-        return;
-      }
-      after?.();
-      router.refresh();
-    });
+    void mutate({ action: fn, successMessage: "Alteração da unidade confirmada.", onSuccess: after });
   }
 
   return (
     <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
+      {dialog}
       <div className="flex items-center gap-2">
         <Building2 className="size-5 text-brand-600 dark:text-brand-400" />
         <h2 className="font-bold">Unidades (matriz e filiais)</h2>
@@ -82,7 +72,7 @@ export function PharmaciesManager({
       </p>
 
       {error && (
-        <p className="rounded-xl bg-danger-500/10 px-4 py-3 text-sm font-medium text-danger-500">
+        <p role="alert" className="rounded-xl bg-danger-500/10 px-4 py-3 text-sm font-medium text-danger-500">
           {error}
         </p>
       )}
@@ -130,7 +120,13 @@ export function PharmaciesManager({
                     <button
                       type="button"
                       disabled={pending}
-                      onClick={() => run(() => setPharmacyActive(u.id, !u.active))}
+                      onClick={() => confirm({
+                        title: u.active ? "Desativar unidade" : "Ativar unidade",
+                        confirmLabel: u.active ? "Desativar unidade" : "Ativar unidade",
+                        confirmMessage: `${u.name} ${u.active ? "deixará de receber novas compras pelo canal da loja" : "ficará disponível para atender novas compras conforme a cobertura configurada"}. Os registros anteriores serão preservados.`,
+                        action: () => setPharmacyActive(u.id, !u.active),
+                        successMessage: u.active ? "Unidade desativada." : "Unidade ativada.",
+                      })}
                       className="min-h-11 rounded-lg border border-border px-3 py-1 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
                     >
                       {u.active ? "Desativar" : "Ativar"}
@@ -139,15 +135,13 @@ export function PharmaciesManager({
                       <button
                         type="button"
                         disabled={pending}
-                        onClick={() => {
-                          if (
-                            confirm(
-                              `Arquivar a unidade "${u.name}"? O histórico será preservado.`
-                            )
-                          ) {
-                            run(() => archivePharmacy(u.id));
-                          }
-                        }}
+                        onClick={() => confirm({
+                          title: "Arquivar unidade",
+                          confirmLabel: "Arquivar unidade",
+                          confirmMessage: `Arquivar “${u.name}”? Ela sairá da operação ativa. O histórico será preservado e a unidade poderá ser restaurada.`,
+                          action: () => archivePharmacy(u.id),
+                          successMessage: "Unidade arquivada.",
+                        })}
                         aria-label="Arquivar unidade"
                         className="grid size-11 place-items-center rounded-lg text-muted-foreground transition hover:bg-amber-500/10 hover:text-amber-600 disabled:opacity-40"
                       >
@@ -187,9 +181,16 @@ export function PharmaciesManager({
                       <button
                         type="button"
                         disabled={pending}
-                        onClick={() => run(() => removeCepRange(r.id))}
+                        onClick={() => confirm({
+                          title: "Remover cobertura de entrega",
+                          confirmLabel: "Remover faixa de CEP",
+                          destructive: true,
+                          confirmMessage: `Remover a faixa ${fmtCep(r.start)} a ${fmtCep(r.end)} da unidade ${u.name}? Novas compras nesses CEPs serão reavaliadas conforme a cobertura restante.`,
+                          action: () => removeCepRange(r.id),
+                          successMessage: "Faixa de cobertura removida.",
+                        })}
                         aria-label="Remover faixa"
-                        className="grid size-6 place-items-center rounded text-muted-foreground transition hover:bg-danger-500/10 hover:text-danger-500 disabled:opacity-40"
+                        className="grid size-11 place-items-center rounded text-muted-foreground transition hover:bg-danger-500/10 hover:text-danger-500 disabled:opacity-40"
                       >
                         <Trash2 className="size-3.5" />
                       </button>
@@ -224,11 +225,15 @@ export function PharmaciesManager({
                           <button
                             type="button"
                             disabled={pending}
-                            onClick={() => {
-                              if (confirm(`Revogar o acesso admin de ${a.email}?`))
-                                run(() => removeUnitAdmin(a.id));
-                            }}
-                            className="ml-auto text-xs font-semibold text-muted-foreground transition hover:text-danger-500 disabled:opacity-40"
+                            onClick={() => confirm({
+                              title: "Revogar acesso administrativo",
+                              confirmLabel: "Revogar acesso",
+                              destructive: true,
+                              confirmMessage: `${a.email} perderá acesso ao painel. Os pedidos e registros feitos por essa pessoa serão preservados. A revogação ficará no histórico administrativo.`,
+                              action: () => removeUnitAdmin(a.id),
+                              successMessage: "Acesso administrativo revogado.",
+                            })}
+                            className="ml-auto min-h-11 px-2 text-xs font-semibold text-muted-foreground transition hover:text-danger-500 disabled:opacity-40"
                           >
                             Revogar
                           </button>
@@ -237,7 +242,14 @@ export function PharmaciesManager({
                     ))}
                 </ul>
               )}
-              <AssignAdminForm pharmacyId={u.id} pending={pending} onAssign={run} />
+              <AssignAdminForm pharmacyId={u.id} pending={pending} onAssign={(email, action, onSuccess) => confirm({
+                title: "Conceder acesso administrativo",
+                confirmLabel: "Confirmar acesso à unidade",
+                confirmMessage: `${email} receberá acesso administrativo vinculado à unidade ${u.name}. Confira o destinatário e a unidade; esta alteração de acesso ficará registrada.`,
+                action,
+                successMessage: "Acesso à unidade atualizado.",
+                onSuccess,
+              })} />
             </div>
 
             {/* Frete desta unidade (override do global) */}
@@ -314,33 +326,32 @@ function AddRangeForm({
       }}
       className="flex flex-wrap items-center gap-2"
     >
-      <input
+      <label className="grid gap-1 text-xs font-semibold">CEP inicial<input
         inputMode="numeric"
         placeholder="CEP inicial"
         value={from}
         onChange={(e) => setFrom(e.target.value)}
-        className="h-9 w-32 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
-      />
-      <span className="text-xs text-muted-foreground">até</span>
-      <input
+        className="h-11 w-32 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400 focus-visible:ring-2 focus-visible:ring-brand-500"
+      /></label>
+      <label className="grid gap-1 text-xs font-semibold">CEP final<input
         inputMode="numeric"
         placeholder="CEP final"
         value={to}
         onChange={(e) => setTo(e.target.value)}
-        className="h-9 w-32 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
-      />
-      <input
+        className="h-11 w-32 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400 focus-visible:ring-2 focus-visible:ring-brand-500"
+      /></label>
+      <label className="grid gap-1 text-xs font-semibold">Distância (km)<input
         inputMode="decimal"
         placeholder="km"
         value={km}
         onChange={(e) => setKm(e.target.value)}
         title="Distância (km) desta faixa até a unidade — base do frete por km"
-        className="h-9 w-20 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
-      />
+        className="h-11 w-20 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400 focus-visible:ring-2 focus-visible:ring-brand-500"
+      /></label>
       <button
         type="submit"
         disabled={pending || !from.trim() || !to.trim()}
-        className="inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
+        className="inline-flex h-11 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
       >
         <Plus className="size-3.5" /> Adicionar faixa
       </button>
@@ -355,7 +366,7 @@ function AssignAdminForm({
 }: {
   pharmacyId: string;
   pending: boolean;
-  onAssign: (fn: () => Promise<PharmacyResult>, after?: () => void) => void;
+  onAssign: (email: string, fn: () => Promise<PharmacyResult>, after?: () => void) => void;
 }) {
   const [email, setEmail] = React.useState("");
   return (
@@ -363,23 +374,24 @@ function AssignAdminForm({
       onSubmit={(e) => {
         e.preventDefault();
         onAssign(
+          email,
           () => assignUnitAdmin(email, pharmacyId),
           () => setEmail("")
         );
       }}
       className="flex flex-wrap items-center gap-2"
     >
-      <input
+      <label className="grid max-w-full gap-1 text-xs font-semibold">E-mail da conta existente<input
         type="email"
         placeholder="e-mail de um usuário existente"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="h-9 w-64 max-w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
-      />
+        className="h-11 w-64 max-w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400 focus-visible:ring-2 focus-visible:ring-brand-500"
+      /></label>
       <button
         type="submit"
         disabled={pending || !email.trim()}
-        className="inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
+        className="inline-flex h-11 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
       >
         <Plus className="size-3.5" /> Tornar admin desta unidade
       </button>
@@ -417,7 +429,7 @@ function ShippingForm({
           placeholder="global"
           value={f}
           onChange={(e) => setF(e.target.value)}
-          className="mt-1 block h-9 w-28 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
+          className="mt-1 block h-11 w-28 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400 focus-visible:ring-2 focus-visible:ring-brand-500"
         />
       </label>
       <label className="text-xs font-medium text-muted-foreground">
@@ -427,13 +439,13 @@ function ShippingForm({
           placeholder="global"
           value={m}
           onChange={(e) => setM(e.target.value)}
-          className="mt-1 block h-9 w-40 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
+          className="mt-1 block h-11 w-40 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400 focus-visible:ring-2 focus-visible:ring-brand-500"
         />
       </label>
       <button
         type="submit"
         disabled={pending}
-        className="inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
+        className="inline-flex h-11 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
       >
         Salvar frete
       </button>
@@ -473,7 +485,7 @@ function RegulatoryForm({
           placeholder="global"
           value={c}
           onChange={(e) => setC(e.target.value)}
-          className="mt-1 block h-9 w-44 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
+          className="mt-1 block h-11 w-44 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400 focus-visible:ring-2 focus-visible:ring-brand-500"
         />
       </label>
       <label className="text-xs font-medium text-muted-foreground">
@@ -482,7 +494,7 @@ function RegulatoryForm({
           placeholder="global"
           value={n}
           onChange={(e) => setN(e.target.value)}
-          className="mt-1 block h-9 w-52 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
+          className="mt-1 block h-11 w-52 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400 focus-visible:ring-2 focus-visible:ring-brand-500"
         />
       </label>
       <label className="text-xs font-medium text-muted-foreground">
@@ -491,13 +503,13 @@ function RegulatoryForm({
           placeholder="global"
           value={r}
           onChange={(e) => setR(e.target.value)}
-          className="mt-1 block h-9 w-36 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400"
+          className="mt-1 block h-11 w-36 rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-brand-400 focus-visible:ring-2 focus-visible:ring-brand-500"
         />
       </label>
       <button
         type="submit"
         disabled={pending}
-        className="inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
+        className="inline-flex h-11 items-center gap-1 rounded-lg border border-border px-3 text-xs font-semibold transition hover:bg-muted disabled:opacity-40"
       >
         Salvar dados
       </button>
@@ -547,7 +559,7 @@ function NewUnitForm({
             id="np-type"
             value={type}
             onChange={(e) => setType(e.target.value as PharmacyType)}
-            className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-brand-400"
+            className="h-12 w-full rounded-xl border border-border bg-card px-4 text-sm outline-none focus:border-brand-400 focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             <option value="FILIAL">Filial</option>
             <option value="MATRIZ">Matriz</option>

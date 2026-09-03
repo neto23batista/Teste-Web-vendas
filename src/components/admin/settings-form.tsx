@@ -14,7 +14,8 @@ import {
   Plug,
 } from "lucide-react";
 import { toast } from "sonner";
-import { saveSettings, testStripeConnection } from "@/actions/admin/settings";
+import { saveSettings, testStripeConnection } from "@/client/api/admin";
+import { publicError } from "@/client/api/result";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 import type { StoreSettings } from "@/lib/settings";
@@ -44,14 +45,14 @@ export function SettingsForm({
   }
 
   return (
-    <form action={formAction} className="max-w-2xl space-y-6">
+    <form action={formAction} className="max-w-2xl space-y-6" aria-busy={pending}>
       {state?.error && (
         <div className="flex items-center gap-2 rounded-xl bg-danger-500/10 px-4 py-3 text-sm font-medium text-danger-500">
-          <AlertCircle className="size-4 shrink-0" /> {state.error}
+          <AlertCircle aria-hidden="true" className="size-4 shrink-0" /> <span role="alert">{publicError(state).message}</span>
         </div>
       )}
       {state?.success && (
-        <div className="flex items-center gap-2 rounded-xl bg-success-500/10 px-4 py-3 text-sm font-medium text-success-600">
+        <div role="status" className="flex items-center gap-2 rounded-xl bg-success-500/10 px-4 py-3 text-sm font-medium text-success-600">
           <CheckCircle2 className="size-4 shrink-0" /> Configurações salvas! A
           loja já reflete os novos valores.
         </div>

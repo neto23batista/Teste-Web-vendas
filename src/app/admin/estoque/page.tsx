@@ -1,13 +1,11 @@
 import { AlertTriangle, PackageCheck, PackageSearch } from "lucide-react";
-import { getStockRows } from "@/lib/admin";
-import { getAdminScope } from "@/lib/auth/session";
-import { prisma } from "@/lib/prisma";
+import { getAdminStockView } from "@/server/queries/admin/inventory";
 import { cn } from "@/lib/utils";
 import { ProductImage } from "@/components/store/product-image";
-import { StockAdjust } from "@/components/admin/stock-adjust";
-import { StockTransfer } from "@/components/admin/stock-transfer";
-import { UnitOfferEditor } from "@/components/admin/unit-offer-editor";
-import type { InventoryMovementKind } from "@prisma/client";
+import { StockAdjust } from "@/components/admin/inventory/stock-adjust";
+import { StockTransfer } from "@/components/admin/inventory/stock-transfer";
+import { UnitOfferEditor } from "@/components/admin/inventory/unit-offer-editor";
+import type { InventoryMovementKind } from "@/contracts/domain";
 
 export const metadata = { title: "Estoque" };
 
@@ -34,49 +32,7 @@ export default async function AdminStockPage({
 }) {
   const sp = await searchParams;
   const unit = (Array.isArray(sp.unit) ? sp.unit[0] : sp.unit) || undefined;
-  const [{ unitId, rows }, scope] = await Promise.all([
-    getStockRows(unit),
-    getAdminScope(),
-  ]);
-  const lowCount = rows.filter((p) => p.stock <= p.minStock).length;
-
-  // Transferência entre unidades é exclusiva da matriz. Carrega as unidades e o
-  // estoque de cada produto por unidade (para mostrar de/para onde mover).
-  const canTransfer = scope.isGlobal && !!unitId;
-  let units: { id: string; name: string }[] = [];
-  const stockByProduct: Record<string, Record<string, number>> = {};
-  if (canTransfer && rows.length > 0) {
-    const [unitList, invs] = await Promise.all([
-      prisma.pharmacy.findMany({
-        where: { active: true, archivedAt: null },
-        select: { id: true, name: true },
-        orderBy: [{ type: "asc" }, { name: "asc" }],
-      }),
-      prisma.inventory.findMany({
-        where: { productId: { in: rows.map((r) => r.productId) } },
-        select: { productId: true, pharmacyId: true, stock: true },
-      }),
-    ]);
-    units = unitList;
-    for (const iv of invs) {
-      (stockByProduct[iv.productId] ??= {})[iv.pharmacyId] = iv.stock;
-    }
-  }
-  const showTransfer = canTransfer && units.length > 1;
-  const movements = unitId
-    ? await prisma.inventoryMovement.findMany({
-        where: { pharmacyId: unitId },
-        orderBy: { createdAt: "desc" },
-        take: 50,
-      })
-    : [];
-  const movementProducts = movements.length
-    ? await prisma.product.findMany({
-        where: { id: { in: [...new Set(movements.map((movement) => movement.productId))] } },
-        select: { id: true, name: true },
-      })
-    : [];
-  const productNames = new Map(movementProducts.map((product) => [product.id, product.name]));
+  const { unitId, rows, lowCount, units, stockByProduct, showTransfer, movements } = await getAdminStockView(unit);
 
   return (
     <div className="space-y-6">
@@ -304,7 +260,7 @@ export default async function AdminStockPage({
                       {movement.createdAt.toLocaleString("pt-BR")}
                     </td>
                     <td className="p-3 font-semibold">
-                      {productNames.get(movement.productId) ?? movement.productId}
+                      {movement.productName}
                     </td>
                     <td className="p-3">{movementLabel[movement.kind]}</td>
                     <td

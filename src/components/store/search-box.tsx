@@ -5,6 +5,8 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Search, Loader2, ArrowRight, TrendingUp } from "lucide-react";
 import { formatBRL, cn } from "@/lib/utils";
+import { searchCatalog } from "@/client/api/catalog";
+import { useCatalogScopeVersion } from "@/client/use-catalog-scope-version";
 
 type Suggestion = {
   name: string;
@@ -32,17 +34,21 @@ export function SearchBox({
 }) {
   const router = useRouter();
   const [q, setQ] = React.useState("");
-  const [items, setItems] = React.useState<Suggestion[]>([]);
+  const [rawItems, setItems] = React.useState<Suggestion[]>([]);
+  const [resultKey, setResultKey] = React.useState("");
   const [open, setOpen] = React.useState(false);
-  const [loading, setLoading] = React.useState(false);
+  const [pending, setLoading] = React.useState(false);
   const [error, setError] = React.useState(false);
   const [retryKey, setRetryKey] = React.useState(0);
+  const catalogVersion = useCatalogScopeVersion();
+  const requestKey = JSON.stringify([q.trim(), retryKey, catalogVersion]);
+  const items = resultKey === requestKey ? rawItems : [];
+  const loading = pending || (q.trim().length >= 2 && resultKey !== requestKey);
   const [active, setActive] = React.useState(-1);
   const listId = React.useId();
   const statusId = React.useId();
   const rootRef = React.useRef<HTMLFormElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
-  const abortRef = React.useRef<AbortController | null>(null);
 
   // Atalho "/" foca a busca de qualquer lugar da página (vibe app/coder).
   // Ignora quando o usuário já está digitando em outro campo.
@@ -67,30 +73,28 @@ export function SearchBox({
   React.useEffect(() => {
     const term = q.trim();
     if (term.length < 2) return;
+    const ac = new AbortController();
     const t = setTimeout(async () => {
-      abortRef.current?.abort();
-      const ac = new AbortController();
-      abortRef.current = ac;
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(term)}`, {
-          signal: ac.signal,
-        });
-        if (!res.ok) throw new Error(`Busca indisponível (${res.status})`);
-        const data = await res.json();
-        setItems(data.items ?? []);
+        const result = await searchCatalog(term, { signal: ac.signal });
+        if (ac.signal.aborted) return;
+        if (!result.ok) throw new Error(result.code);
+        setItems(result.data.items);
+        setResultKey(requestKey);
         setError(false);
         setActive(-1);
       } catch (cause) {
-        if (!(cause instanceof DOMException && cause.name === "AbortError")) {
+        if (!ac.signal.aborted && !(cause instanceof DOMException && cause.name === "AbortError")) {
           setItems([]);
+          setResultKey(requestKey);
           setError(true);
         }
       } finally {
         if (!ac.signal.aborted) setLoading(false);
       }
     }, 220);
-    return () => clearTimeout(t);
-  }, [q, retryKey]);
+    return () => { clearTimeout(t); ac.abort(); };
+  }, [q, retryKey, requestKey]);
 
   // Fecha ao clicar fora.
   React.useEffect(() => {

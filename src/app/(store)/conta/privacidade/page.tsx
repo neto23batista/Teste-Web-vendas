@@ -1,25 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Download, ShieldCheck, AlertTriangle, FileText } from "lucide-react";
-import { requireUserPage } from "@/lib/auth/session";
-import { prisma } from "@/lib/prisma";
+import { getAccountPrivacyView } from "@/server/queries/account";
 import { Button } from "@/components/ui/button";
-import { DeleteAccountForm } from "@/components/account/delete-account-form";
+import { DeleteAccountForm } from "@/components/store/account/delete-account-form";
+import { DataExport } from "@/components/store/account/data-export";
 
 export const metadata: Metadata = { title: "Privacidade" };
 
 export default async function PrivacyAccountPage() {
-  const user = await requireUserPage("/conta/privacidade");
-  const legacyDocuments = await prisma.prescription.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      status: true,
-      createdAt: true,
-      order: { select: { number: true } },
-    },
-  });
+  const { email, exportState, legacyDocuments } = await getAccountPrivacyView();
 
   return (
     <div className="space-y-5">
@@ -40,13 +30,10 @@ export default async function PrivacyAccountPage() {
         <p className="text-sm text-muted-foreground">
           Receba um arquivo com perfil, endereços, pedidos e pagamentos,
           carrinho, assinaturas, fidelidade, avaliações, documentos legados,
-          favoritos, aceites e eventos de segurança associados à conta.
+          favoritos, aceites e eventos de segurança associados à conta. O
+          arquivo é preparado em segundo plano e fica disponível por 7 dias.
         </p>
-        <Button asChild variant="outline">
-          <a href="/api/account/export" download>
-            <Download className="size-4" /> Baixar meus dados (JSON)
-          </a>
-        </Button>
+        <DataExport initial={exportState} />
       </section>
 
       {legacyDocuments.length > 0 ? (
@@ -95,7 +82,7 @@ export default async function PrivacyAccountPage() {
           obrigatórias podem permanecer com acesso restrito durante os prazos
           fiscais, regulatórios e de defesa aplicáveis.
         </p>
-        <DeleteAccountForm email={user.email ?? ""} />
+        <DeleteAccountForm email={email} />
       </section>
     </div>
   );

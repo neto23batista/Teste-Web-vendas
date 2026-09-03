@@ -6,11 +6,15 @@ import { AlertCircle, Heart, Loader2, PackageSearch, RefreshCw } from "lucide-re
 import { useFavorites } from "@/hooks/use-favorites";
 import { ProductCard } from "@/components/store/product-card";
 import { Button } from "@/components/ui/button";
+import { getProductsByIds } from "@/client/api/catalog";
+import { useCatalogScopeVersion } from "@/client/use-catalog-scope-version";
 import type { ProductCard as ProductCardData } from "@/lib/catalog";
 
 export function FavoritesList() {
   const { favorites, ready } = useFavorites();
-  const key = favorites.join(",");
+  const catalogVersion = useCatalogScopeVersion();
+  const idsKey = favorites.join(",");
+  const key = `${catalogVersion}:${idsKey}`;
   const [data, setData] = React.useState<{
     key: string;
     requestVersion: number;
@@ -23,19 +27,17 @@ export function FavoritesList() {
     if (favorites.length === 0) return;
     const controller = new AbortController();
 
-    void fetch(`/api/products/by-ids?ids=${encodeURIComponent(key)}`, {
+    void getProductsByIds(idsKey.split(","), {
       signal: controller.signal,
     })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return (await response.json()) as { items?: ProductCardData[] };
-      })
       .then((payload) => {
+        if (controller.signal.aborted) return;
+        if (!payload.ok) throw new Error(payload.code);
         setData({
           key,
           requestVersion,
           status: "success",
-          items: Array.isArray(payload.items) ? payload.items : [],
+          items: payload.data.items,
         });
       })
       .catch(() => {
@@ -47,7 +49,7 @@ export function FavoritesList() {
     return () => {
       controller.abort();
     };
-  }, [key, favorites.length, requestVersion]);
+  }, [key, idsKey, favorites.length, requestVersion]);
 
   const currentRequest =
     data.key === key && data.requestVersion === requestVersion;

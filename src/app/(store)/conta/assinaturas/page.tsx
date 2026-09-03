@@ -6,7 +6,7 @@ import { getUserSubscriptions } from "@/lib/commerce/subscriptions";
 import {
   SubscriptionCard,
   type SubscriptionCardData,
-} from "@/components/account/subscription-card";
+} from "@/components/store/account/subscription-card";
 import { Button } from "@/components/ui/button";
 import { moneyToNumber } from "@/lib/money";
 

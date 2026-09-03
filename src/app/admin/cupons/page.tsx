@@ -1,16 +1,14 @@
 import Link from "next/link";
 import { Plus, TicketPercent, Info } from "lucide-react";
-import { prisma } from "@/lib/prisma";
+import { getAdminCouponsView } from "@/server/queries/admin/catalog";
 import { formatBRL, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CouponRowActions } from "@/components/admin/coupon-row-actions";
-import { moneyToNumber } from "@/lib/money";
 
 export const metadata = { title: "Cupons & Promoções" };
 
 export default async function AdminCouponsPage() {
-  const coupons = await prisma.coupon.findMany({ orderBy: { active: "desc" } });
-  const now = new Date();
+  const coupons = await getAdminCouponsView();
 
   return (
     <div className="space-y-6">
@@ -52,9 +50,9 @@ export default async function AdminCouponsPage() {
           {/* Mobile: lista em cards (a tabela não cabe na tela). */}
           <div className="divide-y divide-border md:hidden">
             {coupons.map((c) => {
-              const expired = c.expiresAt && c.expiresAt < now;
-              const value = moneyToNumber(c.value);
-              const minTotal = moneyToNumber(c.minTotal);
+              const expired = c.expired;
+              const value = c.value;
+              const minTotal = c.minTotal;
               return (
                 <div key={c.id} className="space-y-2.5 p-4">
                   <div className="flex items-center gap-2">
@@ -108,9 +106,9 @@ export default async function AdminCouponsPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {coupons.map((c) => {
-                  const expired = c.expiresAt && c.expiresAt < now;
-                  const value = moneyToNumber(c.value);
-                  const minTotal = moneyToNumber(c.minTotal);
+                  const expired = c.expired;
+                  const value = c.value;
+                  const minTotal = c.minTotal;
                   return (
                     <tr key={c.id} className="transition hover:bg-muted/30">
                       <td className="p-4">

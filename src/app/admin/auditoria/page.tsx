@@ -1,8 +1,5 @@
-import { redirect } from "next/navigation";
 import { ScrollText } from "lucide-react";
-import { Prisma } from "@prisma/client";
-import { getAdminScope } from "@/lib/auth/session";
-import { prisma } from "@/lib/prisma";
+import { getAdminAuditView } from "@/server/queries/admin/access";
 
 export const metadata = { title: "Auditoria" };
 export const dynamic = "force-dynamic";
@@ -34,24 +31,7 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 export default async function AdminAuditPage() {
-  // Trilha de auditoria é informação sensível entre unidades — só a matriz vê.
-  const scope = await getAdminScope();
-  if (!scope.isGlobal) redirect("/admin");
-
-  // Resiliente SÓ ao caso pré-migration (tabela/coluna inexistente): P2021/
-  // P2022 → lista vazia. Qualquer outro erro (banco fora do ar etc.) estoura
-  // no error boundary do admin — não pode passar por "nenhuma ação registrada".
-  const logs = await prisma.auditLog
-    .findMany({ orderBy: { createdAt: "desc" }, take: 200 })
-    .catch((err: unknown) => {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        (err.code === "P2021" || err.code === "P2022")
-      ) {
-        return [];
-      }
-      throw err;
-    });
+  const logs = await getAdminAuditView();
 
   return (
     <div className="space-y-6">

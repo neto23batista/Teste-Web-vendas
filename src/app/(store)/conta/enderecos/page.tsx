@@ -1,30 +1,11 @@
 import type { Metadata } from "next";
-import { requireUserPage } from "@/lib/auth/session";
-import { prisma } from "@/lib/prisma";
-import { AddressBook } from "@/components/account/address-book";
+import { getAddressBookView } from "@/server/queries/account";
+import { AddressBook } from "@/components/store/account/address-book";
 
 export const metadata: Metadata = { title: "Endereços" };
 
 export default async function AddressesPage() {
-  const user = await requireUserPage("/conta/enderecos");
-  const rows = await prisma.address.findMany({
-    where: { userId: user.id },
-    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
-  });
-
-  const addresses = rows.map((a) => ({
-    id: a.id,
-    label: a.label,
-    recipient: a.recipient,
-    zip: a.zip,
-    street: a.street,
-    number: a.number,
-    complement: a.complement,
-    district: a.district,
-    city: a.city,
-    state: a.state,
-    isDefault: a.isDefault,
-  }));
+  const addresses = await getAddressBookView();
 
   return (
     <div className="space-y-5">

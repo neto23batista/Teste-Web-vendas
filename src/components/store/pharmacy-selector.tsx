@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
+import { useOperation } from "@/hooks/use-operation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
 import { MapPin, X, Loader2, Check, Store } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { setSelectedPharmacy } from "@/actions/store/pharmacy";
+import { setSelectedPharmacy, setCatalogScope } from "@/client/api/catalog";
 
 type Unit = { id: string; name: string };
 
@@ -26,7 +27,9 @@ export function PharmacySelector({
   const [open, setOpen] = React.useState(false);
   const [cep, setCep] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
-  const [pending, start] = React.useTransition();
+  const { pending, run: start } = useOperation();
+
+  React.useEffect(() => { setCatalogScope(current?.id ?? null); }, [current?.id]);
 
   function choose(input: { cep?: string; pharmacyId?: string }) {
     setError(null);
@@ -47,7 +50,7 @@ export function PharmacySelector({
       <Dialog.Trigger asChild>
         <button
           type="button"
-          className="inline-flex h-10 max-w-[10rem] items-center gap-1.5 rounded-xl border border-border bg-card px-2.5 text-sm font-semibold transition hover:border-brand-300 hover:bg-muted sm:max-w-[14rem] sm:px-3"
+          className="inline-flex h-11 max-w-[10rem] items-center gap-1.5 rounded-xl border border-border bg-card px-2.5 text-sm font-semibold transition hover:border-brand-300 hover:bg-muted sm:max-w-[14rem] sm:px-3"
           aria-label="Escolher unidade"
         >
           <MapPin className="size-4 shrink-0 text-brand-600 dark:text-brand-400" />
@@ -69,7 +72,7 @@ export function PharmacySelector({
               <button
                 type="button"
                 aria-label="Fechar"
-                className="grid size-9 place-items-center rounded-full bg-muted text-muted-foreground transition active:scale-90"
+                className="grid size-11 place-items-center rounded-full bg-muted text-muted-foreground transition active:scale-90"
               >
                 <X className="size-4" />
               </button>
@@ -89,6 +92,7 @@ export function PharmacySelector({
             className="flex gap-2"
           >
             <input
+              aria-label="CEP da unidade"
               inputMode="numeric"
               placeholder="CEP (ex.: 09010-000)"
               value={cep}
@@ -101,7 +105,7 @@ export function PharmacySelector({
           </form>
 
           {error && (
-            <p className="mt-2 text-sm font-medium text-danger-500">{error}</p>
+            <p role="alert" className="mt-2 text-sm font-medium text-danger-500">{error}</p>
           )}
 
           <div className="mt-5 space-y-2">

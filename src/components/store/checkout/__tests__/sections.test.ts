@@ -30,6 +30,7 @@ const summaryProps: Parameters<typeof CheckoutSummary>[0] = {
   usePoints: true,
   setUsePoints: noop,
   maxRedeem: 40,
+  maxRedeemDiscount: 0.4,
   points: 40,
   delivery: "standard",
   pending: false,

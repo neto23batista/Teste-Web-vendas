@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
+import { useOperation } from "@/hooks/use-operation";
 import { useRouter } from "next/navigation";
 import { Check, Loader2, Plus, ShoppingBag } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
-import { addToCart } from "@/actions/store/cart";
+import { addToCart } from "@/client/api/cart";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +34,7 @@ export function AddToCartButton({
   withIcon = true,
 }: Props) {
   const router = useRouter();
-  const [pending, start] = React.useTransition();
+  const { pending, run: start } = useOperation();
   const [added, setAdded] = React.useState(false);
   const isIcon = size === "icon" || size === "icon-sm";
 
@@ -47,6 +48,7 @@ export function AddToCartButton({
         setTimeout(() => setAdded(false), 1400);
       } else {
         toast.error(res.error ?? "Não foi possível adicionar.");
+        router.refresh();
       }
     });
   }

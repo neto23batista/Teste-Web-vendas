@@ -1,39 +1,13 @@
 import type { Metadata } from "next";
 import { IdCard } from "lucide-react";
-import { prisma } from "@/lib/prisma";
-import { requireArea } from "@/lib/auth/session";
-import { listPharmaciesSafe } from "@/lib/pharmacy";
-import { TeamManager, type StaffRow } from "@/components/admin/team-manager";
+import { getAdminTeamView } from "@/server/queries/admin/access";
+import { TeamManager } from "@/components/admin/team/team-manager";
 
 export const metadata: Metadata = { title: "Equipe" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminTeamPage() {
-  const me = await requireArea("equipe");
-
-  const [staff, pharmacies] = await Promise.all([
-    prisma.user.findMany({
-      where: { role: "ADMIN" },
-      orderBy: [{ staffProfile: "asc" }, { name: "asc" }],
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        staffProfile: true,
-        pharmacy: { select: { name: true } },
-      },
-    }),
-    listPharmaciesSafe(),
-  ]);
-
-  const rows: StaffRow[] = staff.map((s) => ({
-    id: s.id,
-    name: s.name,
-    email: s.email,
-    staffProfile: s.staffProfile,
-    pharmacyName: s.pharmacy?.name ?? null,
-    isSelf: s.id === me.id,
-  }));
+  const { rows, pharmacies } = await getAdminTeamView();
 
   return (
     <div className="space-y-6">
@@ -47,7 +21,7 @@ export default async function AdminTeamPage() {
         </p>
       </div>
 
-      <TeamManager staff={rows} pharmacies={pharmacies.map((p) => ({ id: p.id, name: p.name }))} />
+      <TeamManager staff={rows} pharmacies={pharmacies} />
     </div>
   );
 }

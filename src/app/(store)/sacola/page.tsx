@@ -6,7 +6,7 @@ import { shippingFor, missingForFreeShipping } from "@/lib/shipping/rates";
 import { getShippingConfig } from "@/lib/settings";
 import { formatBRL } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { CartItemRow } from "@/components/store/cart-item-row";
+import { CartItemRow } from "@/components/store/cart/cart-item-row";
 
 export const metadata: Metadata = { title: "Sacola" };
 

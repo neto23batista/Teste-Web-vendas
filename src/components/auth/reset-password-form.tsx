@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { AlertCircle, Loader2, KeyRound, CheckCircle2 } from "lucide-react";
-import { resetPassword, type ResetState } from "@/actions/account/password-reset";
+import { resetPassword, type ResetState } from "@/client/api/account";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 

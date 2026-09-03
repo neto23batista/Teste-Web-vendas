@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Pencil, Trash2, Power, PowerOff, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { toggleCoupon, deleteCoupon } from "@/actions/admin/coupons";
+import { toggleCoupon, deleteCoupon } from "@/client/api/admin";
+import { useConfirmAction } from "@/hooks/use-confirm-action";
 
 export function CouponRowActions({
   id,
@@ -16,26 +14,27 @@ export function CouponRowActions({
   active: boolean;
   code: string;
 }) {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
+  const { pending, run, confirm, dialog } = useConfirmAction();
 
   const toggle = () =>
-    start(async () => {
-      await toggleCoupon(id);
-      router.refresh();
+    void run({
+      action: () => toggleCoupon(id),
+      successMessage: active ? "Cupom desativado." : "Cupom ativado.",
     });
 
   const remove = () =>
-    start(async () => {
-      if (!confirm(`Excluir o cupom "${code}"?`)) return;
-      const res = await deleteCoupon(id);
-      if (res.ok) toast.success("Cupom excluído");
-      else toast.error("Não foi possível excluir o cupom. Tente novamente.");
-      router.refresh();
+    confirm({
+      title: "Excluir cupom",
+      confirmLabel: "Excluir cupom",
+      destructive: true,
+      confirmMessage: `Excluir o cupom “${code}”? O desconto deixará de estar disponível para novas compras. Confira os vínculos e o histórico antes de confirmar.`,
+      action: () => deleteCoupon(id),
+      successMessage: "Cupom excluído.",
     });
 
   return (
     <div className="flex items-center justify-end gap-1">
+      {dialog}
       <button
         onClick={toggle}
         disabled={pending}

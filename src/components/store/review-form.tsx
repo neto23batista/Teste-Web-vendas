@@ -4,7 +4,7 @@ import * as React from "react";
 import { useActionState } from "react";
 import { Star, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { submitReview, type ReviewState } from "@/actions/store/reviews";
+import { submitReview, type ReviewState } from "@/client/api/catalog";
 import { cn } from "@/lib/utils";
 
 export function ReviewForm({

@@ -3,7 +3,6 @@
 import * as React from "react";
 import Link from "next/link";
 import { History } from "lucide-react";
-import { formatBRL } from "@/lib/utils";
 import { ProductImage } from "@/components/store/product-image";
 
 /**
@@ -98,7 +97,7 @@ export function RecentlyViewedRail() {
               {it.name}
             </p>
             <p className="mt-1 text-sm font-extrabold text-brand-700 dark:text-brand-400">
-              {formatBRL(it.price)}
+              Ver preço e disponibilidade
             </p>
           </Link>
         ))}

@@ -1,23 +1,14 @@
 import type { Metadata } from "next";
-import { prisma } from "@/lib/prisma";
-import { requireUserPage } from "@/lib/auth/session";
-import { isLiveProduction } from "@/lib/env";
-import { PasswordForm } from "@/components/account/password-form";
-import { MfaSetup } from "@/components/account/mfa-setup";
+import { getAccountSecurityView } from "@/server/queries/account";
+import { PasswordForm } from "@/components/store/account/password-form";
+import { MfaSetup } from "@/components/store/account/mfa-setup";
 
 export const metadata: Metadata = { title: "Segurança da conta" };
 
 export default async function AccountSecurityPage() {
-  const session = await requireUserPage("/conta/seguranca");
-  const current = await prisma.user.findUnique({
-    where: { id: session.id },
-    select: { role: true, mfaEnabledAt: true },
-  });
-  if (!current) return null;
-
-  const liveProduction = isLiveProduction();
-  const isAdmin = current.role === "ADMIN";
-  const mfaEnabled = Boolean(current.mfaEnabledAt);
+  const security = await getAccountSecurityView();
+  if (!security) return null;
+  const { isAdmin, mfaEnabled, liveProduction } = security;
 
   return (
     <div className="space-y-7">

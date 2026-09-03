@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import {
   CheckCircle2,
@@ -11,29 +11,20 @@ import {
   MessageSquareText,
   Truck,
 } from "lucide-react";
-import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCustomerOrderView } from "@/server/queries/orders";
 import { formatBRL } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ProductImage } from "@/components/store/product-image";
 import {
   StatusBadge,
   OrderTimeline,
-} from "@/components/store/order-status";
-import { PixPayment } from "@/components/store/pix-payment";
-import { OrderLiveStatus } from "@/components/store/order-live-status";
-import { readCheckoutRaw, readPixRaw } from "@/lib/payments/stripe";
-import { qrPngBase64 } from "@/lib/qrcode";
-import { CancelOrderButton } from "@/components/store/cancel-order-button";
-import { ReorderButton } from "@/components/store/reorder-button";
-import { moneyToNumber } from "@/lib/money";
+} from "@/components/store/orders/order-status";
+import { PixPayment } from "@/components/store/orders/pix-payment";
+import { OrderLiveStatus } from "@/components/store/orders/order-live-status";
+import { CancelOrderButton } from "@/components/store/orders/cancel-order-button";
+import { ReorderButton } from "@/components/store/orders/reorder-button";
 
 export const metadata: Metadata = { title: "Pedido" };
-
-// Fora do componente: Date.now() é impuro para a regra de pureza do compiler.
-function isExpired(iso: string | null): boolean {
-  return !!iso && new Date(iso).getTime() < Date.now();
-}
 
 export default async function OrderPage({
   params,
@@ -41,65 +32,11 @@ export default async function OrderPage({
   params: Promise<{ number: string }>;
 }) {
   const { number } = await params;
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect(`/login?callbackUrl=${encodeURIComponent(`/pedido/${number}`)}`);
-  }
-
-  const order = await prisma.order.findUnique({
-    where: { number },
-    include: {
-      items: { include: { product: { select: { slug: true, emoji: true } } } },
-      payment: true,
-      courier: { select: { name: true } },
-    },
-  });
-  if (!order) notFound();
-  // O dono vê seu pedido aqui; um admin que abre o link de um pedido de cliente
-  // é levado à visão do painel (com os controles); qualquer outro: 404.
-  if (order.userId !== user.id) {
-    if (user.role === "ADMIN") redirect(`/admin/pedidos/${order.id}`);
-    notFound();
-  }
-  const subtotal = moneyToNumber(order.subtotal);
-  const discount = moneyToNumber(order.discount);
-  const shipping = moneyToNumber(order.shipping);
-  const total = moneyToNumber(order.total);
-
-  const isCanceled = order.status === "CANCELED";
-  const isPaid = order.status !== "PENDING" && !isCanceled;
-  const awaitingPayment =
-    order.status === "PENDING" && order.paymentMethod !== "cash";
-  // PIX nativo: QR + copia-e-cola gerados no checkout e persistidos no pagamento.
-  const pixData = readPixRaw(order.payment?.raw);
-  // O QR do Stripe expira; passado isso não adianta exibir porque o provedor
-  // recusa a cobrança expirada.
-  const pixExpired = isExpired(pixData?.expiresAt ?? null);
-  const pix =
-    awaitingPayment && order.paymentMethod === "pix" && !pixExpired
-      ? pixData
-      : null;
-  const cardCheckout = readCheckoutRaw(order.payment?.raw);
-  const cardCheckoutAvailable =
-    awaitingPayment &&
-    order.paymentMethod === "card" &&
-    !!cardCheckout?.url &&
-    !isExpired(cardCheckout.expiresAt);
-  // Garante o QR mesmo em pedidos antigos sem imagem salva: gera do copia-e-cola.
-  const pixQrBase64 = pix
-    ? pix.qrCodeBase64 || (await qrPngBase64(pix.qrCode))
-    : "";
-  // O cliente ainda pode cancelar enquanto o pedido não saiu para entrega.
-  const canCancel =
-    order.status === "PENDING" ||
-    order.status === "PAID" ||
-    order.status === "PREPARING";
-
-  // Acompanhamento ao vivo: enquanto o pedido está "vivo" (e o PIX não está
-  // com o próprio poller na tela), a página se atualiza sozinha quando o
-  // admin avança o status — sem o cliente recarregar.
-  const live =
-    order.status !== "DELIVERED" && order.status !== "CANCELED" && !pix;
+  const view = await getCustomerOrderView(number);
+  if (!view) notFound();
+  const { order, isCanceled, isPaid, awaitingPayment, pixExpired, pix,
+    pixQrBase64, cardCheckout, cardCheckoutAvailable, canCancel, live } = view;
+  const { subtotal, discount, shipping, total } = order;
 
   return (
     <div className="container-page max-w-4xl py-6 md:py-10">
@@ -107,6 +44,7 @@ export default async function OrderPage({
         <OrderLiveStatus
           orderNumber={order.number}
           initialStatus={order.status}
+          initialPaymentStatus={order.payment?.status ?? null}
         />
       )}
       {/* Cabeçalho */}
@@ -124,15 +62,6 @@ export default async function OrderPage({
             <XCircle className="size-8" />
           ) : isPaid ? (
             <CheckCircle2 className="size-8" />
-          ) : cardCheckoutAvailable ? (
-            <div className="space-y-3">
-              <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-                O pagamento no cartão ainda não foi concluído.
-              </p>
-              <Button asChild variant="primary" size="sm">
-                <a href={cardCheckout.url!}>Continuar pagamento no Stripe</a>
-              </Button>
-            </div>
           ) : (
             <Clock className="size-8" />
           )}
@@ -142,7 +71,9 @@ export default async function OrderPage({
             ? "Pedido cancelado"
             : isPaid
               ? "Pedido confirmado!"
-              : "Aguardando pagamento"}
+              : order.payment?.status === "QUARANTINED"
+                ? "Pagamento em análise"
+                : "Aguardando pagamento"}
         </h1>
         <p className="mt-1 text-muted-foreground">
           Pedido <strong className="text-foreground">{order.number}</strong> ·{" "}
@@ -153,8 +84,23 @@ export default async function OrderPage({
         </div>
       </div>
 
+      {order.payment?.status === "QUARANTINED" && (
+        <div role="status" className="mt-6 space-y-2 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm dark:border-amber-500/30 dark:bg-amber-500/10">
+          <p className="font-semibold text-amber-800 dark:text-amber-200">
+            Estamos conferindo uma divergência no pagamento. Não pague novamente.
+          </p>
+          <p>A equipe verificará a cobrança e orientará a confirmação ou o reembolso. Referência: pedido {order.number}.</p>
+          <Button asChild variant="outline" size="sm"><Link href="/contato">Falar com a equipe</Link></Button>
+        </div>
+      )}
+      {order.payment?.status === "REFUNDED" && (
+        <div role="status" className="mt-6 rounded-2xl border border-success-500/30 bg-success-500/10 p-5 text-sm font-semibold text-success-700 dark:text-success-400">
+          O reembolso foi confirmado. O prazo para aparecer no saldo ou na fatura depende da sua instituição financeira.
+        </div>
+      )}
+
       {isCanceled && order.payment?.status === "REFUND_PENDING" && (
-        <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm font-semibold text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+        <div role="status" className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm font-semibold text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
           O cancelamento foi registrado e o reembolso está sendo processado pelo
           Stripe. A confirmação aparecerá aqui quando o provedor concluir.
         </div>
@@ -184,7 +130,16 @@ export default async function OrderPage({
         />
       ) : awaitingPayment ? (
         <div className="mt-6 space-y-3 rounded-2xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-500/30 dark:bg-amber-500/10">
-          {pixExpired ? (
+          {cardCheckoutAvailable && cardCheckout ? (
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                O pagamento no cartão foi iniciado e ainda não foi concluído.
+              </p>
+              <Button asChild variant="primary" size="sm">
+                <a href={cardCheckout.url}>Continuar pagamento</a>
+              </Button>
+            </div>
+          ) : pixExpired ? (
             <div className="space-y-3">
               <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
                 Este PIX expirou e não pode mais ser pago. Cancele o pedido e
@@ -236,11 +191,11 @@ export default async function OrderPage({
                 <div className="flex-1">
                   <p className="text-sm font-semibold">{item.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {item.qty} × {formatBRL(moneyToNumber(item.price))}
+                    {item.qty} × {formatBRL(item.price)}
                   </p>
                 </div>
                 <p className="text-sm font-bold">
-                  {formatBRL(moneyToNumber(item.price) * item.qty)}
+                  {formatBRL(item.price * item.qty)}
                 </p>
               </div>
             ))}

@@ -10,15 +10,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
-import {
-  getProductBySlug,
-  getProductMetadataBySlug,
-  getRelatedProducts,
-} from "@/lib/catalog";
-import { getUserSubscriptionFor } from "@/lib/commerce/subscriptions";
-import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth/session";
-import { getSelectedPharmacyId } from "@/lib/pharmacy";
+import { getProductDetailView, getProductMetadataBySlug } from "@/server/queries/catalog";
 import { formatBRL, discountPercent, jsonLdScript } from "@/lib/utils";
 import { ProductGallery } from "@/components/store/product-gallery";
 import { StarRating } from "@/components/store/star-rating";
@@ -61,25 +53,12 @@ export default async function ProductPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const pharmacyId = await getSelectedPharmacyId();
-  const product = await getProductBySlug(slug, pharmacyId);
-  if (!product) notFound();
-
+  const view = await getProductDetailView(slug);
+  if (!view) notFound();
+  const { product, related, myReview, mySubscription, signedIn } = view;
   const price = product.promoPrice ?? product.price;
   const off = discountPercent(product.price, product.promoPrice);
   const out = product.stock <= 0;
-  const related = await getRelatedProducts(product.categoryId, product.id, 10, pharmacyId);
-
-  const user = await getCurrentUser();
-  const myReview = user
-    ? await prisma.review.findUnique({
-        where: { productId_userId: { productId: product.id, userId: user.id } },
-        select: { rating: true, comment: true },
-      })
-    : null;
-  const mySubscription = user
-    ? await getUserSubscriptionFor(user.id, product.id)
-    : null;
 
   // Ficha técnica: só as linhas com valor preenchido no cadastro.
   const specs: [string, string][] = [];
@@ -256,7 +235,7 @@ export default async function ProductPage({
           {/* Assinatura de reposição (uso contínuo) */}
           <SubscribeBox
             productId={product.id}
-            loggedIn={!!user}
+            loggedIn={signedIn}
             existing={
               mySubscription
                 ? {
@@ -362,7 +341,7 @@ export default async function ProductPage({
           </div>
 
           <div className="lg:sticky lg:top-24 lg:h-fit">
-            {user ? (
+            {signedIn ? (
               <ReviewForm
                 productId={product.id}
                 slug={product.slug}

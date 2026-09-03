@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Package } from "lucide-react";
 import { requireUserPage } from "@/lib/auth/session";
 import { getUserOrders } from "@/lib/auth/account";
-import { OrderCard } from "@/components/account/order-card";
+import { OrderCard } from "@/components/store/account/order-card";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Button } from "@/components/ui/button";
 

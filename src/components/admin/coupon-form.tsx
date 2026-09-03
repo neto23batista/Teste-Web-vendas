@@ -4,7 +4,8 @@ import { useActionState, useState } from "react";
 import { AlertCircle, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
-import type { CouponFormState } from "@/actions/admin/coupons";
+import type { CouponFormState } from "@/client/api/admin";
+import { publicError } from "@/client/api/result";
 
 type Coupon = {
   code: string;
@@ -38,10 +39,10 @@ export function CouponForm({
   const [type, setType] = useState<"PERCENT" | "FIXED">(coupon?.type ?? "PERCENT");
 
   return (
-    <form action={formAction} className="max-w-xl space-y-6">
+    <form action={formAction} className="max-w-xl space-y-6" aria-busy={pending}>
       {state?.error && (
         <div className="flex items-center gap-2 rounded-xl bg-danger-500/10 px-4 py-3 text-sm font-medium text-danger-500">
-          <AlertCircle className="size-4 shrink-0" /> {state.error}
+          <AlertCircle aria-hidden="true" className="size-4 shrink-0" /> <span role="alert">{publicError(state).message}</span>
         </div>
       )}
 

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Home, LayoutGrid, ShoppingBag, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { CartBadge } from "@/components/store/cart-badge";
+import { CartBadge } from "@/components/store/cart/cart-badge";
 
 const items = [
   { href: "/", label: "Início", icon: Home, exact: true },

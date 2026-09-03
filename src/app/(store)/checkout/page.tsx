@@ -1,52 +1,14 @@
 import { randomUUID } from "crypto";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { prisma } from "@/lib/prisma";
-import { requireUserPage } from "@/lib/auth/session";
-import { getCart } from "@/lib/commerce/cart";
-import { getShippingConfig, getPaymentSettings, resolveKm } from "@/lib/settings";
-import { paymentAvailability } from "@/lib/payments/methods";
-import { CheckoutForm } from "@/components/store/checkout-form";
-import { isValidCpf } from "@/lib/cpf";
+import { getCheckoutView } from "@/server/queries/checkout";
+import { CheckoutForm } from "@/components/store/checkout/checkout-form";
 
 export const metadata: Metadata = { title: "Checkout" };
 
 export default async function CheckoutPage() {
-  const user = await requireUserPage("/checkout");
-  const cart = await getCart();
-  if (!cart || cart.items.length === 0) redirect("/sacola");
-
-  const [rawAddresses, loyalty, shippingConfig, dbUser, payment] = await Promise.all([
-    prisma.address.findMany({
-      where: { userId: user.id },
-      orderBy: { isDefault: "desc" },
-    }),
-    prisma.loyaltyAccount.findUnique({
-      where: { userId: user.id },
-      select: { points: true },
-    }),
-    getShippingConfig(cart.pharmacyId),
-    prisma.user.findUnique({ where: { id: user.id }, select: { cpf: true } }),
-    getPaymentSettings(),
-  ]);
-
-  // Só oferece o que dá para cobrar de verdade. As CHAVES não vão para o cliente —
-  // só dois booleanos. Sem Stripe, resta dinheiro na entrega; com Stripe mas sem
-  // Pix habilitado, resta cartão + dinheiro (o Pix do Stripe BR é por convite).
-  const availability = paymentAvailability(payment);
-
-  // Resolve a distância (km) de cada endereço salvo pela faixa de CEP da unidade,
-  // para o resumo de frete recalcular ao trocar de endereço/modalidade no cliente.
-  const addresses = await Promise.all(
-    rawAddresses.map(async (a) => {
-      const km = await resolveKm(a.zip, cart.pharmacyId);
-      return {
-        ...a,
-        km: km ?? shippingConfig.defaultKm,
-        covered: km !== null,
-      };
-    })
-  );
+  const checkout = await getCheckoutView();
+  if (!checkout) redirect("/sacola");
 
   return (
     <div className="aurora">
@@ -59,13 +21,7 @@ export default async function CheckoutPage() {
       </h1>
       <CheckoutForm
         initialCheckoutAttempt={randomUUID()}
-        addresses={addresses}
-        subtotal={cart.subtotal}
-        points={loyalty?.points ?? 0}
-        shippingConfig={shippingConfig}
-        defaultKm={shippingConfig.defaultKm}
-        hasCpf={isValidCpf(dbUser?.cpf ?? "")}
-        availability={availability}
+        {...checkout}
       />
       </div>
     </div>
