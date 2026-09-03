@@ -1,0 +1,21 @@
+/** Public domain values: independent of Prisma and safe in the browser bundle. */
+export type Role = "CUSTOMER" | "ADMIN";
+export type StaffProfile = "OWNER" | "PHARMACIST" | "STOCKIST" | "ATTENDANT";
+export const ORDER_STATUSES = ["PENDING", "PAID", "PREPARING", "SHIPPED", "DELIVERED", "CANCELED"] as const;
+export type OrderStatus = (typeof ORDER_STATUSES)[number];
+export const PAYMENT_STATUSES = ["PENDING", "APPROVED", "REJECTED", "QUARANTINED", "REFUND_PENDING", "REFUND_FAILED", "REFUNDED"] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+export type PaymentProvider = "STRIPE" | "PIX" | "CASH";
+export type PrescriptionStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type CouponType = "PERCENT" | "FIXED";
+export type PharmacyType = "MATRIZ" | "FILIAL";
+export type SubscriptionStatus = "ACTIVE" | "PAUSED" | "CANCELED";
+export type InventoryMovementKind = "MANUAL_ADJUSTMENT" | "TRANSFER_IN" | "TRANSFER_OUT" | "SALE" | "CANCELLATION" | "RETURN" | "RECEIPT" | "LOSS" | "SYNC" | "RESERVATION" | "RELEASE";
+export type ReturnStatus = "REQUESTED" | "APPROVED" | "REJECTED" | "RECEIVED" | "COMPLETED" | "CANCELED";
+export type ReturnReason = "WITHDRAWAL" | "DAMAGED" | "WRONG_ITEM" | "QUALITY" | "OTHER";
+export type ReturnItemDisposition = "PENDING" | "RESTOCKED" | "DISCARDED";
+export type ReturnRefundStatus = "PENDING" | "PROCESSING" | "SUCCEEDED" | "FAILED";
+export type DeliveryProofMethod = "RECIPIENT" | "CONCIERGE" | "SAFE_PLACE" | "PICKUP";
+export type InventoryReservationStatus = "ACTIVE" | "COMMITTED" | "RELEASED";
+export type ExpenseCategory = "RENT" | "PAYROLL" | "SUPPLIER" | "MARKETING" | "TAX" | "UTILITIES" | "OTHER";
+export type DataExportStatus = "PENDING" | "READY" | "FAILED" | "EXPIRED";
