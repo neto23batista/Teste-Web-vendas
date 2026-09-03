@@ -46,6 +46,10 @@ enum PaymentStatus {
   PENDING
   APPROVED
   REJECTED
+  /// Valor ou moeda recebidos divergem do total do pedido. O dinheiro pode estar
+  /// retido no provedor: nada de automático confirma, cancela ou expira um
+  /// pagamento neste estado — só a conciliação manual em /admin/financeiro.
+  QUARANTINED
   REFUND_PENDING
   REFUND_FAILED
   REFUNDED
@@ -189,6 +193,7 @@ model User {
 
   @@index([role])
   @@index([pharmacyId])
+  dataExports DataExportRequest[]
 }
 
 model MfaRecoveryCode {
@@ -268,6 +273,8 @@ model Brand {
   products Product[]
 }
 
+/// Política MIP-only garantida no banco: ver a constraint
+/// `Product_prescription_never_active` (migration 20260902000200).
 model Product {
   id                   String   @id @default(cuid())
   name                 String
@@ -772,6 +779,7 @@ model InventoryLot {
   product     Product                   @relation(fields: [productId], references: [id], onDelete: Cascade)
   pharmacy    Pharmacy                  @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   allocations InventoryReservationLot[]
+  returns     ReturnItem[]
 
   @@unique([productId, pharmacyId, lotCode])
   @@index([pharmacyId, expiresAt, qty])
@@ -871,19 +879,44 @@ model StripeEvent {
   @@index([type, receivedAt])
 }
 
+/// Destino sanitário de um item devolvido. Medicamento que volta da casa do
+/// cliente não retorna à prateleira por decisão automática: fica em quarentena
+/// até alguém com responsabilidade decidir, e só volta ao LOTE de origem.
+enum ReturnItemDisposition {
+  /// Recebido fisicamente e em quarentena. NÃO conta como estoque vendável.
+  PENDING
+  /// Liberado pela conferência: voltou ao lote de origem e ao estoque.
+  RESTOCKED
+  /// Inutilizado. Nunca entrou no estoque, então não há o que baixar.
+  DISCARDED
+}
+
 model ReturnItem {
   id              String   @id @default(cuid())
   returnRequestId String
   orderItemId     String
   qty             Int
+  /// Quanto chegou fisicamente na conferência de recebimento.
+  receivedQty     Int      @default(0)
+  /// Quanto efetivamente voltou ao estoque vendável (só em RESTOCKED).
   restockQty      Int      @default(0)
   createdAt       DateTime @default(now())
 
+  disposition      ReturnItemDisposition @default(PENDING)
+  decidedAt        DateTime?
+  decidedById      String?
+  decidedByEmail   String?
+  dispositionNotes String?               @db.Text
+  /// Lote que recebeu a devolução de volta — o mesmo que a venda consumiu.
+  restockLotId     String?
+
   returnRequest ReturnRequest @relation(fields: [returnRequestId], references: [id], onDelete: Cascade)
   orderItem     OrderItem     @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  restockLot    InventoryLot? @relation(fields: [restockLotId], references: [id], onDelete: SetNull)
 
   @@unique([returnRequestId, orderItemId])
   @@index([orderItemId])
+  @@index([disposition])
 }
 
 /// Comprovante operacional imutável da entrega. Os nomes/e-mails são snapshots
@@ -985,4 +1018,48 @@ model AuditLog {
 
   @@index([createdAt])
   @@index([action])
+}
+
+/// Lease de execução para jobs periódicos. Com o cron rodando de hora em hora
+/// (e não mais uma vez por dia), duas execuções podem se sobrepor quando uma
+/// demora; a lease garante que só uma trabalhe por vez, sem depender de lock de
+/// sessão — que não sobrevive ao pool de conexões serverless.
+model JobLease {
+  name       String   @id
+  holder     String
+  acquiredAt DateTime @default(now())
+  expiresAt  DateTime
+
+  @@index([expiresAt])
+}
+
+/// Estado da exportação de dados pessoais (LGPD art. 18 V).
+enum DataExportStatus {
+  PENDING
+  READY
+  FAILED
+  EXPIRED
+}
+
+/// Pedido de portabilidade de dados. A geração é assíncrona: um titular antigo
+/// tem histórico grande demais para montar dentro de uma requisição HTTP, e
+/// tentar isso pressionava memória e tempo de resposta da loja inteira.
+model DataExportRequest {
+  id          String           @id @default(cuid())
+  userId      String
+  status      DataExportStatus @default(PENDING)
+  /// Chave no storage PRIVADO. Nunca é exposta ao cliente: o download passa
+  /// pela rota autenticada, que confere o dono antes de servir o conteúdo.
+  storageKey  String?
+  sizeBytes   Int?
+  error       String?          @db.Text
+  requestedAt DateTime         @default(now())
+  readyAt     DateTime?
+  /// Depois disto o arquivo é apagado do storage pela retenção.
+  expiresAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, requestedAt])
+  @@index([status, requestedAt])
 }
