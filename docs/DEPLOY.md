@@ -76,6 +76,13 @@ npm run db:migrate:deploy
 Use migrations retrocompatíveis quando aplicação e banco puderem ficar em
 versões diferentes durante o deploy.
 
+`/api/ready` só libera tráfego quando a última migration aplicada é exatamente
+`EXPECTED_MIGRATION` (`src/lib/operations/readiness.ts`). Toda migration nova
+precisa subir essa constante no mesmo commit: deixá-la para trás inverte o
+sinal da sonda, que passa a recusar tráfego justamente depois de um release
+aplicado com sucesso. `src/lib/operations/__tests__/readiness.test.ts` falha
+quando as duas divergem.
+
 O primeiro deploy da migration `20260822033000_session_mfa_policy` encerra os
 JWTs emitidos pela versão anterior, que ainda não carregam `sessionVersion`.
 Planeje a comunicação: clientes e equipe precisarão entrar novamente; em
@@ -148,6 +155,21 @@ configurar o destino do deploy. Não rode testes mutáveis no ambiente de releas
 
 Os procedimentos de backup, restauração, incidentes, webhook e conciliação
 estão em [OPERATIONS.md](./OPERATIONS.md).
+
+Antes de promover, nesta ordem e sem pular etapas:
+
+1. `npm run check:ratelimit` contra as variáveis do ambiente de destino. Os
+   caminhos de credencial (login, MFA, reset de senha, exclusão de conta)
+   **falham fechado** em produção viva: sem armazenamento durável respondendo,
+   a requisição é negada em vez de cair no contador local. Uma `REDIS_URL`
+   apontando para host inexistente derruba o login — e apagar a variável não
+   ajuda, porque a ausência de durável produz o mesmo resultado. Só um Redis
+   que responde libera esse caminho.
+2. `npm run db:migrate:deploy` pela conexão direta (seção 2).
+3. Só então promova o deploy.
+
+Inverter 2 e 3 coloca no ar um código que espera tabelas e enums que ainda não
+existem no banco.
 
 Após o deploy, confirme HTTPS, login, checkout, webhook, e-mail, os dois crons,
 rate limit, `/api/health` (liveness), `/api/ready` (PostgreSQL + migration) e a
