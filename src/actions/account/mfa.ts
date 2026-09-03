@@ -16,7 +16,7 @@ import {
 import { verifyMfaChallenge } from "@/lib/auth/mfa-challenge";
 import { qrPngBase64 } from "@/lib/qrcode";
 import { isLiveProduction } from "@/lib/env";
-import { logAudit } from "@/lib/audit";
+import { logAuditInTransaction } from "@/lib/audit";
 
 export type MfaBeginState =
   | { error?: string; secret?: string; qrDataUrl?: string }
@@ -42,7 +42,9 @@ export async function beginMfaSetup(
   if (!password || password.length > 128) return { error: "Senha atual incorreta." };
 
   const ip = await clientIp();
-  if (!(await rateLimit(`mfa:begin:${ip}:${session.id}`, 5, 15 * 60_000)).ok) {
+  if (!(await rateLimit(`mfa:begin:${ip}:${session.id}`, 5, 15 * 60_000, {
+    critical: true,
+  })).ok) {
     return { error: TOO_MANY };
   }
 
@@ -90,7 +92,9 @@ export async function confirmMfaSetup(
   if (!/^\d{6}$/.test(code)) return { error: "Informe o código de 6 dígitos." };
 
   const ip = await clientIp();
-  if (!(await rateLimit(`mfa:confirm:${ip}:${session.id}`, 8, 15 * 60_000)).ok) {
+  if (!(await rateLimit(`mfa:confirm:${ip}:${session.id}`, 8, 15 * 60_000, {
+    critical: true,
+  })).ok) {
     return { error: TOO_MANY };
   }
 
@@ -143,20 +147,21 @@ export async function confirmMfaSetup(
         codeHash: hashRecoveryCode(recoveryCode),
       })),
     });
+    // Evidência no MESMO commit da ativação: o ator já foi capturado antes da
+    // mutação, que acabou de revogar a versão do cookie atual — reler a sessão
+    // aqui não funcionaria, e gravar depois deixaria a janela em que o MFA está
+    // ligado sem registro de quem ligou.
+    await logAuditInTransaction(tx, {
+      action: "security.mfa.enable",
+      entity: "User",
+      entityId: session.id,
+      detail: "Ativou autenticação multifator",
+      pharmacyId: session.pharmacyId,
+      actor: { id: session.id, email: session.email ?? null },
+    });
     return true;
   });
   if (!activated) return { error: "A configuração mudou. Comece novamente." };
-
-  await logAudit({
-    action: "security.mfa.enable",
-    entity: "User",
-    entityId: session.id,
-    detail: "Ativou autenticação multifator",
-    pharmacyId: session.pharmacyId,
-    // A ativação acabou de revogar a versão do cookie atual. Preserve o ator
-    // capturado antes da mutação em vez de depender de reler essa sessão.
-    actor: { id: session.id, email: session.email ?? null },
-  });
   return { recoveryCodes };
 }
 
@@ -177,7 +182,9 @@ export async function disableMfa(
   }
 
   const ip = await clientIp();
-  if (!(await rateLimit(`mfa:disable:${ip}:${session.id}`, 5, 15 * 60_000)).ok) {
+  if (!(await rateLimit(`mfa:disable:${ip}:${session.id}`, 5, 15 * 60_000, {
+    critical: true,
+  })).ok) {
     return { error: TOO_MANY };
   }
 
@@ -211,17 +218,18 @@ export async function disableMfa(
     });
     if (changed.count !== 1) return false;
     await tx.mfaRecoveryCode.deleteMany({ where: { userId: session.id } });
+    // Desligar MFA é exatamente o evento que uma investigação vai procurar:
+    // ele não pode existir sem registro, nem o registro sem o desligamento.
+    await logAuditInTransaction(tx, {
+      action: "security.mfa.disable",
+      entity: "User",
+      entityId: session.id,
+      detail: "Desativou autenticação multifator fora de produção",
+      pharmacyId: session.pharmacyId,
+      actor: { id: session.id, email: session.email ?? null },
+    });
     return true;
   });
   if (!disabled) return { error: "O MFA já estava desativado." };
-
-  await logAudit({
-    action: "security.mfa.disable",
-    entity: "User",
-    entityId: session.id,
-    detail: "Desativou autenticação multifator fora de produção",
-    pharmacyId: session.pharmacyId,
-    actor: { id: session.id, email: session.email ?? null },
-  });
   return { success: true };
 }

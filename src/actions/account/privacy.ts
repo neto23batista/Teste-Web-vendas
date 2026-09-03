@@ -48,7 +48,9 @@ export async function deleteAccount(
   }
 
   const ip = await clientIp();
-  if (!(await rateLimit(`account-delete:${ip}:${user.id}`, 5, 15 * 60_000)).ok) {
+  if (!(await rateLimit(`account-delete:${ip}:${user.id}`, 5, 15 * 60_000, {
+    critical: true,
+  })).ok) {
     return { error: "Muitas tentativas. Aguarde antes de tentar novamente." };
   }
   const currentPassword = String(formData.get("currentPassword") ?? "");

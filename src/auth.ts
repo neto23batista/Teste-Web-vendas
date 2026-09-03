@@ -52,7 +52,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const identityLimit = await rateLimit(
           `auth:credentials:${identityKey}`,
           5,
-          60_000
+          60_000,
+          { critical: true }
         );
         if (!identityLimit.ok) return null;
 
@@ -60,7 +61,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // não há proxy confiável, não use o bucket global "unknown".
         if (ip !== "unknown") {
           const ipKey = createHash("sha256").update(ip).digest("hex").slice(0, 24);
-          if (!(await rateLimit(`auth:credentials:ip:${ipKey}`, 30, 60_000)).ok) {
+          const ipLimit = await rateLimit(
+            `auth:credentials:ip:${ipKey}`,
+            30,
+            60_000,
+            { critical: true }
+          );
+          if (!ipLimit.ok) {
             return null;
           }
         }

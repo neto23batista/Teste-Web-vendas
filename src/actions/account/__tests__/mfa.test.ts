@@ -41,7 +41,7 @@ vi.mock("@/lib/auth/password", () => ({
   verifyPassword: mocks.verifyPassword,
 }));
 vi.mock("@/lib/qrcode", () => ({ qrPngBase64: vi.fn().mockResolvedValue("cXI=") }));
-vi.mock("@/lib/audit", () => ({ logAudit: mocks.audit }));
+vi.mock("@/lib/audit", () => ({ logAuditInTransaction: mocks.audit }));
 vi.mock("@/lib/auth/mfa-challenge", () => ({ verifyMfaChallenge: vi.fn() }));
 
 import { beginMfaSetup, confirmMfaSetup, disableMfa } from "@/actions/account/mfa";

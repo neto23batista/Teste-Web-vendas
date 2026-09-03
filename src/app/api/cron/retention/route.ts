@@ -4,6 +4,7 @@ import { cronRequestAuthorized } from "@/lib/security/cron-auth";
 import { reportError } from "@/lib/monitoring";
 import { prisma } from "@/lib/prisma";
 import { processStorageDeletionTasks } from "@/lib/storage/deletions";
+import { processDataExports } from "@/lib/privacy/data-export";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,6 +50,9 @@ export async function GET(request: Request) {
         }),
       ]);
     const storageDeletions = await processStorageDeletionTasks(50);
+    // Portabilidade LGPD: monta os arquivos pedidos e apaga os vencidos. Fica
+    // aqui porque esta rotina já é a dona do ciclo de vida de arquivo temporário.
+    const dataExports = await processDataExports(5);
 
     return NextResponse.json(
       {
@@ -59,8 +63,10 @@ export async function GET(request: Request) {
           minimizedPaymentPayloads: paymentRaw.count,
           storageObjects: storageDeletions.completed,
           completedStorageTasks: completedStorageTasks.count,
+          expiredDataExports: dataExports.expired,
         },
         storageQueue: storageDeletions,
+        dataExports,
       },
       { headers: { "Cache-Control": "no-store" } }
     );

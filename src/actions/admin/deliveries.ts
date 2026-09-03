@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertArea, requireAdminAtPharmacy } from "@/lib/auth/session";
-import { logAudit } from "@/lib/audit";
+import { logAuditInTransaction } from "@/lib/audit";
 import { markOrderDelivered, transitionOrderStatus } from "@/lib/orders";
 import type { DeliveryProofMethod } from "@prisma/client";
 
@@ -19,14 +19,17 @@ export async function createCourier(
   const pharmacyId = str(formData, "pharmacyId") || null;
   if (name.length < 3) return { ok: false, error: "Informe o nome do entregador." };
   if (!pharmacyId) return { ok: false, error: "Selecione a unidade do entregador." };
-  await requireAdminAtPharmacy(pharmacyId);
+  const actor = await requireAdminAtPharmacy(pharmacyId);
 
-  await prisma.courier.create({ data: { name, phone, pharmacyId } });
-  await logAudit({
-    action: "courier.create",
-    entity: "Courier",
-    detail: `Entregador ${name} cadastrado`,
-    pharmacyId,
+  await prisma.$transaction(async (tx) => {
+    await tx.courier.create({ data: { name, phone, pharmacyId } });
+    await logAuditInTransaction(tx, {
+      action: "courier.create",
+      entity: "Courier",
+      detail: `Entregador ${name} cadastrado`,
+      pharmacyId,
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
+    });
   });
   revalidatePath("/admin/entregas");
   return { ok: true };
@@ -63,7 +66,7 @@ export async function dispatchOrder(
     select: { status: true, number: true, pharmacyId: true },
   });
   if (!order) return { ok: false, error: "Pedido não encontrado." };
-  await requireAdminAtPharmacy(order.pharmacyId);
+  const actor = await requireAdminAtPharmacy(order.pharmacyId);
   if (order.status !== "PREPARING") {
     return { ok: false, error: "Só um pedido em preparo pode sair para entrega." };
   }
@@ -79,20 +82,30 @@ export async function dispatchOrder(
     };
   }
 
-  if (
-    !(await transitionOrderStatus(orderId, "PREPARING", "SHIPPED", {
-      courierId,
-    }))
-  ) {
+  // Despacho e evidência no mesmo commit: um pedido não pode constar como
+  // "saiu para entrega" sem registro de quem despachou e com qual entregador.
+  const dispatched = await prisma.$transaction(async (tx) => {
+    const changed = await transitionOrderStatus(
+      orderId,
+      "PREPARING",
+      "SHIPPED",
+      { courierId },
+      tx,
+    );
+    if (!changed) return false;
+    await logAuditInTransaction(tx, {
+      action: "delivery.dispatch",
+      entity: "Order",
+      entityId: orderId,
+      detail: `Pedido ${order.number} saiu para entrega com ${courier.name}`,
+      pharmacyId: order.pharmacyId,
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
+    });
+    return true;
+  });
+  if (!dispatched) {
     return { ok: false, error: "O pedido mudou em outra operação. Atualize a página." };
   }
-  await logAudit({
-    action: "delivery.dispatch",
-    entity: "Order",
-    entityId: orderId,
-    detail: `Pedido ${order.number} saiu para entrega com ${courier.name}`,
-    pharmacyId: order.pharmacyId,
-  });
   revalidatePath("/admin/entregas");
   revalidatePath(`/pedido/${order.number}`);
   return { ok: true };
@@ -145,17 +158,18 @@ export async function markDelivered(
       courierName: order.courier?.name ?? null,
       confirmedById: actor.id ?? null,
       confirmedByEmail: actor.email ?? null,
+    },
+    {
+      action: "delivery.done",
+      entity: "Order",
+      entityId: orderId,
+      detail: `Pedido ${order.number} entregue a ${recipientName} com comprovante ${proof.method}`,
+      pharmacyId: order.pharmacyId,
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
     }))
   ) {
     return { ok: false, error: "O pedido mudou em outra operação. Atualize a página." };
   }
-  await logAudit({
-    action: "delivery.done",
-    entity: "Order",
-    entityId: orderId,
-    detail: `Pedido ${order.number} entregue a ${recipientName} com comprovante ${proof.method}`,
-    pharmacyId: order.pharmacyId,
-  });
   revalidatePath("/admin/entregas");
   revalidatePath(`/pedido/${order.number}`);
   return { ok: true };

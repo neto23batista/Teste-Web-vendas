@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertArea, requireAdminAtPharmacy } from "@/lib/auth/session";
-import { logAudit } from "@/lib/audit";
+import { logAuditInTransaction } from "@/lib/audit";
 
 /**
  * Ajusta os níveis de reposição (mínimo/máximo) de um item de estoque.
@@ -28,18 +28,21 @@ export async function setStockLevels(
     select: { pharmacyId: true, product: { select: { name: true } } },
   });
   if (!inv) return { ok: false, error: "Item de estoque não encontrado." };
-  await requireAdminAtPharmacy(inv.pharmacyId);
+  const actor = await requireAdminAtPharmacy(inv.pharmacyId);
 
-  await prisma.inventory.update({
-    where: { id: inventoryId },
-    data: { minStock, maxStock },
-  });
-  await logAudit({
-    action: "stock.levels",
-    entity: "Inventory",
-    entityId: inventoryId,
-    detail: `Níveis de ${inv.product.name}: mín ${minStock}, máx ${maxStock ?? "—"}`,
-    pharmacyId: inv.pharmacyId,
+  await prisma.$transaction(async (tx) => {
+    await tx.inventory.update({
+      where: { id: inventoryId },
+      data: { minStock, maxStock },
+    });
+    await logAuditInTransaction(tx, {
+      action: "stock.levels",
+      entity: "Inventory",
+      entityId: inventoryId,
+      detail: `Níveis de ${inv.product.name}: mín ${minStock}, máx ${maxStock ?? "—"}`,
+      pharmacyId: inv.pharmacyId,
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
+    });
   });
   revalidatePath("/admin/compras");
   revalidatePath("/admin/estoque");

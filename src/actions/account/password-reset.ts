@@ -30,13 +30,15 @@ export async function requestPasswordReset(
   if (!parsed.success) return { error: "Informe um e-mail válido." };
 
   const ip = await clientIp();
-  if (!(await rateLimit(`pwreset:${ip}`, 5, 60_000)).ok) {
+  if (!(await rateLimit(`pwreset:${ip}`, 5, 60_000, { critical: true })).ok) {
     return { error: "Muitas tentativas. Aguarde um instante e tente de novo." };
   }
 
   const email = parsed.data.email.toLowerCase();
   const emailKey = hashToken(email).slice(0, 32);
-  if (!(await rateLimit(`pwreset:email:${emailKey}`, 3, 15 * 60_000)).ok) {
+  if (!(await rateLimit(`pwreset:email:${emailKey}`, 3, 15 * 60_000, {
+    critical: true,
+  })).ok) {
     // Resposta deliberadamente igual à de sucesso: não confirma existência e
     // impede disparos repetidos para a mesma caixa por IPs diferentes.
     return { ok: true };

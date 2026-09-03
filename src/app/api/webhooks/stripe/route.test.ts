@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   orderFindUnique: vi.fn(),
   confirmStripePayment: vi.fn(),
   failStripePayment: vi.fn(),
+  quarantinePayment: vi.fn(),
   recordStripeRefund: vi.fn(),
   recordStripeReturnRefund: vi.fn(),
   reportError: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock("@/lib/payments/stripe", () => ({
 vi.mock("@/lib/orders", () => ({
   confirmStripePayment: mocks.confirmStripePayment,
   failStripePayment: mocks.failStripePayment,
+  quarantinePayment: mocks.quarantinePayment,
   recordStripeRefund: mocks.recordStripeRefund,
 }));
 vi.mock("@/lib/payments/return-refunds", () => ({
@@ -56,6 +58,7 @@ describe("POST /api/webhooks/stripe", () => {
     vi.clearAllMocks();
     mocks.stripeEventCreate.mockResolvedValue({});
     mocks.stripeEventUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.quarantinePayment.mockResolvedValue(true);
     mocks.orderFindUnique.mockResolvedValue({ id: "order-1", total: 100 });
     mocks.constructEvent.mockReturnValue({
       id: "evt_1",
@@ -115,5 +118,58 @@ describe("POST /api/webhooks/stripe", () => {
 
     expect(response.status).toBe(409);
     expect(mocks.confirmStripePayment).not.toHaveBeenCalled();
+  });
+  it("põe em quarentena a cobrança cujo valor diverge do total do pedido", async () => {
+    // R$ 0,50 carregando o número de um pedido de R$ 100.
+    mocks.constructEvent.mockReturnValue({
+      id: "evt_2",
+      type: "payment_intent.succeeded",
+      data: {
+        object: {
+          id: "pi_divergente",
+          metadata: { orderNumber: "FV-1" },
+          amount_received: 50,
+          currency: "brl",
+        },
+      },
+    });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    // Nunca confirma o pedido...
+    expect(mocks.confirmStripePayment).not.toHaveBeenCalled();
+    // ...mas o PaymentIntent não pode se perder: é o único fio até o dinheiro.
+    expect(mocks.quarantinePayment).toHaveBeenCalledWith({
+      orderId: "order-1",
+      paymentIntentId: "pi_divergente",
+      paidCents: 50,
+      expectedCents: 10_000,
+      currency: "brl",
+    });
+    expect(await response.json()).toEqual({ received: true, quarantined: true });
+  });
+
+  it("põe em quarentena também quando a moeda diverge", async () => {
+    mocks.constructEvent.mockReturnValue({
+      id: "evt_3",
+      type: "payment_intent.succeeded",
+      data: {
+        object: {
+          id: "pi_moeda",
+          metadata: { orderNumber: "FV-1" },
+          amount_received: 10_000,
+          currency: "usd",
+        },
+      },
+    });
+
+    const response = await POST(request());
+
+    expect(mocks.confirmStripePayment).not.toHaveBeenCalled();
+    expect(mocks.quarantinePayment).toHaveBeenCalledWith(
+      expect.objectContaining({ currency: "usd", paymentIntentId: "pi_moeda" })
+    );
+    expect(await response.json()).toEqual({ received: true, quarantined: true });
   });
 });

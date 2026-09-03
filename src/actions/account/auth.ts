@@ -31,7 +31,7 @@ export async function authenticate(
     .update(`${ip}\0${parsed.data.email.toLowerCase()}`)
     .digest("hex")
     .slice(0, 32);
-  if (!(await rateLimit(`login:${loginIdentity}`, 5, 60_000)).ok) {
+  if (!(await rateLimit(`login:${loginIdentity}`, 5, 60_000, { critical: true })).ok) {
     return { error: TOO_MANY };
   }
 
@@ -85,7 +85,7 @@ export async function register(
 
   // Limita cadastros por IP (anti-abuso).
   const ip = await clientIp();
-  if (!(await rateLimit(`register:${ip}`, 5, 60_000)).ok) {
+  if (!(await rateLimit(`register:${ip}`, 5, 60_000, { critical: true })).ok) {
     return { error: TOO_MANY };
   }
 

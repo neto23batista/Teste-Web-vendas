@@ -51,9 +51,19 @@ describe("entrega com entregador e comprovante obrigatórios", () => {
     expect(await markDelivered("order-1", proof)).toEqual({ ok: true });
     expect(mocks.assertArea).toHaveBeenCalledWith("entregas");
     expect(mocks.requireAdminAtPharmacy).toHaveBeenCalledWith("unit-a");
-    expect(mocks.markOrderDelivered).toHaveBeenCalledWith("order-1", expect.objectContaining({
-      ...proof, courierName: "Entregador", confirmedById: "staff-1", confirmedByEmail: "staff@example.test",
-    }));
+    expect(mocks.markOrderDelivered).toHaveBeenCalledWith(
+      "order-1",
+      expect.objectContaining({
+        ...proof, courierName: "Entregador", confirmedById: "staff-1", confirmedByEmail: "staff@example.test",
+      }),
+      // A trilha de auditoria vai junto, para ser gravada no MESMO commit da
+      // entrega — e não numa escrita solta que pode falhar depois.
+      expect.objectContaining({
+        action: "delivery.done",
+        entityId: "order-1",
+        actor: { id: "staff-1", email: "staff@example.test" },
+      }),
+    );
   });
 
   it("recusa documento completo em vez de armazená-lo no comprovante", async () => {

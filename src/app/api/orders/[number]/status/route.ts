@@ -21,14 +21,14 @@ export async function GET(
 
   const order = await prisma.order.findUnique({
     where: { number },
-    select: { userId: true, status: true },
+    select: { userId: true, status: true, payment: { select: { status: true } } },
   });
   if (!order || order.userId !== user.id) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
   return NextResponse.json(
-    { status: order.status },
-    { headers: { "Cache-Control": "no-store" } }
+    { status: order.status, paymentStatus: order.payment?.status ?? null },
+    { headers: { "Cache-Control": "private, no-store" } }
   );
 }

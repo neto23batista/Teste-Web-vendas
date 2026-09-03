@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { assertOwner } from "@/lib/auth/session";
-import { logAudit } from "@/lib/audit";
+import { logAuditInTransaction } from "@/lib/audit";
 import type { CouponType } from "@prisma/client";
 import { centsToDecimal, parseMoneyInputToCents } from "@/lib/money";
 
@@ -72,7 +72,7 @@ export async function createCoupon(
   _prev: CouponFormState,
   formData: FormData
 ): Promise<CouponFormState> {
-  await assertMatrixOwner();
+  const actor = await assertMatrixOwner();
   const d = parse(formData);
   const err = validate(d);
   if (err) return { error: err };
@@ -80,24 +80,27 @@ export async function createCoupon(
   const exists = await prisma.coupon.findUnique({ where: { code: d.code } });
   if (exists) return { error: "Já existe um cupom com esse código." };
 
-  const created = await prisma.coupon.create({
-    data: {
-      code: d.code,
-      type: d.type,
-      value: centsToDecimal(d.valueCents!),
-      minTotal: centsToDecimal(d.minTotalCents!),
-      usageLimit: d.usageLimit,
-      usageLimitPerCustomer: d.usageLimitPerCustomer,
-      expiresAt: d.expiresAt,
-      active: d.active,
-    },
-  });
-
-  await logAudit({
-    action: "coupon.create",
-    entity: "Coupon",
-    entityId: created.id,
-    detail: `Criou o cupom "${d.code}" (${couponValueLabel(d.type, d.valueCents!)})`,
+  await prisma.$transaction(async (tx) => {
+    const coupon = await tx.coupon.create({
+      data: {
+        code: d.code,
+        type: d.type,
+        value: centsToDecimal(d.valueCents!),
+        minTotal: centsToDecimal(d.minTotalCents!),
+        usageLimit: d.usageLimit,
+        usageLimitPerCustomer: d.usageLimitPerCustomer,
+        expiresAt: d.expiresAt,
+        active: d.active,
+      },
+    });
+    await logAuditInTransaction(tx, {
+      action: "coupon.create",
+      entity: "Coupon",
+      entityId: coupon.id,
+      detail: `Criou o cupom "${d.code}" (${couponValueLabel(d.type, d.valueCents!)})`,
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
+    });
+    return coupon;
   });
   revalidatePath("/admin/cupons");
   redirect("/admin/cupons");
@@ -108,7 +111,7 @@ export async function updateCoupon(
   _prev: CouponFormState,
   formData: FormData
 ): Promise<CouponFormState> {
-  await assertMatrixOwner();
+  const actor = await assertMatrixOwner();
   const d = parse(formData);
   const err = validate(d);
   if (err) return { error: err };
@@ -118,40 +121,45 @@ export async function updateCoupon(
     return { error: "Já existe um cupom com esse código." };
   }
 
-  await prisma.coupon.update({
-    where: { id },
-    data: {
-      code: d.code,
-      type: d.type,
-      value: centsToDecimal(d.valueCents!),
-      minTotal: centsToDecimal(d.minTotalCents!),
-      usageLimit: d.usageLimit,
-      usageLimitPerCustomer: d.usageLimitPerCustomer,
-      expiresAt: d.expiresAt,
-      active: d.active,
-    },
-  });
-
-  await logAudit({
-    action: "coupon.update",
-    entity: "Coupon",
-    entityId: id,
-    detail: `Editou o cupom "${d.code}" (${couponValueLabel(d.type, d.valueCents!)})`,
+  await prisma.$transaction(async (tx) => {
+    await tx.coupon.update({
+      where: { id },
+      data: {
+        code: d.code,
+        type: d.type,
+        value: centsToDecimal(d.valueCents!),
+        minTotal: centsToDecimal(d.minTotalCents!),
+        usageLimit: d.usageLimit,
+        usageLimitPerCustomer: d.usageLimitPerCustomer,
+        expiresAt: d.expiresAt,
+        active: d.active,
+      },
+    });
+    await logAuditInTransaction(tx, {
+      action: "coupon.update",
+      entity: "Coupon",
+      entityId: id,
+      detail: `Editou o cupom "${d.code}" (${couponValueLabel(d.type, d.valueCents!)})`,
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
+    });
   });
   revalidatePath("/admin/cupons");
   redirect("/admin/cupons");
 }
 
 export async function toggleCoupon(id: string) {
-  await assertMatrixOwner();
+  const actor = await assertMatrixOwner();
   const coupon = await prisma.coupon.findUnique({ where: { id } });
   if (coupon) {
-    await prisma.coupon.update({ where: { id }, data: { active: !coupon.active } });
-    await logAudit({
-      action: "coupon.toggle",
-      entity: "Coupon",
-      entityId: id,
-      detail: `${coupon.active ? "Desativou" : "Ativou"} o cupom "${coupon.code}"`,
+    await prisma.$transaction(async (tx) => {
+      await tx.coupon.update({ where: { id }, data: { active: !coupon.active } });
+      await logAuditInTransaction(tx, {
+        action: "coupon.toggle",
+        entity: "Coupon",
+        entityId: id,
+        detail: `${coupon.active ? "Desativou" : "Ativou"} o cupom "${coupon.code}"`,
+        actor: { id: actor.id ?? null, email: actor.email ?? null },
+      });
     });
     revalidatePath("/admin/cupons");
   }
@@ -159,23 +167,27 @@ export async function toggleCoupon(id: string) {
 }
 
 export async function deleteCoupon(id: string) {
-  await assertMatrixOwner();
+  const actor = await assertMatrixOwner();
   const coupon = await prisma.coupon.findUnique({
     where: { id },
     select: { code: true },
   });
-  // Só registra na auditoria (e reporta sucesso) se o delete de fato ocorreu.
-  const deleted = await prisma.coupon
-    .delete({ where: { id } })
-    .then(() => true)
+  // Só registra na auditoria (e reporta sucesso) se o delete de fato ocorreu —
+  // no mesmo commit, para não existir exclusão sem evidência.
+  const deleted = await prisma
+    .$transaction(async (tx) => {
+      await tx.coupon.delete({ where: { id } });
+      await logAuditInTransaction(tx, {
+        action: "coupon.delete",
+        entity: "Coupon",
+        entityId: id,
+        detail: `Excluiu o cupom "${coupon?.code ?? id}"`,
+        actor: { id: actor.id ?? null, email: actor.email ?? null },
+      });
+      return true;
+    })
     .catch(() => false);
   if (deleted) {
-    await logAudit({
-      action: "coupon.delete",
-      entity: "Coupon",
-      entityId: id,
-      detail: `Excluiu o cupom "${coupon?.code ?? id}"`,
-    });
     revalidatePath("/admin/cupons");
   }
   return { ok: deleted };

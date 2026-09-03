@@ -4,6 +4,10 @@ import { randomUUID } from "crypto";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import {
+  isProductSaleable,
+  PRESCRIPTION_PRODUCT_UNAVAILABLE,
+} from "@/lib/catalog/policy";
 import { getCurrentUser } from "@/lib/auth/session";
 import { CART_COOKIE } from "@/lib/commerce/cart";
 import { getSelectedPharmacyId } from "@/lib/pharmacy";
@@ -96,12 +100,21 @@ export async function addToCart(productId: string, qty = 1) {
   }
 
   const pharmacyId = await getSelectedPharmacyId();
+  // O id vem do cliente: reafirma a política inteira de venda, não só `active`.
+  // Sem `requiresPrescription`, um item de tarja que escapasse para ativo (dado
+  // legado, escrita direta no banco) entrava na sacola e seguia até o checkout.
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    select: { id: true, active: true },
+    select: { id: true, active: true, requiresPrescription: true },
   });
-  if (!product || !product.active)
-    return { ok: false, error: "Produto indisponível." };
+  if (!product || !isProductSaleable(product)) {
+    return {
+      ok: false,
+      error: product?.requiresPrescription
+        ? PRESCRIPTION_PRODUCT_UNAVAILABLE
+        : "Produto indisponível.",
+    };
+  }
 
   const stock = await unitStock(productId, pharmacyId);
   if (!isValidStock(stock) || stock === 0) {

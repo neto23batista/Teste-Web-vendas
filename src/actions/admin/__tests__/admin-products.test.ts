@@ -2,6 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const productFindUnique = vi.fn();
 const productUpdate = vi.fn();
+const auditInTransaction = vi.fn();
+
+// A mutação e a auditoria compartilham a transação: o mock precisa oferecer
+// as duas pontas para que o teste exercite o caminho real.
+const tx = { product: { update: (...a: unknown[]) => productUpdate(...a) } };
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -9,6 +14,7 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: (...args: unknown[]) => productFindUnique(...args),
       update: (...args: unknown[]) => productUpdate(...args),
     },
+    $transaction: async (fn: (t: typeof tx) => unknown) => fn(tx),
   },
 }));
 vi.mock("@/lib/auth/session", () => ({
@@ -17,7 +23,9 @@ vi.mock("@/lib/auth/session", () => ({
   requireAdminAtPharmacy: vi.fn(),
 }));
 vi.mock("@/lib/auth/permissions", () => ({ canAccess: () => true }));
-vi.mock("@/lib/audit", () => ({ logAudit: vi.fn() }));
+vi.mock("@/lib/audit", () => ({
+  logAuditInTransaction: (...args: unknown[]) => auditInTransaction(...args),
+}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
@@ -58,5 +66,10 @@ describe("ativação de produto no admin", () => {
       where: { id: "mip-1" },
       data: { active: true },
     });
+    // A evidência sai na MESMA transação da mudança.
+    expect(auditInTransaction).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ action: "product.toggle" }),
+    );
   });
 });

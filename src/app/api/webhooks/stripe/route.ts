@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import {
   confirmStripePayment,
   failStripePayment,
+  quarantinePayment,
   recordStripeRefund,
 } from "@/lib/orders";
 import { getStripeForWebhook } from "@/lib/payments/stripe";
@@ -252,6 +253,19 @@ export async function POST(req: NextRequest) {
       throw new Error("Total autoritativo do pedido é inválido.");
     }
     if (paidCents !== expectedCents || currency?.toLowerCase() !== "brl") {
+      // Recusar a confirmação é correto, mas antes era só isso: o evento era
+      // concluído, o Payment continuava PENDING sem PaymentIntent e o valor
+      // ficava retido no Stripe sem vínculo nenhum aqui — até o cron de reservas
+      // expirar o pedido e devolver o estoque. A quarentena guarda o
+      // PaymentIntent, tira a cobrança de todo automatismo e a coloca na fila de
+      // conciliação do financeiro.
+      await quarantinePayment({
+        orderId: order.id,
+        paymentIntentId,
+        paidCents,
+        expectedCents,
+        currency,
+      });
       reportError(new Error("Valor recebido diverge do total autoritativo."), {
         operation: "stripe.webhook.amount_mismatch",
         eventType: event.type,
@@ -259,7 +273,9 @@ export async function POST(req: NextRequest) {
         expectedCents: String(expectedCents),
         currency: currency ?? undefined,
       });
-      return done({ received: true, mismatch: true });
+      // Conclui o evento de propósito: o Stripe não deve reentregar para sempre
+      // um caso que agora tem dono aqui dentro.
+      return done({ received: true, quarantined: true });
     }
 
     if (!paymentIntentId) {

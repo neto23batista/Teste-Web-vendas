@@ -18,7 +18,7 @@ vi.mock("@/lib/auth/session", () => ({
   assertOwner: mocks.assertOwner,
   getCurrentUser: mocks.getCurrentUser,
 }));
-vi.mock("@/lib/audit", () => ({ logAudit: mocks.audit }));
+vi.mock("@/lib/audit", () => ({ logAuditInTransaction: mocks.audit }));
 vi.mock("@/lib/pharmacy", () => ({ cepToInt: vi.fn() }));
 vi.mock("@/lib/utils", () => ({ slugify: (value: string) => value.toLowerCase() }));
 vi.mock("@/lib/prisma", () => ({
@@ -35,6 +35,15 @@ vi.mock("@/lib/prisma", () => ({
       delete: vi.fn(),
     },
     pharmacyCepRange: { create: vi.fn(), delete: vi.fn() },
+    // Mutação e evidência compartilham a transação; o mock devolve as mesmas
+    // funções para que as asserções continuem valendo sobre elas.
+    $transaction: async (fn: (tx: unknown) => unknown) =>
+      fn({
+        user: { update: mocks.userUpdate },
+        pharmacy: { update: mocks.pharmacyUpdate, create: vi.fn() },
+        mfaRecoveryCode: { deleteMany: vi.fn() },
+        auditLog: { create: vi.fn() },
+      }),
   },
 }));
 

@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertOwner } from "@/lib/auth/session";
-import { logAudit } from "@/lib/audit";
+import { logAuditInTransaction } from "@/lib/audit";
 import { cepToInt } from "@/lib/pharmacy";
 import { slugify } from "@/lib/utils";
 import { Prisma, type PharmacyType } from "@prisma/client";
@@ -44,7 +44,8 @@ export async function createPharmacy(data: {
   state?: string;
   phone?: string;
 }): Promise<PharmacyResult> {
-  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
+  const actor = await ensureGlobalOwner();
+  if (!actor) return { ok: false, error: "Sem permissão." };
   const name = data.name.trim();
   if (!name) return { ok: false, error: "Informe o nome da unidade." };
   if (data.type === "MATRIZ") {
@@ -53,17 +54,26 @@ export async function createPharmacy(data: {
     });
     if (exists) return { ok: false, error: "Já existe uma matriz; cadastre como filial." };
   }
-  let created;
   try {
-    created = await prisma.pharmacy.create({
-      data: {
-        name,
-        slug: await uniquePharmacySlug(name),
-        type: data.type,
-        city: data.city?.trim() || null,
-        state: data.state?.trim() || null,
-        phone: data.phone?.trim() || null,
-      },
+    await prisma.$transaction(async (tx) => {
+      const created = await tx.pharmacy.create({
+        data: {
+          name,
+          slug: await uniquePharmacySlug(name),
+          type: data.type,
+          city: data.city?.trim() || null,
+          state: data.state?.trim() || null,
+          phone: data.phone?.trim() || null,
+        },
+      });
+      await logAuditInTransaction(tx, {
+        action: "pharmacy.create",
+        entity: "Pharmacy",
+        entityId: created.id,
+        detail: `Cadastrou a unidade "${name}" (${data.type})`,
+        pharmacyId: created.id,
+        actor: { id: actor.id ?? null, email: actor.email ?? null },
+      });
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -77,13 +87,6 @@ export async function createPharmacy(data: {
     }
     throw error;
   }
-  await logAudit({
-    action: "pharmacy.create",
-    entity: "Pharmacy",
-    entityId: created.id,
-    detail: `Cadastrou a unidade "${name}" (${data.type})`,
-    pharmacyId: created.id,
-  });
   revalidatePharmacies();
   return { ok: true };
 }
@@ -92,7 +95,8 @@ export async function setPharmacyActive(
   id: string,
   active: boolean
 ): Promise<PharmacyResult> {
-  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
+  const actor = await ensureGlobalOwner();
+  if (!actor) return { ok: false, error: "Sem permissão." };
   const ph = await prisma.pharmacy.findUnique({
     where: { id },
     select: { type: true, archivedAt: true },
@@ -103,20 +107,24 @@ export async function setPharmacyActive(
   if (ph?.type === "MATRIZ" && !active) {
     return { ok: false, error: "A matriz não pode ser desativada." };
   }
-  await prisma.pharmacy.update({ where: { id }, data: { active } });
-  await logAudit({
-    action: "pharmacy.active",
-    entity: "Pharmacy",
-    entityId: id,
-    detail: active ? "Ativou a unidade" : "Desativou a unidade",
-    pharmacyId: id,
+  await prisma.$transaction(async (tx) => {
+    await tx.pharmacy.update({ where: { id }, data: { active } });
+    await logAuditInTransaction(tx, {
+      action: "pharmacy.active",
+      entity: "Pharmacy",
+      entityId: id,
+      detail: active ? "Ativou a unidade" : "Desativou a unidade",
+      pharmacyId: id,
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
+    });
   });
   revalidatePharmacies();
   return { ok: true };
 }
 
 export async function archivePharmacy(id: string): Promise<PharmacyResult> {
-  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
+  const actor = await ensureGlobalOwner();
+  if (!actor) return { ok: false, error: "Sem permissão." };
   const ph = await prisma.pharmacy.findUnique({
     where: { id },
     select: { type: true, name: true, archivedAt: true },
@@ -161,19 +169,21 @@ export async function archivePharmacy(id: string): Promise<PharmacyResult> {
         archivedAt,
       },
     });
-  });
-  await logAudit({
-    action: "pharmacy.archive",
-    entity: "Pharmacy",
-    entityId: id,
-    detail: `Arquivou a unidade "${ph.name}"`,
+    await logAuditInTransaction(tx, {
+      action: "pharmacy.archive",
+      entity: "Pharmacy",
+      entityId: id,
+      detail: `Arquivou a unidade "${ph.name}"`,
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
+    });
   });
   revalidatePharmacies();
   return { ok: true };
 }
 
 export async function restorePharmacy(id: string): Promise<PharmacyResult> {
-  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
+  const actor = await ensureGlobalOwner();
+  if (!actor) return { ok: false, error: "Sem permissão." };
   const archived = await prisma.pharmacy.findFirst({
     where: { id, type: "FILIAL", archivedAt: { not: null } },
     select: { id: true },
@@ -191,6 +201,14 @@ export async function restorePharmacy(id: string): Promise<PharmacyResult> {
         where: { pharmacyId: id, archivedAt: { not: null } },
         data: { archivedAt: null },
       });
+      await logAuditInTransaction(tx, {
+        action: "pharmacy.restore",
+        entity: "Pharmacy",
+        entityId: id,
+        detail: "Restaurou a filial como inativa; requer reativação explícita",
+        pharmacyId: id,
+        actor: { id: actor.id ?? null, email: actor.email ?? null },
+      });
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2004") {
@@ -202,13 +220,6 @@ export async function restorePharmacy(id: string): Promise<PharmacyResult> {
     }
     throw error;
   }
-  await logAudit({
-    action: "pharmacy.restore",
-    entity: "Pharmacy",
-    entityId: id,
-    detail: "Restaurou a filial como inativa; requer reativação explícita",
-    pharmacyId: id,
-  });
   revalidatePharmacies();
   return { ok: true };
 }
@@ -219,7 +230,8 @@ export async function addCepRange(
   endCep: string,
   kmRaw?: string
 ): Promise<PharmacyResult> {
-  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
+  const actor = await ensureGlobalOwner();
+  if (!actor) return { ok: false, error: "Sem permissão." };
   const start = cepToInt(startCep);
   const end = cepToInt(endCep);
   if (start == null || end == null) {
@@ -268,7 +280,8 @@ export async function addCepRange(
 }
 
 export async function removeCepRange(id: string): Promise<PharmacyResult> {
-  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
+  const actor = await ensureGlobalOwner();
+  if (!actor) return { ok: false, error: "Sem permissão." };
   const range = await prisma.pharmacyCepRange.findUnique({
     where: { id },
     select: { archivedAt: true, pharmacy: { select: { archivedAt: true } } },
@@ -290,7 +303,8 @@ export async function setPharmacyShipping(
   flat: string,
   freeMin: string
 ): Promise<PharmacyResult> {
-  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
+  const actor = await ensureGlobalOwner();
+  if (!actor) return { ok: false, error: "Sem permissão." };
   // "" → null (herda o global); número válido → valor; senão → inválido.
   const parse = (v: string): string | null | undefined => {
     const t = v.trim();
@@ -303,20 +317,25 @@ export async function setPharmacyShipping(
   if (shippingFlat === undefined || shippingFreeMin === undefined) {
     return { ok: false, error: "Use valores numéricos não negativos (ex.: 12,90)." };
   }
-  const updated = await prisma.pharmacy.updateMany({
-    where: { id, archivedAt: null },
-    data: { shippingFlat, shippingFreeMin },
+  const updated = await prisma.$transaction(async (tx) => {
+    const changed = await tx.pharmacy.updateMany({
+      where: { id, archivedAt: null },
+      data: { shippingFlat, shippingFreeMin },
+    });
+    if (changed.count === 0) return changed;
+    await logAuditInTransaction(tx, {
+      action: "pharmacy.shipping",
+      entity: "Pharmacy",
+      entityId: id,
+      detail: "Atualizou o frete da unidade",
+      pharmacyId: id,
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
+    });
+    return changed;
   });
   if (updated.count === 0) {
     return { ok: false, error: "Unidade não encontrada ou arquivada." };
   }
-  await logAudit({
-    action: "pharmacy.shipping",
-    entity: "Pharmacy",
-    entityId: id,
-    detail: "Atualizou o frete da unidade",
-    pharmacyId: id,
-  });
   revalidatePharmacies();
   return { ok: true };
 }
@@ -331,25 +350,31 @@ export async function setPharmacyRegulatory(
   pharmacistName: string,
   pharmacistCrf: string
 ): Promise<PharmacyResult> {
-  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
-  const updated = await prisma.pharmacy.updateMany({
-    where: { id, archivedAt: null },
-    data: {
-      cnpj: cnpj.trim() || null,
-      pharmacistName: pharmacistName.trim() || null,
-      pharmacistCrf: pharmacistCrf.trim() || null,
-    },
+  const actor = await ensureGlobalOwner();
+  if (!actor) return { ok: false, error: "Sem permissão." };
+  const updated = await prisma.$transaction(async (tx) => {
+    const changed = await tx.pharmacy.updateMany({
+      where: { id, archivedAt: null },
+      data: {
+        cnpj: cnpj.trim() || null,
+        pharmacistName: pharmacistName.trim() || null,
+        pharmacistCrf: pharmacistCrf.trim() || null,
+      },
+    });
+    if (changed.count === 0) return changed;
+    await logAuditInTransaction(tx, {
+      action: "pharmacy.regulatory",
+      entity: "Pharmacy",
+      entityId: id,
+      detail: "Atualizou os dados regulatórios da unidade",
+      pharmacyId: id,
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
+    });
+    return changed;
   });
   if (updated.count === 0) {
     return { ok: false, error: "Unidade não encontrada ou arquivada." };
   }
-  await logAudit({
-    action: "pharmacy.regulatory",
-    entity: "Pharmacy",
-    entityId: id,
-    detail: "Atualizou os dados regulatórios da unidade",
-    pharmacyId: id,
-  });
   revalidatePharmacies();
   return { ok: true };
 }
@@ -362,7 +387,8 @@ export async function assignUnitAdmin(
   email: string,
   pharmacyId: string
 ): Promise<PharmacyResult> {
-  if (!(await ensureGlobalOwner())) return { ok: false, error: "Sem permissão." };
+  const actor = await ensureGlobalOwner();
+  if (!actor) return { ok: false, error: "Sem permissão." };
   const pharmacy = await prisma.pharmacy.findFirst({
     where: { id: pharmacyId, active: true, archivedAt: null },
     select: { id: true },
@@ -378,23 +404,26 @@ export async function assignUnitAdmin(
       error: "Usuário não encontrado. Peça para a pessoa criar uma conta primeiro.",
     };
   }
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      role: "ADMIN",
-      // Menor privilégio útil para novos admins; perfil ausente nunca eleva acesso.
-      staffProfile:
-        user.role === "ADMIN" && user.staffProfile ? user.staffProfile : "ATTENDANT",
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: user.id },
+      data: {
+        role: "ADMIN",
+        // Menor privilégio útil para novos admins; perfil ausente nunca eleva acesso.
+        staffProfile:
+          user.role === "ADMIN" && user.staffProfile ? user.staffProfile : "ATTENDANT",
+        pharmacyId,
+        sessionVersion: { increment: 1 },
+      },
+    });
+    await logAuditInTransaction(tx, {
+      action: "admin.assign",
+      entity: "User",
+      entityId: user.id,
+      detail: `Tornou ${email.trim().toLowerCase()} admin de uma unidade`,
       pharmacyId,
-      sessionVersion: { increment: 1 },
-    },
-  });
-  await logAudit({
-    action: "admin.assign",
-    entity: "User",
-    entityId: user.id,
-    detail: `Tornou ${email.trim().toLowerCase()} admin de uma unidade`,
-    pharmacyId,
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
+    });
   });
   revalidatePharmacies();
   revalidatePath("/admin/clientes");
@@ -412,8 +441,8 @@ export async function removeUnitAdmin(userId: string): Promise<PharmacyResult> {
     where: { id: userId },
     select: { email: true },
   });
-  await prisma.$transaction([
-    prisma.user.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
       where: { id: userId },
       data: {
         role: "CUSTOMER",
@@ -423,14 +452,15 @@ export async function removeUnitAdmin(userId: string): Promise<PharmacyResult> {
         mfaEnabledAt: null,
         sessionVersion: { increment: 1 },
       },
-    }),
-    prisma.mfaRecoveryCode.deleteMany({ where: { userId } }),
-  ]);
-  await logAudit({
-    action: "admin.revoke",
-    entity: "User",
-    entityId: userId,
-    detail: `Revogou o acesso admin de ${target?.email ?? userId}`,
+    });
+    await tx.mfaRecoveryCode.deleteMany({ where: { userId } });
+    await logAuditInTransaction(tx, {
+      action: "admin.revoke",
+      entity: "User",
+      entityId: userId,
+      detail: `Revogou o acesso admin de ${target?.email ?? userId}`,
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
+    });
   });
   revalidatePharmacies();
   revalidatePath("/admin/clientes");

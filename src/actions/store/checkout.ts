@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Prisma, type OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { SALEABLE_PRODUCT_WHERE } from "@/lib/catalog/policy";
 import { requireUser } from "@/lib/auth/session";
 import { getCart } from "@/lib/commerce/cart";
 import { getPaymentSettings } from "@/lib/settings";
@@ -21,6 +22,13 @@ import {
 } from "@/lib/orders";
 import { createHostedCheckout, createPixPayment } from "@/lib/payments/stripe";
 import {
+  CHARGE_LOST_RACE,
+  abandonUnattachedCharge,
+  attachPaymentToPendingOrder,
+} from "@/lib/payments/charge-binding";
+import { InventoryExpiredStockError } from "@/lib/inventory/lots";
+import { InsufficientInventoryError } from "@/lib/inventory/movements";
+import {
   defaultPaymentMethod,
   isPaymentMethodAvailable,
   paymentAvailability,
@@ -31,6 +39,7 @@ import { notifyUnit } from "@/lib/communications/notifications";
 import { orderReceivedEmail, newOrderForUnitEmail } from "@/lib/communications/email-templates";
 import { isValidCpf, onlyDigits } from "@/lib/cpf";
 import { reportError } from "@/lib/monitoring";
+import { withWriteConflictRetry } from "@/lib/concurrency";
 import { moneyToCents, moneyToNumber } from "@/lib/money";
 import {
   addressFromFormData,
@@ -151,7 +160,9 @@ export async function placeOrder(
     where: {
       pharmacyId: cart.pharmacyId,
       productId: { in: cart.items.map((i) => i.product.id) },
-      product: { active: true },
+      // Política de venda completa: item inativo OU sujeito a receita não volta
+      // na consulta e é tratado como estoque insuficiente logo abaixo.
+      product: SALEABLE_PRODUCT_WHERE,
     },
     select: { productId: true, stock: true },
   });
@@ -339,16 +350,39 @@ export async function placeOrder(
   // mesmo pedido; falha no INSERT não deixa cupom/pontos consumidos.
   let checkoutOrder: Awaited<ReturnType<typeof createCheckoutOrder>>;
   try {
-    checkoutOrder = await createCheckoutOrder(orderInput, {
-      checkoutKey,
-      loyaltyAccountId,
-      redeemPoints,
-      couponUsageLimit,
-    });
+    // Deadlock entre dois carrinhos com os mesmos itens é conflito momentâneo,
+    // não erro do cliente. Repetir é seguro: a transação inteira voltou e a
+    // chave de tentativa mantém a operação idempotente — uma repetição que
+    // encontre o pedido já criado devolve exatamente ele.
+    checkoutOrder = await withWriteConflictRetry(() =>
+      createCheckoutOrder(orderInput, {
+        checkoutKey,
+        loyaltyAccountId,
+        redeemPoints,
+        couponUsageLimit,
+      }),
+    );
   } catch (error) {
     if (error instanceof CheckoutReservationError) {
       return { error: error.message };
     }
+    // Indisponibilidade real no momento da reserva — outra compra levou o saldo,
+    // ou o que resta na unidade está em lote vencido. É resultado ESPERADO, não
+    // incidente: a transação já devolveu cupom e pontos, e reportar isso afogaria
+    // os erros de verdade. A causa exata é da operação, não do cliente, e aparece
+    // no diagnóstico de lotes por unidade — `npm run ops:lots`.
+    if (
+      error instanceof InventoryExpiredStockError ||
+      error instanceof InsufficientInventoryError
+    ) {
+      return {
+        error:
+          "Um item da sua sacola acabou de ficar indisponível nesta unidade. Revise a sacola e tente novamente.",
+      };
+    }
+    // Sobra aqui o que não deveria acontecer — inclusive InventoryLotBalanceError,
+    // que significa saldo de lote maior que o estoque da unidade. Continua sendo
+    // incidente de propósito.
     reportError(error, { operation: "checkout.order.create" });
     return {
       error: "Não foi possível criar o pedido. Nenhum cupom ou ponto foi consumido.",
@@ -469,20 +503,24 @@ export async function placeOrder(
             "Não foi possível gerar o Pix agora. Escolha cartão ou dinheiro na entrega.",
         };
       }
-      await prisma.payment.updateMany({
-        where: { orderId: order.id },
-        data: {
-          externalId: pix.paymentId,
-          raw: {
-            pix: {
-              qrCode: pix.qrCode,
-              qrCodeBase64: pix.qrCodeBase64,
-              ticketUrl: pix.ticketUrl,
-              expiresAt: pix.expiresAt,
-            },
+      const pixAttached = await attachPaymentToPendingOrder(order.id, {
+        externalId: pix.paymentId,
+        raw: {
+          pix: {
+            qrCode: pix.qrCode,
+            qrCodeBase64: pix.qrCodeBase64,
+            ticketUrl: pix.ticketUrl,
+            expiresAt: pix.expiresAt,
           },
         },
       });
+      if (!pixAttached) {
+        await abandonUnattachedCharge(
+          { paymentIntentId: pix.paymentId },
+          "checkout.pix.orphan",
+        );
+        return { error: CHARGE_LOST_RACE };
+      }
       await finalizeSuccess();
       redirect(`/pedido/${order.number}`);
     }
@@ -502,18 +540,22 @@ export async function placeOrder(
       customerName: order.customerName,
     });
     if (checkout) {
-      await prisma.payment.updateMany({
-        where: { orderId: order.id },
-        data: {
-          raw: {
-            checkout: {
-              sessionId: checkout.sessionId,
-              url: checkout.url,
-              expiresAt: checkout.expiresAt,
-            },
+      const sessionAttached = await attachPaymentToPendingOrder(order.id, {
+        raw: {
+          checkout: {
+            sessionId: checkout.sessionId,
+            url: checkout.url,
+            expiresAt: checkout.expiresAt,
           },
         },
       });
+      if (!sessionAttached) {
+        await abandonUnattachedCharge(
+          { checkoutSessionId: checkout.sessionId },
+          "checkout.card.orphan",
+        );
+        return { error: CHARGE_LOST_RACE };
+      }
       await finalizeSuccess();
       redirect(checkout.url);
     }

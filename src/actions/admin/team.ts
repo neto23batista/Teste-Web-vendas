@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createHash, randomBytes } from "node:crypto";
-import type { StaffProfile } from "@prisma/client";
+import type { Prisma, StaffProfile } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { assertArea, getAdminScope } from "@/lib/auth/session";
 import { isOwnerProfile } from "@/lib/auth/permissions";
@@ -14,6 +14,36 @@ import { hashPassword } from "@/lib/auth/password";
 const PROFILES: StaffProfile[] = ["OWNER", "PHARMACIST", "STOCKIST", "ATTENDANT"];
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
+
+class LastOwnerError extends Error {}
+
+/**
+ * Impede que a operação em curso deixe o sistema sem nenhum Dono / Gerente.
+ *
+ * A contagem PRECISA acontecer dentro da transação e atrás de um lock: quando
+ * ela rodava antes, dois donos se rebaixando ao mesmo tempo liam "2 donos",
+ * ambos passavam pela checagem e ambos comitavam — e ninguém mais conseguia
+ * entrar no painel. O advisory lock serializa só as mudanças de equipe, então
+ * quem chega depois enxerga o resultado de quem chegou antes.
+ *
+ * Chamar SEMPRE antes de rebaixar, revogar ou remover um admin.
+ */
+async function assertOwnerRemains(
+  tx: Prisma.TransactionClient,
+  losingOwnerId: string,
+) {
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended('staff:owners', 0))`;
+  const owners = await tx.user.count({
+    where: {
+      role: "ADMIN",
+      staffProfile: "OWNER",
+      id: { not: losingOwnerId },
+    },
+  });
+  if (owners === 0) {
+    throw new LastOwnerError("É preciso manter ao menos um Dono / Gerente.");
+  }
+}
 
 export type TeamResult = { ok: boolean; error?: string; setupUrl?: string };
 
@@ -122,29 +152,28 @@ export async function updateStaffProfile(
   }
 
   // Nunca deixar o sistema sem dono. OWNER precisa ser explícito.
-  if (profile !== "OWNER") {
-    const owners = await prisma.user.count({
-      where: { role: "ADMIN", staffProfile: "OWNER" },
-    });
-    if (isOwnerProfile(target.staffProfile) && owners <= 1) {
-      return { ok: false, error: "É preciso manter ao menos um Dono / Gerente." };
-    }
-  }
+  const losingOwner = profile !== "OWNER" && isOwnerProfile(target.staffProfile);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: userId },
-      data: { staffProfile: profile, sessionVersion: { increment: 1 } },
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (losingOwner) await assertOwnerRemains(tx, userId);
+      await tx.user.update({
+        where: { id: userId },
+        data: { staffProfile: profile, sessionVersion: { increment: 1 } },
+      });
+      await logAuditInTransaction(tx, {
+        action: "team.profile",
+        entity: "User",
+        entityId: userId,
+        detail: `Alterou o perfil administrativo para ${profile}`,
+        pharmacyId: target.pharmacyId,
+        actor: { id: actor.id, email: actor.email ?? null },
+      });
     });
-    await logAuditInTransaction(tx, {
-      action: "team.profile",
-      entity: "User",
-      entityId: userId,
-      detail: `Alterou o perfil administrativo para ${profile}`,
-      pharmacyId: target.pharmacyId,
-      actor: { id: actor.id, email: actor.email ?? null },
-    });
-  });
+  } catch (error) {
+    if (error instanceof LastOwnerError) return { ok: false, error: error.message };
+    throw error;
+  }
   revalidatePath("/admin/equipe");
   return { ok: true };
 }
@@ -169,35 +198,36 @@ export async function revokeStaff(
   if (!scope.isGlobal && target.pharmacyId !== scope.pharmacyId) {
     return { ok: false, error: "Este membro é de outra unidade." };
   }
-  const owners = await prisma.user.count({
-    where: { role: "ADMIN", staffProfile: "OWNER" },
-  });
-  if (isOwnerProfile(target.staffProfile) && owners <= 1) {
-    return { ok: false, error: "É preciso manter ao menos um Dono / Gerente." };
-  }
+  const losingOwner = isOwnerProfile(target.staffProfile);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: userId },
-      data: {
-        role: "CUSTOMER",
-        staffProfile: null,
-        pharmacyId: null,
-        mfaSecretEncrypted: null,
-        mfaEnabledAt: null,
-        sessionVersion: { increment: 1 },
-      },
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (losingOwner) await assertOwnerRemains(tx, userId);
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          role: "CUSTOMER",
+          staffProfile: null,
+          pharmacyId: null,
+          mfaSecretEncrypted: null,
+          mfaEnabledAt: null,
+          sessionVersion: { increment: 1 },
+        },
+      });
+      await tx.mfaRecoveryCode.deleteMany({ where: { userId } });
+      await logAuditInTransaction(tx, {
+        action: "team.revoke",
+        entity: "User",
+        entityId: userId,
+        detail: "Revogou o acesso administrativo",
+        pharmacyId: target.pharmacyId,
+        actor: { id: actor.id, email: actor.email ?? null },
+      });
     });
-    await tx.mfaRecoveryCode.deleteMany({ where: { userId } });
-    await logAuditInTransaction(tx, {
-      action: "team.revoke",
-      entity: "User",
-      entityId: userId,
-      detail: "Revogou o acesso administrativo",
-      pharmacyId: target.pharmacyId,
-      actor: { id: actor.id, email: actor.email ?? null },
-    });
-  });
+  } catch (error) {
+    if (error instanceof LastOwnerError) return { ok: false, error: error.message };
+    throw error;
+  }
   revalidatePath("/admin/equipe");
   return { ok: true };
 }

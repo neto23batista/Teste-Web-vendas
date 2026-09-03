@@ -4,7 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertOwner } from "@/lib/auth/session";
 import { stripePing } from "@/lib/payments/stripe";
-import { logAudit } from "@/lib/audit";
+import { logAuditInTransaction } from "@/lib/audit";
 
 export type SettingsFormState =
   | { error?: string; success?: boolean }
@@ -77,7 +77,7 @@ export async function saveSettings(
   // Área "configuracoes" é exclusiva do DONO. O middleware só protege a PÁGINA;
   // sem este portão, qualquer staff poderia invocar a action e sobrescrever a
   // secret key/webhook do Stripe (desviando os pagamentos da loja).
-  await assertMatrixOwner();
+  const actor = await assertMatrixOwner();
 
   // Parâmetros de frete (todos numéricos; vazio = volta ao padrão do sistema).
   const shipFields: { form: string; key: string; label: string }[] = [
@@ -118,22 +118,27 @@ export async function saveSettings(
     { key: "store.ae", value: str(formData, "ae") },
   ];
 
-  await prisma.$transaction(
-    entries.map(({ key, value }) =>
-      value
-        ? prisma.setting.upsert({
-            where: { key },
-            update: { value },
-            create: { key, value },
-          })
-        : prisma.setting.deleteMany({ where: { key } })
-    )
-  );
-
-  await logAudit({
-    action: "settings.update",
-    entity: "Setting",
-    detail: "Atualizou as configurações da loja (frete/contato/regulatório)",
+  // Configuração e evidência juntas: a alteração de frete/contato/regulatório
+  // vale para a loja inteira, e aplicar sem registrar quem aplicou é o tipo de
+  // lacuna que só aparece quando alguém precisa auditar.
+  await prisma.$transaction(async (tx) => {
+    for (const { key, value } of entries) {
+      if (value) {
+        await tx.setting.upsert({
+          where: { key },
+          update: { value },
+          create: { key, value },
+        });
+      } else {
+        await tx.setting.deleteMany({ where: { key } });
+      }
+    }
+    await logAuditInTransaction(tx, {
+      action: "settings.update",
+      entity: "Setting",
+      detail: "Atualizou as configurações da loja (frete/contato/regulatório)",
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
+    });
   });
   revalidateTag("settings", "max");
   // Frete e rodapé aparecem em toda a loja.

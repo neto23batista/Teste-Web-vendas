@@ -4,13 +4,21 @@ const orderFindUnique = vi.fn();
 const orderUpdateMany = vi.fn();
 const requireAdminAtPharmacy = vi.fn();
 const logAudit = vi.fn();
+const logAuditInTransaction = vi.fn();
+
+// Arquivar/restaurar gravam a mudança e a evidência no mesmo commit.
+const tx = {
+  order: { updateMany: (...args: unknown[]) => orderUpdateMany(...args) },
+};
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     order: {
       findUnique: (...args: unknown[]) => orderFindUnique(...args),
       updateMany: (...args: unknown[]) => orderUpdateMany(...args),
+      update: vi.fn(),
     },
+    $transaction: async (fn: (t: typeof tx) => unknown) => fn(tx),
   },
 }));
 vi.mock("@/lib/auth/session", () => ({
@@ -20,6 +28,7 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 vi.mock("@/lib/audit", () => ({
   logAudit: (...args: unknown[]) => logAudit(...args),
+  logAuditInTransaction: (...args: unknown[]) => logAuditInTransaction(...args),
 }));
 vi.mock("@/lib/orders", () => ({
   ORDER_STATUSES: [],
@@ -44,6 +53,11 @@ import { archiveOrder, restoreOrder } from "@/actions/admin/orders";
 beforeEach(() => {
   vi.clearAllMocks();
   orderUpdateMany.mockResolvedValue({ count: 1 });
+  // O guard devolve o ator, que vai junto na evidência gravada na transação.
+  requireAdminAtPharmacy.mockResolvedValue({
+    id: "staff-1",
+    email: "staff@example.test",
+  });
 });
 
 describe("histórico de pedidos", () => {
@@ -65,8 +79,14 @@ describe("histórico de pedidos", () => {
       },
       data: { archivedAt: expect.any(Date) },
     });
-    expect(logAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "order.archive", entityId: "o1" })
+    // A evidência sai na MESMA transação do arquivamento.
+    expect(logAuditInTransaction).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        action: "order.archive",
+        entityId: "o1",
+        actor: { id: "staff-1", email: "staff@example.test" },
+      })
     );
   });
 

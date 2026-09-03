@@ -1,214 +1,148 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/session";
-import { centsToDecimal, moneyToCents } from "@/lib/money";
+import { logAudit } from "@/lib/audit";
+import { getObject } from "@/lib/storage";
+import { reportError } from "@/lib/monitoring";
+import { EXPORT_COOLDOWN_MS } from "@/lib/privacy/data-export";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 /**
- * Portabilidade de dados (LGPD, art. 18 V): devolve um JSON com tudo que a
- * loja guarda sobre o usuário logado, como download.
+ * Portabilidade de dados (LGPD, art. 18 V).
+ *
+ * O arquivo é montado fora da requisição, pelo cron de retenção: um titular
+ * antigo tem histórico grande demais para caber numa resposta HTTP, e montar
+ * tudo em memória durante o download pressionava a instância inteira.
+ *
+ *  POST → solicita a exportação (1 por dia, registrada na auditoria)
+ *  GET  → consulta o andamento e, quando pronta, entrega o arquivo
  */
-export async function GET() {
-  let user;
+
+async function currentUser() {
   try {
-    user = await requireUser();
+    return await requireUser();
   } catch {
-    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+    return null;
+  }
+}
+
+export async function POST() {
+  const user = await currentUser();
+  if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+
+  const since = new Date(Date.now() - EXPORT_COOLDOWN_MS);
+  const recent = await prisma.dataExportRequest.findFirst({
+    where: { userId: user.id, requestedAt: { gte: since } },
+    orderBy: { requestedAt: "desc" },
+    select: { id: true, status: true, requestedAt: true },
+  });
+  if (recent) {
+    // Montar a exportação lê o histórico inteiro do titular. Uma por dia já
+    // atende o direito sem transformar o endpoint em amplificador de carga.
+    return NextResponse.json(
+      {
+        status: recent.status,
+        error:
+          "Você já solicitou uma exportação nas últimas 24 horas. Ela aparece aqui assim que ficar pronta.",
+      },
+      { status: 429, headers: { "Cache-Control": "private, no-store" } },
+    );
   }
 
-  const [
-    profile,
-    addresses,
-    orders,
-    loyalty,
-    reviews,
-    prescriptions,
-    favorites,
-    subscriptions,
-    cart,
-    policyAcceptances,
-    auditEvents,
-  ] =
-    await Promise.all([
-      prisma.user.findUnique({
-        where: { id: user.id },
-        select: {
-          name: true,
-          email: true,
-          cpf: true,
-          phone: true,
-          mfaEnabledAt: true,
-          createdAt: true,
-        },
-      }),
-      prisma.address.findMany({
-        where: { userId: user.id },
-        select: {
-          label: true,
-          recipient: true,
-          zip: true,
-          street: true,
-          number: true,
-          complement: true,
-          district: true,
-          city: true,
-          state: true,
-          isDefault: true,
-        },
-      }),
-      prisma.order.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        select: {
-          number: true,
-          status: true,
-          subtotal: true,
-          discount: true,
-          shipping: true,
-          total: true,
-          paymentMethod: true,
-          couponCode: true,
-          customerName: true,
-          customerEmail: true,
-          customerCpf: true,
-          customerPhone: true,
-          shippingRecipient: true,
-          shippingZip: true,
-          shippingStreet: true,
-          shippingNumber: true,
-          shippingComplement: true,
-          shippingDistrict: true,
-          shippingCity: true,
-          shippingState: true,
-          createdAt: true,
-          payment: {
-            select: {
-              provider: true,
-              status: true,
-              amount: true,
-              failedAt: true,
-              refundedAt: true,
-              createdAt: true,
-            },
-          },
-          items: { select: { name: true, price: true, qty: true } },
-        },
-      }),
-      prisma.loyaltyAccount.findUnique({
-        where: { userId: user.id },
-        select: {
-          points: true,
-          transactions: {
-            select: { points: true, reason: true, createdAt: true },
-            orderBy: { createdAt: "desc" },
-          },
-        },
-      }),
-      prisma.review.findMany({
-        where: { userId: user.id },
-        select: {
-          rating: true,
-          comment: true,
-          approved: true,
-          createdAt: true,
-          product: { select: { name: true } },
-        },
-      }),
-      prisma.prescription.findMany({
-        where: { userId: user.id },
-        select: {
-          id: true,
-          status: true,
-          createdAt: true,
-          order: { select: { number: true } },
-        },
-      }),
-      prisma.favorite.findMany({
-        where: { userId: user.id },
-        select: { createdAt: true, product: { select: { name: true } } },
-      }),
-      prisma.subscription.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        select: {
-          qty: true,
-          intervalDays: true,
-          status: true,
-          nextDueAt: true,
-          lastNotifiedAt: true,
-          createdAt: true,
-          product: { select: { name: true, sku: true } },
-        },
-      }),
-      prisma.cart.findFirst({
-        where: { userId: user.id },
-        select: {
-          createdAt: true,
-          updatedAt: true,
-          items: {
-            select: {
-              qty: true,
-              product: { select: { name: true, sku: true } },
-            },
-          },
-        },
-      }),
-      prisma.policyAcceptance.findMany({
-        where: { userId: user.id },
-        orderBy: { acceptedAt: "asc" },
-        select: { kind: true, version: true, acceptedAt: true },
-      }),
-      // Apenas metadados dos eventos praticados pelo titular. `detail` pode
-      // conter dados de terceiros e, por isso, não entra no download automático.
-      prisma.auditLog.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        select: {
-          action: true,
-          entity: true,
-          entityId: true,
-          pharmacyId: true,
-          createdAt: true,
-        },
-      }),
-    ]);
+  const created = await prisma.dataExportRequest.create({
+    data: { userId: user.id },
+    select: { id: true, status: true, requestedAt: true },
+  });
+  // A própria solicitação é um evento de privacidade e fica registrada.
+  await logAudit({
+    action: "privacy.export.request",
+    entity: "DataExportRequest",
+    entityId: created.id,
+    detail: "Solicitou a exportação dos próprios dados",
+    actor: { id: user.id, email: user.email ?? null },
+  }).catch((error) => {
+    reportError(error, { operation: "privacy.export.audit" });
+  });
 
-  const payload = {
-    geradoEm: new Date().toISOString(),
-    descricao:
-      "Exportação dos seus dados pessoais na FarmaVida (LGPD — portabilidade).",
-    perfil: profile,
-    enderecos: addresses,
-    pedidos: orders.map((order) => ({
-      ...order,
-      subtotal: centsToDecimal(moneyToCents(order.subtotal) ?? 0),
-      discount: centsToDecimal(moneyToCents(order.discount) ?? 0),
-      shipping: centsToDecimal(moneyToCents(order.shipping) ?? 0),
-      total: centsToDecimal(moneyToCents(order.total) ?? 0),
-      payment: order.payment
-        ? {
-            ...order.payment,
-            amount: centsToDecimal(moneyToCents(order.payment.amount) ?? 0),
-          }
-        : null,
-      items: order.items.map((item) => ({
-        ...item,
-        price: centsToDecimal(moneyToCents(item.price) ?? 0),
-      })),
-    })),
-    fidelidade: loyalty,
-    avaliacoes: reviews,
-    receitas: prescriptions.map((prescription) => ({
-      ...prescription,
-      downloadPath: `/api/prescriptions/${prescription.id}`,
-    })),
-    favoritos: favorites,
-    assinaturas: subscriptions,
-    carrinho: cart,
-    aceitesDePoliticas: policyAcceptances,
-    eventosDeAuditoria: auditEvents,
-  };
+  return NextResponse.json(
+    { status: created.status, requestedAt: created.requestedAt },
+    { status: 202, headers: { "Cache-Control": "private, no-store" } },
+  );
+}
 
-  return new NextResponse(JSON.stringify(payload, null, 2), {
+export async function GET(request: Request) {
+  const user = await currentUser();
+  if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+
+  const latest = await prisma.dataExportRequest.findFirst({
+    where: { userId: user.id },
+    orderBy: { requestedAt: "desc" },
+    select: {
+      id: true,
+      userId: true,
+      status: true,
+      storageKey: true,
+      sizeBytes: true,
+      error: true,
+      requestedAt: true,
+      readyAt: true,
+      expiresAt: true,
+    },
+  });
+
+  if (!latest) {
+    return NextResponse.json(
+      { status: "NONE" },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+
+  // The UI polls metadata only; never download a personal archive in background.
+  if (new URL(request.url).searchParams.get("status") === "1") {
+    const expired = latest.expiresAt && latest.expiresAt <= new Date();
+    return NextResponse.json(
+      {
+        status: expired ? "EXPIRED" : latest.status,
+        requestedAt: latest.requestedAt,
+        readyAt: latest.readyAt,
+        expiresAt: latest.expiresAt,
+        sizeBytes: latest.sizeBytes,
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+
+  if (latest.status !== "READY" || !latest.storageKey) {
+    return NextResponse.json(
+      {
+        status: latest.status,
+        requestedAt: latest.requestedAt,
+        error: latest.error,
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+
+  // Confere o dono antes de servir. A chave do storage nunca sai daqui: um link
+  // direto para o objeto seria um vazamento permanente do histórico do titular.
+  if (latest.userId !== user.id) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
+  }
+
+  let body: Buffer;
+  try {
+    body = await getObject(latest.storageKey);
+  } catch (error) {
+    reportError(error, { operation: "privacy.export.download" });
+    return NextResponse.json(
+      { status: "FAILED", error: "O arquivo não está mais disponível. Solicite novamente." },
+      { status: 410, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+
+  return new NextResponse(new Uint8Array(body), {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Content-Disposition": `attachment; filename="meus-dados-farmavida.json"`,

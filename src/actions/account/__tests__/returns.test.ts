@@ -65,7 +65,7 @@ const approvedRequest = {
   items: [{ id: "return-item-1", qty: 1, orderItem: { productId: "product-1", name: "Produto" } }],
 };
 const receiptInput = {
-  returnId: "return-1", restock: [{ returnItemId: "return-item-1", qty: 1 }],
+  returnId: "return-1", received: [{ returnItemId: "return-item-1", qty: 1 }],
 };
 
 describe("devoluções por item", () => {
@@ -155,22 +155,22 @@ describe("devoluções por item", () => {
     expect(mocks.audit).not.toHaveBeenCalled();
   });
 
-  it.each([1.5, -0.5, NaN, "1"])("recusa reposição não inteira: %s", async (qty) => {
-    const result = await receiveReturnRequest({ ...receiptInput, restock: [{ returnItemId: "return-item-1", qty: qty as number }] });
+  it.each([1.5, -0.5, NaN, "1"])("recusa quantidade recebida não inteira: %s", async (qty) => {
+    const result = await receiveReturnRequest({ ...receiptInput, received: [{ returnItemId: "return-item-1", qty: qty as number }] });
     expect(result.ok).toBe(false);
     expect(mocks.changeInventory).not.toHaveBeenCalled();
     expect(mocks.settleRefund).not.toHaveBeenCalled();
   });
 
-  it("recusa reposição com item de outra solicitação, inclusive quantidade zero", async () => {
-    const result = await receiveReturnRequest({ ...receiptInput, restock: [{ returnItemId: "another-return-item", qty: 0 }] });
+  it("recusa item de outra solicitação no recebimento, inclusive quantidade zero", async () => {
+    const result = await receiveReturnRequest({ ...receiptInput, received: [{ returnItemId: "another-return-item", qty: 0 }] });
     expect(result.ok).toBe(false);
     expect(mocks.transaction).not.toHaveBeenCalled();
     expect(mocks.settleRefund).not.toHaveBeenCalled();
   });
 
   it("recusa itens repetidos no recebimento", async () => {
-    const result = await receiveReturnRequest({ ...receiptInput, restock: [receiptInput.restock[0], receiptInput.restock[0]] });
+    const result = await receiveReturnRequest({ ...receiptInput, received: [receiptInput.received[0], receiptInput.received[0]] });
     expect(result.ok).toBe(false);
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
@@ -181,26 +181,33 @@ describe("devoluções por item", () => {
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
-  it("não repõe novamente quando outra operação já recebeu a devolução", async () => {
+  it("não recebe de novo quando outra operação já recebeu a devolução", async () => {
     mocks.updateRequest.mockResolvedValue({ count: 0 });
     expect((await receiveReturnRequest(receiptInput)).ok).toBe(false);
-    expect(mocks.changeInventory).not.toHaveBeenCalled();
     expect(mocks.settleRefund).not.toHaveBeenCalled();
   });
 
-  it("recebe, audita e invalida também o estoque mostrado na loja", async () => {
+  it("recebe em QUARENTENA: não devolve nada ao estoque vendável", async () => {
     expect(await receiveReturnRequest(receiptInput)).toEqual({ ok: true });
-    expect(mocks.changeInventory).toHaveBeenCalledWith(tx, expect.objectContaining({
-      productId: "product-1", pharmacyId: "pharmacy-1", delta: 1, kind: "RETURN",
+    // O ponto da fase: medicamento devolvido não vira saldo vendável na
+    // conferência de recebimento. Quem decide isso é a conferência sanitária.
+    expect(mocks.changeInventory).not.toHaveBeenCalled();
+    expect(mocks.updateItem).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ receivedQty: 1, disposition: "PENDING" }),
     }));
     expect(mocks.audit).toHaveBeenCalledWith(tx, expect.objectContaining({ action: "return.receive" }));
-    expect(mocks.revalidateTag).toHaveBeenCalledWith("products", "max");
+  });
+
+  it("item que não chegou é encerrado como descarte, sem quarentena aberta", async () => {
+    await receiveReturnRequest({ returnId: "return-1", received: [{ returnItemId: "return-item-1", qty: 0 }] });
+    expect(mocks.updateItem).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ receivedQty: 0, disposition: "DISCARDED" }),
+    }));
   });
 
   it("preserva o sucesso do recebimento físico se a liquidação ficar indisponível", async () => {
     mocks.settleRefund.mockRejectedValue(new Error("provider-offline"));
     await expect(receiveReturnRequest(receiptInput)).resolves.toEqual({ ok: true, warning: expect.stringMatching(/recebidos/) });
-    expect(mocks.changeInventory).toHaveBeenCalledOnce();
     expect(mocks.reportError).toHaveBeenCalledOnce();
   });
 });

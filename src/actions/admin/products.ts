@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { logAudit, logAuditInTransaction } from "@/lib/audit";
+import { logAuditInTransaction } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth/session";
 import { InventoryLotBalanceError } from "@/lib/inventory/lots";
 import { reportError } from "@/lib/monitoring";
@@ -186,6 +186,7 @@ export async function updateProduct(
 
 export async function toggleProductActive(id: string) {
   if (!(await isCatalogAdmin())) return { ok: false, error: "Acesso negado." };
+  const actor = await requireAdmin();
   const product = await prisma.product.findUnique({
     where: { id },
     select: { id: true, name: true, active: true, requiresPrescription: true },
@@ -194,15 +195,21 @@ export async function toggleProductActive(id: string) {
     if (!product.active && product.requiresPrescription) {
       return { ok: false, error: PRESCRIPTION_PRODUCT_UNAVAILABLE };
     }
-    await prisma.product.update({
-      where: { id },
-      data: { active: !product.active },
-    });
-    await logAudit({
-      action: "product.toggle",
-      entity: "Product",
-      entityId: id,
-      detail: `${product.active ? "Desativou" : "Ativou"} o produto "${product.name}"`,
+    // Mutação e evidência na mesma transação: uma falha ao gravar a auditoria
+    // desfaz a mudança, em vez de deixar o produto alterado sem registro e a
+    // interface mostrando erro (que convida o operador a repetir a ação).
+    await prisma.$transaction(async (tx) => {
+      await tx.product.update({
+        where: { id },
+        data: { active: !product.active },
+      });
+      await logAuditInTransaction(tx, {
+        action: "product.toggle",
+        entity: "Product",
+        entityId: id,
+        actor: { id: actor.id ?? null, email: actor.email ?? null },
+        detail: `${product.active ? "Desativou" : "Ativou"} o produto "${product.name}"`,
+      });
     });
     revalidateProducts();
   }
@@ -213,23 +220,27 @@ export async function toggleProductActive(id: string) {
 
 export async function deleteProduct(id: string) {
   if (!(await isCatalogAdmin())) return { ok: false };
+  const actor = await requireAdmin();
   const product = await prisma.product.findUnique({
     where: { id },
     select: { name: true },
   });
-  // Só registra na auditoria (e reporta sucesso) se o delete de fato ocorreu.
-  const deleted = await prisma.product
-    .delete({ where: { id } })
-    .then(() => true)
+  // Só registra na auditoria (e reporta sucesso) se o delete de fato ocorreu —
+  // e o registro vai na mesma transação, para que a exclusão nunca sobreviva
+  // sem evidência de quem a fez.
+  const deleted = await prisma
+    .$transaction(async (tx) => {
+      await tx.product.delete({ where: { id } });
+      await logAuditInTransaction(tx, {
+        action: "product.delete",
+        entity: "Product",
+        entityId: id,
+        actor: { id: actor.id ?? null, email: actor.email ?? null },
+        detail: `Excluiu o produto "${product?.name ?? id}"`,
+      });
+      return true;
+    })
     .catch(() => false);
-  if (deleted) {
-    await logAudit({
-      action: "product.delete",
-      entity: "Product",
-      entityId: id,
-      detail: `Excluiu o produto "${product?.name ?? id}"`,
-    });
-    revalidateProducts();
-  }
+  if (deleted) revalidateProducts();
   return { ok: deleted };
 }

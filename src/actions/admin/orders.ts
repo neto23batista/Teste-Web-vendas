@@ -14,12 +14,13 @@ import {
   isValidOrderTransition,
   processOrderRefund,
   transitionOrderStatus,
+  TRANSFERABLE_STATUSES,
 } from "@/lib/orders";
-import { logAudit } from "@/lib/audit";
+import { logAudit, logAuditInTransaction } from "@/lib/audit";
 import type { OrderStatus } from "@prisma/client";
 
-// Estados em que ainda faz sentido reatribuir o pedido a outra unidade.
-const TRANSFERABLE: OrderStatus[] = ["PENDING", "PAID", "PREPARING"];
+// A lista de estados transferíveis vive no domínio (lib/orders/transfer): manter
+// uma cópia aqui já significou a action e a transação discordarem entre si.
 
 // Arquivar é organização de histórico, nunca exclusão: só depois do fim.
 const ARCHIVABLE: OrderStatus[] = ["CANCELED", "DELIVERED"];
@@ -128,6 +129,12 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
     await sendMail({ to: updated.customerEmail, subject: mail.subject, html: mail.html });
   }
 
+  // Único ponto deste arquivo que permanece fora de transação, de propósito: a
+  // mudança de status passou por cancelOrder/fulfillOrder/transitionOrderStatus,
+  // cada um com a própria transação e a própria evidência (movimento de estoque,
+  // linha de pagamento, transação de fidelidade). Abrir outra transação aqui só
+  // para o log exigiria aninhar transação — que o Prisma não permite — ou
+  // reescrever três funções de domínio para receber a auditoria por parâmetro.
   await logAudit({
     action: "order.status",
     entity: "Order",
@@ -184,7 +191,7 @@ export async function transferOrderToUnit(orderId: string, targetPharmacyId: str
   // Filial só transfere o próprio pedido; matriz, qualquer um.
   await requireAdminAtPharmacy(order.pharmacyId);
 
-  if (!TRANSFERABLE.includes(order.status)) {
+  if (!TRANSFERABLE_STATUSES.includes(order.status)) {
     return { ok: false as const, error: "Este pedido não pode mais ser transferido." };
   }
   if (order.pharmacyId === targetPharmacyId) {
@@ -241,7 +248,7 @@ export async function archiveOrder(id: string) {
     },
   });
   if (!order) return { ok: false as const, error: "Pedido não encontrado." };
-  await requireAdminAtPharmacy(order.pharmacyId);
+  const actor = await requireAdminAtPharmacy(order.pharmacyId);
   if (order.archivedAt) return { ok: true as const };
   if (!ARCHIVABLE.includes(order.status)) {
     return {
@@ -249,17 +256,19 @@ export async function archiveOrder(id: string) {
       error: "Só é possível arquivar pedidos cancelados ou entregues.",
     };
   }
-  await prisma.order.updateMany({
-    where: { id, archivedAt: null, status: { in: [...ARCHIVABLE] } },
-    data: { archivedAt: new Date() },
-  });
-
-  await logAudit({
-    action: "order.archive",
-    entity: "Order",
-    entityId: id,
-    detail: `Arquivou o pedido ${order.number}`,
-    pharmacyId: order.pharmacyId ?? undefined,
+  await prisma.$transaction(async (tx) => {
+    await tx.order.updateMany({
+      where: { id, archivedAt: null, status: { in: [...ARCHIVABLE] } },
+      data: { archivedAt: new Date() },
+    });
+    await logAuditInTransaction(tx, {
+      action: "order.archive",
+      entity: "Order",
+      entityId: id,
+      detail: `Arquivou o pedido ${order.number}`,
+      pharmacyId: order.pharmacyId ?? undefined,
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
+    });
   });
 
   revalidatePath("/admin/pedidos");
@@ -275,19 +284,22 @@ export async function restoreOrder(id: string) {
     select: { number: true, pharmacyId: true, archivedAt: true },
   });
   if (!order) return { ok: false as const, error: "Pedido não encontrado." };
-  await requireAdminAtPharmacy(order.pharmacyId);
+  const actor = await requireAdminAtPharmacy(order.pharmacyId);
   if (!order.archivedAt) return { ok: true as const };
 
-  await prisma.order.updateMany({
-    where: { id, archivedAt: { not: null } },
-    data: { archivedAt: null },
-  });
-  await logAudit({
-    action: "order.restore",
-    entity: "Order",
-    entityId: id,
-    detail: `Restaurou o pedido ${order.number}`,
-    pharmacyId: order.pharmacyId ?? undefined,
+  await prisma.$transaction(async (tx) => {
+    await tx.order.updateMany({
+      where: { id, archivedAt: { not: null } },
+      data: { archivedAt: null },
+    });
+    await logAuditInTransaction(tx, {
+      action: "order.restore",
+      entity: "Order",
+      entityId: id,
+      detail: `Restaurou o pedido ${order.number}`,
+      pharmacyId: order.pharmacyId ?? undefined,
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
+    });
   });
   revalidatePath(`/admin/pedidos/${id}`);
   revalidatePath("/admin/pedidos");
@@ -304,16 +316,20 @@ export async function saveOrderNotes(id: string, notes: string) {
     select: { id: true, pharmacyId: true, number: true },
   });
   if (!exists) return { ok: false as const, error: "Pedido não encontrado." };
-  await requireAdminAtPharmacy(exists.pharmacyId);
-  await prisma.order.update({
-    where: { id },
-    data: { notes: notes.trim().slice(0, 1000) || null },
-  });
-  await logAudit({
-    action: "order.notes",
-    entity: "Order",
-    entityId: id,
-    detail: `Atualizou as observações do pedido ${exists.number}`,
+  const actor = await requireAdminAtPharmacy(exists.pharmacyId);
+  await prisma.$transaction(async (tx) => {
+    await tx.order.update({
+      where: { id },
+      data: { notes: notes.trim().slice(0, 1000) || null },
+    });
+    await logAuditInTransaction(tx, {
+      action: "order.notes",
+      entity: "Order",
+      entityId: id,
+      detail: `Atualizou as observações do pedido ${exists.number}`,
+      pharmacyId: exists.pharmacyId,
+      actor: { id: actor.id ?? null, email: actor.email ?? null },
+    });
   });
   revalidatePath(`/admin/pedidos/${id}`);
   return { ok: true as const };

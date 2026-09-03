@@ -6,7 +6,12 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { assertArea, requireAdminAtPharmacy, requireUser } from "@/lib/auth/session";
 import { centsToDecimal, moneyToCents, parseMoneyInputToCents } from "@/lib/money";
-import { changeInventory } from "@/lib/inventory/movements";
+import {
+  ReturnDispositionError,
+  findOriginLots,
+  planRestock,
+  restockToOriginLots,
+} from "@/lib/returns/quarantine";
 import { logAuditInTransaction } from "@/lib/audit";
 import { settleReturnRefund } from "@/lib/payments/return-refunds";
 import { reportError } from "@/lib/monitoring";
@@ -30,8 +35,15 @@ const decisionSchema = z.object({
 });
 const receiptSchema = z.object({
   returnId: identifier,
-  restock: z.array(z.object({ returnItemId: identifier, qty: quantity })).max(100),
+  /** Quanto chegou fisicamente por item. Não decide nada sobre revenda. */
+  received: z.array(z.object({ returnItemId: identifier, qty: quantity })).max(100),
   adminNotes: notesSchema,
+});
+const dispositionSchema = z.object({
+  returnItemId: identifier,
+  decision: z.enum(["RESTOCK", "DISCARD"]),
+  qty: quantity,
+  notes: notesSchema,
 });
 
 class ReturnActionError extends Error {}
@@ -237,12 +249,12 @@ export async function decideReturnRequest(input: {
 
 export async function receiveReturnRequest(input: {
   returnId: string;
-  restock: { returnItemId: string; qty: number }[];
+  received: { returnItemId: string; qty: number }[];
   adminNotes?: string;
 }): Promise<ReturnActionResult> {
   await assertArea("pedidos");
   const parsed = receiptSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "Confira os itens e informe quantidades inteiras para reposição." };
+  if (!parsed.success) return { ok: false, error: "Confira os itens e informe quantidades inteiras recebidas." };
   input = parsed.data;
   const request = await prisma.returnRequest.findUnique({
     where: { id: input.returnId },
@@ -258,23 +270,20 @@ export async function receiveReturnRequest(input: {
     return { ok: false, error: "A devolução precisa estar aprovada para ser recebida." };
   }
   const returnItemIds = new Set(request.items.map((item) => item.id));
-  const requestedRestock = new Map<string, number>();
-  for (const item of input.restock) {
+  const receivedByItem = new Map<string, number>();
+  for (const item of input.received) {
     if (!returnItemIds.has(item.returnItemId)) {
-      return { ok: false, error: "Um dos itens de reposição não pertence a esta devolução." };
+      return { ok: false, error: "Um dos itens informados não pertence a esta devolução." };
     }
-    if (requestedRestock.has(item.returnItemId)) {
-      return { ok: false, error: "Informe cada item de reposição apenas uma vez." };
+    if (receivedByItem.has(item.returnItemId)) {
+      return { ok: false, error: "Informe cada item apenas uma vez." };
     }
-    requestedRestock.set(item.returnItemId, item.qty);
+    receivedByItem.set(item.returnItemId, item.qty);
   }
   for (const item of request.items) {
-    const qty = requestedRestock.get(item.id) ?? 0;
+    const qty = receivedByItem.get(item.id) ?? 0;
     if (!Number.isSafeInteger(qty) || qty < 0 || qty > item.qty) {
-      return { ok: false, error: `Quantidade de reposição inválida para ${item.orderItem.name}.` };
-    }
-    if (qty > 0 && !item.orderItem.productId) {
-      return { ok: false, error: `${item.orderItem.name} não possui mais cadastro para reposição.` };
+      return { ok: false, error: `Quantidade recebida inválida para ${item.orderItem.name}.` };
     }
   }
   const notes = input.adminNotes?.trim().slice(0, 1000) || request.adminNotes;
@@ -287,18 +296,22 @@ export async function receiveReturnRequest(input: {
       });
       if (claimed.count !== 1) throw new ReturnActionError("A devolução já foi recebida.");
       for (const item of request.items) {
-        const restockQty = requestedRestock.get(item.id) ?? 0;
-        await tx.returnItem.update({ where: { id: item.id }, data: { restockQty } });
-        if (restockQty === 0) continue;
-        await changeInventory(tx, {
-          productId: item.orderItem.productId!,
-          pharmacyId: request.pharmacyId,
-          delta: restockQty,
-          kind: "RETURN",
-          reason: `Retorno aprovado do pedido ${request.orderId}: ${item.orderItem.name}`,
-          referenceType: "RETURN_REQUEST",
-          referenceId: request.id,
-          actor,
+        const receivedQty = receivedByItem.get(item.id) ?? 0;
+        // O recebimento NÃO mexe no estoque. Medicamento que voltou da casa do
+        // cliente fica em quarentena até a conferência sanitária decidir — antes
+        // ele virava saldo vendável na hora, sem lote e sem validade.
+        await tx.returnItem.update({
+          where: { id: item.id },
+          data: {
+            receivedQty,
+            disposition: receivedQty > 0 ? "PENDING" : "DISCARDED",
+            ...(receivedQty === 0
+              ? {
+                  decidedAt: new Date(),
+                  dispositionNotes: "Não chegou na conferência de recebimento.",
+                }
+              : {}),
+          },
         });
       }
       await logAuditInTransaction(tx, {
@@ -306,7 +319,8 @@ export async function receiveReturnRequest(input: {
         entity: "ReturnRequest",
         entityId: request.id,
         pharmacyId: request.pharmacyId,
-        detail: "Recebeu fisicamente a devolução e repôs somente itens reaproveitáveis",
+        detail:
+          "Recebeu fisicamente a devolução; itens em quarentena aguardando conferência",
         actor: { id: actor.id ?? null, email: actor.email ?? null },
       });
     });
@@ -333,6 +347,121 @@ export async function receiveReturnRequest(input: {
     reportError(error, { operation: "return.receive.settlement" });
     return { ok: true, warning: "Itens recebidos; a liquidação está indisponível e precisa ser retomada pelo painel." };
   }
+}
+
+/**
+ * Conferência sanitária de um item em quarentena.
+ *
+ * Liberar devolve as unidades ao LOTE de origem — o mesmo que a venda consumiu,
+ * rastreado pela alocação da reserva. Sem lote rastreável, ou com o lote
+ * vencido, a liberação é recusada: as saídas são descartar ou registrar um lote
+ * novo em Compras, com a validade conferida na embalagem.
+ */
+export async function decideReturnItemDisposition(input: {
+  returnItemId: string;
+  decision: "RESTOCK" | "DISCARD";
+  qty: number;
+  notes?: string;
+}): Promise<ReturnActionResult> {
+  await assertArea("estoque");
+  const parsed = dispositionSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: "Confira a decisão e informe uma quantidade inteira." };
+  }
+  input = parsed.data;
+
+  const item = await prisma.returnItem.findUnique({
+    where: { id: input.returnItemId },
+    include: {
+      orderItem: { select: { id: true, productId: true, name: true } },
+      returnRequest: {
+        select: { id: true, orderId: true, pharmacyId: true, status: true },
+      },
+    },
+  });
+  if (!item) return { ok: false, error: "Item de devolução não encontrado." };
+  const actor = await requireAdminAtPharmacy(item.returnRequest.pharmacyId);
+  if (item.disposition !== "PENDING") {
+    return { ok: false, error: "Este item já passou pela conferência." };
+  }
+  if (!["RECEIVED", "COMPLETED"].includes(item.returnRequest.status)) {
+    return { ok: false, error: "A devolução precisa ter sido recebida." };
+  }
+  if (input.qty > item.receivedQty) {
+    return { ok: false, error: "A quantidade informada é maior do que a recebida." };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Reivindicação atômica: dois conferentes na mesma tela não decidem duas
+      // vezes o mesmo item — o que devolveria o dobro ao lote.
+      const claimed = await tx.returnItem.updateMany({
+        where: { id: item.id, disposition: "PENDING" },
+        data: {
+          disposition: input.decision === "RESTOCK" ? "RESTOCKED" : "DISCARDED",
+          restockQty: input.decision === "RESTOCK" ? input.qty : 0,
+          decidedAt: new Date(),
+          decidedById: actor.id ?? null,
+          decidedByEmail: actor.email ?? null,
+          dispositionNotes: input.notes || null,
+        },
+      });
+      if (claimed.count !== 1) {
+        throw new ReturnActionError("Este item já passou pela conferência.");
+      }
+
+      let detail = `Descartou ${input.qty} un de "${item.orderItem.name}" devolvido`;
+      if (input.decision === "RESTOCK") {
+        if (!item.orderItem.productId) {
+          throw new ReturnDispositionError(
+            `"${item.orderItem.name}" não possui mais cadastro; não é possível repor.`,
+          );
+        }
+        const lots = await findOriginLots(tx, item.orderItem.id);
+        const plan = planRestock(lots, input.qty);
+        await restockToOriginLots(tx, {
+          productId: item.orderItem.productId,
+          pharmacyId: item.returnRequest.pharmacyId,
+          plan,
+          reason: `Devolução liberada do pedido ${item.returnRequest.orderId}: ${item.orderItem.name}`,
+          referenceId: item.returnRequest.id,
+          actor,
+        });
+        await tx.returnItem.update({
+          where: { id: item.id },
+          data: { restockLotId: plan[0]!.lotId },
+        });
+        detail = `Liberou ${input.qty} un de "${item.orderItem.name}" de volta ao lote ${plan
+          .map((entry) => entry.lotCode)
+          .join(", ")}`;
+      }
+
+      await logAuditInTransaction(tx, {
+        action:
+          input.decision === "RESTOCK"
+            ? "return.item.restock"
+            : "return.item.discard",
+        entity: "ReturnItem",
+        entityId: item.id,
+        pharmacyId: item.returnRequest.pharmacyId,
+        detail,
+        actor: { id: actor.id ?? null, email: actor.email ?? null },
+      });
+    });
+  } catch (error) {
+    const expected =
+      error instanceof ReturnActionError || error instanceof ReturnDispositionError;
+    if (!expected) reportError(error, { operation: "return.disposition" });
+    return {
+      ok: false,
+      error: expected ? error.message : "Não foi possível registrar a conferência.",
+    };
+  }
+
+  refreshReturnViews(item.returnRequest.orderId);
+  revalidatePath("/admin/estoque");
+  revalidateTag("products", "max");
+  return { ok: true };
 }
 
 export async function retryReturnRefund(returnId: string): Promise<ReturnActionResult> {
