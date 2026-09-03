@@ -31,10 +31,13 @@ Necessárias conforme os recursos habilitados:
 | `NEXT_PUBLIC_BASE_URL` / `AUTH_URL` | URLs públicas HTTPS |
 | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | monitoramento de erros |
 
-O `vercel.json` usa frequências diárias compatíveis com o plano Hobby. Para
-reconciliar pagamentos a cada 10 minutos, migre o projeto para o plano Pro e
-altere somente a expressão do cron `/api/cron/payments`; webhooks continuam
-sendo a confirmação financeira imediata em todos os planos.
+O `vercel.json` usa frequências diárias porque o plano Hobby aceita uma
+execução por dia por cron. A cadência desejada para `/api/cron/payments` é de
+hora em hora: a reserva de estoque dura 25 h, e uma passada diária deixa pedido
+pago preso e estoque bloqueado além do SLA. No plano Pro, troque a expressão
+desse cron para `0 * * * *` — a lease em `JobLease` já impede sobreposição
+entre execuções. Webhooks continuam sendo a confirmação financeira imediata em
+todos os planos; o cron é a rede de segurança, não o caminho principal.
 
 Desativação é explícita, não simulada: com `PAYMENTS_ENABLED=false`, o checkout
 oferece somente dinheiro na entrega e o webhook Stripe responde indisponível;
