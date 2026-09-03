@@ -23,19 +23,36 @@ export function Field({
   htmlFor,
   children,
   hint,
+  error,
+  required,
 }: {
   label: string;
   htmlFor?: string;
   children: React.ReactNode;
   hint?: string;
+  error?: string;
+  required?: boolean;
 }) {
+  const hintId = htmlFor && hint ? `${htmlFor}-hint` : undefined;
+  const errorId = htmlFor && error ? `${htmlFor}-error` : undefined;
+  // Clone only the labelled control; other children keep their own semantics.
+  const controls = React.Children.map(children, (child) => {
+    if (!React.isValidElement<React.InputHTMLAttributes<HTMLInputElement>>(child) || !htmlFor || child.props.id !== htmlFor) return child;
+    return React.cloneElement(child, {
+      "aria-describedby": [child.props["aria-describedby"], hintId, errorId].filter(Boolean).join(" ") || undefined,
+      "aria-invalid": error ? true : child.props["aria-invalid"],
+      required: required ?? child.props.required,
+    });
+  });
   return (
     <div className="space-y-1.5">
       <label htmlFor={htmlFor} className="text-sm font-semibold">
         {label}
+        {required && <span className="ml-1 font-normal text-muted-foreground">(obrigatório)</span>}
       </label>
-      {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {controls}
+      {hint && <p id={hintId} className="text-sm leading-relaxed text-muted-foreground">{hint}</p>}
+      {error && <p id={errorId} role="alert" className="text-sm font-medium text-danger-500">{error}</p>}
     </div>
   );
 }

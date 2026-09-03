@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Repeat, PauseCircle, CalendarClock } from "lucide-react";
+import { Repeat, PauseCircle, CalendarClock, Package } from "lucide-react";
 import { getAdminScope } from "@/lib/auth/session";
 import { listAllSubscriptions } from "@/lib/commerce/subscriptions";
 import { intervalLabel } from "@/lib/commerce/subscription-policy";
@@ -91,7 +91,7 @@ export default async function AdminSubscriptionsPage() {
                     </td>
                     <td className="px-5 py-3">
                       <span className="mr-1.5" aria-hidden>
-                        {s.product.emoji ?? "💊"}
+                        <Package className="inline size-4" />
                       </span>
                       {s.product.name}
                     </td>

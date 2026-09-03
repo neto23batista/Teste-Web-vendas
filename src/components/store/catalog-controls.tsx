@@ -79,7 +79,7 @@ export function CatalogControls({
         aria-label="Ordenar"
         value={params.get("sort") ?? "relevancia"}
         onChange={(e) => set("sort", e.target.value)}
-        className="h-10 appearance-none rounded-full border border-border bg-card pl-9 pr-8 text-sm font-semibold outline-none transition focus:border-brand-400"
+        className="min-h-11 max-w-full appearance-none rounded-full border border-border bg-card pl-9 pr-8 text-sm font-semibold transition focus:border-brand-400"
       >
         {sorts.map((s) => (
           <option key={s.value} value={s.value}>
@@ -93,9 +93,9 @@ export function CatalogControls({
   return (
     <>
       {/* Mobile: filtros num bottom-sheet (padrão de app) + ordenação. */}
-      <div className="flex items-center gap-2 md:hidden">
+      <div className="flex flex-wrap items-center gap-2 md:hidden">
         <FilterSheet brands={brands} />
-        <div className="ml-auto">{sortSelect}</div>
+        <div className="ml-auto max-w-full">{sortSelect}</div>
       </div>
 
       {/* Desktop: controles inline. */}

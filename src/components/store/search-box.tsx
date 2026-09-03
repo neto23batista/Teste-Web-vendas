@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
+import { ProductImage } from "./product-image";
 import { useRouter } from "next/navigation";
 import { Search, Loader2, ArrowRight, TrendingUp } from "lucide-react";
 import { formatBRL, cn } from "@/lib/utils";
@@ -182,7 +182,7 @@ export function SearchBox({
         }
         aria-describedby={statusId}
         aria-busy={loading}
-        className="h-12 w-full rounded-2xl border border-border bg-muted/60 pl-12 pr-10 text-sm outline-none transition focus:border-brand-400 focus:bg-card"
+        className="h-12 w-full rounded-2xl border border-border bg-muted/60 pl-12 pr-10 text-base sm:text-sm transition focus:border-brand-400 focus:bg-card"
       />
       {loading ? (
         <Loader2 className="absolute right-4 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
@@ -249,21 +249,7 @@ export function SearchBox({
                       active === i ? "bg-muted" : "hover:bg-muted/60"
                     )}
                   >
-                    <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-xl border border-border bg-muted">
-                      {it.image ? (
-                        // next/image serve via /_next/image (mesma origem) —
-                        // um <img> direto na CDN seria bloqueado pela CSP.
-                        <Image
-                          src={it.image}
-                          alt=""
-                          width={44}
-                          height={44}
-                          className="size-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-xl">{it.emoji ?? "💊"}</span>
-                      )}
-                    </span>
+                    <ProductImage src={it.image} name={it.name} sizes="44px" className="size-11 shrink-0 rounded-xl border border-border" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold">
                         {it.name}

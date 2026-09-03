@@ -89,7 +89,7 @@ export function OrderTimeline({ status }: { status: OrderStatus }) {
             </div>
             <span
               className={cn(
-                "mt-2 text-[0.7rem] font-medium",
+                "mt-2 text-xs font-medium",
                 done ? "text-foreground" : "text-muted-foreground"
               )}
             >

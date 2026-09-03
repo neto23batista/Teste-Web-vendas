@@ -32,7 +32,7 @@ export function ProductCard({
       {/* Selos */}
       <div className="absolute left-3 top-3 z-10 flex flex-col items-start gap-1.5">
         {off > 0 && (
-          <span className="rounded-full bg-promo-500 px-2.5 py-1 text-xs font-bold text-white shadow">
+          <span className="rounded-full bg-promo-700 px-2.5 py-1 text-xs font-bold text-white shadow">
             -{off}%
           </span>
         )}
@@ -55,7 +55,7 @@ export function ProductCard({
           src={product.images[0]?.url}
           emoji={product.emoji}
           name={product.name}
-          className="aspect-square w-full transition-transform duration-500 ease-out group-hover:scale-110"
+          className="aspect-square w-full"
           emojiClassName="text-6xl md:text-7xl transition-transform duration-500 group-hover:-rotate-6"
         />
       </Link>
@@ -65,7 +65,7 @@ export function ProductCard({
           {product.brand?.name ?? product.category.name}
         </p>
         <Link href={href}>
-          <h3 className="line-clamp-2 min-h-[2.5rem] text-sm font-bold leading-snug transition-colors group-hover:text-brand-600 dark:group-hover:text-brand-400">
+          <h3 className="min-h-[2.5rem] break-words text-base font-bold leading-snug transition-colors group-hover:text-brand-600 dark:group-hover:text-brand-400">
             {product.name}
           </h3>
         </Link>
@@ -84,7 +84,7 @@ export function ProductCard({
             </p>
           </div>
           {low && (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[0.65rem] font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
               Últimas
             </span>
           )}

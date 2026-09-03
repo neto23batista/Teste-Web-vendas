@@ -86,11 +86,11 @@ export function FilterSheet({
       <Dialog.Trigger asChild>
         <button
           type="button"
-          className="relative inline-flex h-10 items-center gap-1.5 rounded-full border border-border bg-card px-4 text-sm font-semibold transition active:scale-95"
+          className="relative inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold transition"
         >
           <SlidersHorizontal className="size-4" /> Filtros
           {activeCount > 0 && (
-            <span className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-promo-500 text-[0.65rem] font-bold text-white">
+            <span className="absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-promo-700 text-xs font-bold text-white">
               {activeCount}
             </span>
           )}

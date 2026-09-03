@@ -1,0 +1,192 @@
+"use client";
+
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
+import { formatBRL } from "@/lib/utils";
+import { STATUS_META } from "@/components/store/orders/order-status";
+import type { OrderStatus } from "@/contracts/domain";
+
+const BRAND = "var(--primary)";
+const ACCENT = "var(--info)";
+const PALETTE = ["#e11d33", "#0ea5e9", "#8b5cf6", "#f59e0b", "#cf8008", "#a3e635"];
+
+function EmptyChart({ message }: { message: string }) {
+  return (
+    <div className="grid h-[260px] place-items-center rounded-2xl border border-dashed border-border bg-muted/20 px-5 text-center text-sm text-muted-foreground">
+      {message}
+    </div>
+  );
+}
+
+export function SalesAreaChart({ data }: { data: { date: string; total: number }[] }) {
+  if (data.length === 0 || data.every((entry) => entry.total === 0)) {
+    return <EmptyChart message="Sem dados de vendas no período selecionado." />;
+  }
+
+  return (
+    <div>
+      <div aria-hidden="true">
+        <ResponsiveContainer width="100%" height={260}>
+          <AreaChart accessibilityLayer={false} data={data} margin={{ left: -10, right: 8, top: 8 }}>
+            <defs>
+              <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={BRAND} stopOpacity={0.35} />
+                <stop offset="100%" stopColor={BRAND} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" vertical={false} />
+            <XAxis dataKey="date" tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} width={48} />
+            <Tooltip
+              formatter={(v) => [formatBRL(Number(v)), "Vendas"]}
+              contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)", fontSize: 14 }}
+            />
+            <Area isAnimationActive={false} type="monotone" dataKey="total" stroke={BRAND} strokeWidth={2.5} fill="url(#salesFill)" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+      <details className="mt-3 rounded-xl border border-border p-3">
+        <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-info">Ver dados em tabela</summary>
+      <table className="mt-2 w-full text-left text-sm [&_th]:py-2 [&_td]:py-2 [&_td]:text-right [&_tr]:border-b [&_tr]:border-border">
+        <caption>Vendas por dia nos últimos 14 dias</caption>
+        <thead>
+          <tr>
+            <th scope="col">Data</th>
+            <th scope="col">Total de vendas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((entry) => (
+            <tr key={entry.date}>
+              <th scope="row">{entry.date}</th>
+              <td>{formatBRL(entry.total)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      </details>
+    </div>
+  );
+}
+
+export function TopProductsBar({ data }: { data: { name: string; qty: number }[] }) {
+  if (data.length === 0) {
+    return <EmptyChart message="Sem produtos vendidos no período selecionado." />;
+  }
+
+  return (
+    <div>
+      <div aria-hidden="true">
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart accessibilityLayer={false} data={data} layout="vertical" margin={{ left: 8, right: 16 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
+            <YAxis
+              type="category"
+              dataKey="name"
+              tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+              tickLine={false}
+              axisLine={false}
+              width={140}
+              tickFormatter={(v: string) => (v.length > 20 ? v.slice(0, 20) + "…" : v)}
+            />
+            <Tooltip
+              formatter={(v) => [Number(v), "Unidades"]}
+              contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)", fontSize: 14 }}
+              cursor={{ fill: "rgba(5,150,105,0.06)" }}
+            />
+            <Bar isAnimationActive={false} dataKey="qty" fill={ACCENT} radius={[0, 6, 6, 0]} barSize={18} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <details className="mt-3 rounded-xl border border-border p-3">
+        <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-info">Ver dados em tabela</summary>
+      <table className="mt-2 w-full text-left text-sm [&_th]:py-2 [&_td]:py-2 [&_td]:text-right [&_tr]:border-b [&_tr]:border-border">
+        <caption>Produtos mais vendidos</caption>
+        <thead>
+          <tr>
+            <th scope="col">Produto</th>
+            <th scope="col">Unidades vendidas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((entry) => (
+            <tr key={entry.name}>
+              <th scope="row">{entry.name}</th>
+              <td>{entry.qty}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      </details>
+    </div>
+  );
+}
+
+export function StatusDonut({ data }: { data: { status: OrderStatus; count: number }[] }) {
+  if (data.length === 0) {
+    return <EmptyChart message="Nenhum pedido registrado para exibir por status." />;
+  }
+
+  return (
+    <div>
+      <div aria-hidden="true">
+        <ResponsiveContainer width="100%" height={260}>
+          <PieChart accessibilityLayer={false}>
+            <Pie isAnimationActive={false} rootTabIndex={-1}
+              data={data}
+              dataKey="count"
+              nameKey="status"
+              innerRadius={60}
+              outerRadius={95}
+              paddingAngle={3}
+            >
+              {data.map((entry, i) => (
+                <Cell key={entry.status} fill={PALETTE[i % PALETTE.length]} />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(v, _n, p) => {
+                const s = (p?.payload as { status?: OrderStatus })?.status;
+                return [Number(v), (s && STATUS_META[s]?.label) || s || ""];
+              }}
+              contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)", fontSize: 14 }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <details className="mt-3 rounded-xl border border-border p-3">
+        <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-info">Ver dados em tabela</summary>
+      <table className="mt-2 w-full text-left text-sm [&_th]:py-2 [&_td]:py-2 [&_td]:text-right [&_tr]:border-b [&_tr]:border-border">
+        <caption>Quantidade de pedidos por status</caption>
+        <thead>
+          <tr>
+            <th scope="col">Status</th>
+            <th scope="col">Quantidade de pedidos</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((entry) => (
+            <tr key={entry.status}>
+              <th scope="row">{STATUS_META[entry.status]?.label ?? entry.status}</th>
+              <td>{entry.count}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      </details>
+    </div>
+  );
+}

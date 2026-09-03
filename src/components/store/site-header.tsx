@@ -24,12 +24,12 @@ export async function SiteHeader({ cartCount }: { cartCount: number }) {
         aria-hidden
         className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-brand-400/60 to-transparent dark:via-brand-400/40"
       />
-      <div className="container-page flex h-16 items-center gap-3 md:h-18">
+      <div className="container-page flex min-h-16 flex-wrap items-center gap-2 py-2 md:min-h-18 md:gap-3">
         <Brand compactOnMobile />
 
         <SearchBox className="ml-2 hidden flex-1 md:block" />
 
-        <nav className="ml-auto flex items-center gap-1 md:gap-2">
+        <nav className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1 md:gap-2">
           {pharmacies.length > 0 && (
             <PharmacySelector current={current} pharmacies={pharmacies} />
           )}

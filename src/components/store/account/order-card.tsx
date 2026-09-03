@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Package } from "lucide-react";
 import { formatBRL } from "@/lib/utils";
 import { StatusBadge } from "@/components/store/orders/order-status";
 import { ReorderButton } from "@/components/store/orders/reorder-button";
@@ -39,7 +39,7 @@ export function OrderCard({ order }: { order: UserOrder }) {
               className="grid size-9 place-items-center rounded-xl border border-border bg-muted text-lg"
               title={it.name}
             >
-              {it.product?.emoji ?? "💊"}
+              <Package aria-hidden="true" className="size-5 text-muted-foreground" />
             </span>
           ))}
           {order.items.length > 4 && (

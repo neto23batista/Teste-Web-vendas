@@ -21,9 +21,9 @@ export default async function StoreLayout({
     getStoreSettings(),
   ]);
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div data-store-shell className="flex min-h-dvh flex-col">
       <SiteHeader cartCount={cartCount} />
-      <main id="conteudo-principal" tabIndex={-1} className="flex-1 pb-24 md:pb-0">
+      <main id="conteudo-principal" tabIndex={-1} className="flex-1">
         {children}
       </main>
       <SiteFooter />

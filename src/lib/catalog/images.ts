@@ -18,6 +18,11 @@ export function validateProductImageUrls(raw: string):
 
   const urls: string[] = [];
   for (const entry of entries) {
+    // First-party, reviewed pack shots. No traversal, encoded paths, SVG or remote proxy.
+    if (/^\/products\/[a-zA-Z0-9][a-zA-Z0-9_-]*\.(?:avif|webp|png|jpe?g)$/i.test(entry)) {
+      if (!urls.includes(entry)) urls.push(entry);
+      continue;
+    }
     let url: URL;
     try {
       url = new URL(entry);
@@ -32,7 +37,7 @@ export function validateProductImageUrls(raw: string):
     ) {
       return {
         ok: false,
-        error: `Imagem não permitida. Use HTTPS em: ${PRODUCT_IMAGE_HOSTS.join(", ")}.`,
+        error: `Use uma foto em /products/nome.webp ou HTTPS em: ${PRODUCT_IMAGE_HOSTS.join(", ")}.`,
       };
     }
     const normalized = url.toString();

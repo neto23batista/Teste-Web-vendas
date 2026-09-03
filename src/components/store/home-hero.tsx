@@ -1,157 +1,47 @@
-"use client";
-
-import { Search, Truck, ShieldCheck, Star, Sparkles, Pill, Timer } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, Search, Truck, ShieldCheck, Pill } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { motion, EASE_OUT, SPRING_SOFT } from "@/components/motion/motion";
+import { formatBRL } from "@/lib/utils";
 
-const containerV = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
-};
-const upV = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: EASE_OUT } },
-};
-
-export function HomeHero({
-  storeName,
-  freeShippingMin,
-}: {
-  storeName: string;
-  freeShippingMin: number;
-}) {
-  const trust = [
-    { icon: Star, label: "Catálogo somente MIP", iconCls: "fill-amber-300 text-amber-300" },
-    {
-      icon: Truck,
-      label:
-        freeShippingMin > 0
-          ? `Frete grátis a partir de ${freeShippingMin.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`
-          : "Entrega conforme seu CEP",
-      iconCls: "",
-    },
-    { icon: ShieldCheck, label: "Compra protegida", iconCls: "" },
-  ];
+export function HomeHero({ storeName, freeShippingMin }: { storeName: string; freeShippingMin: number }) {
   return (
-    <section className="grain gradient-brand-animated relative overflow-hidden rounded-[2rem] px-6 py-10 text-white shadow-[var(--shadow-glow-strong)] md:px-12 md:py-14">
-      {/* Luzes decorativas com drift suave (transform/opacity = compositor;
-          respeita prefers-reduced-motion via @media no globals.css). */}
-      <div className="animate-blob pointer-events-none absolute -right-20 -top-20 size-80 rounded-full bg-sky-400/25 blur-3xl" />
-      <div className="animate-float pointer-events-none absolute -bottom-28 left-1/4 size-80 rounded-full bg-brand-300/25 blur-3xl" />
-      <div className="animate-blob pointer-events-none absolute right-1/3 top-1/2 size-44 rounded-full bg-white/10 blur-2xl [animation-delay:-7s]" />
-      <div className="animate-blob pointer-events-none absolute -left-16 top-1/4 size-64 rounded-full bg-violet-500/20 blur-3xl [animation-delay:-4s]" />
-
-      <div className="relative grid items-center gap-10 md:grid-cols-[1.15fr_0.85fr]">
-        <motion.div
-          variants={containerV}
-          initial="hidden"
-          animate="visible"
-          className="space-y-6"
-        >
-          <motion.span
-            variants={upV}
-            className="glass inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-1.5 text-sm font-semibold"
-          >
-            <Sparkles className="size-4" /> Compre online na {storeName}
-          </motion.span>
-
-          <motion.h1
-            variants={upV}
-            className="text-balance text-4xl font-extrabold leading-[1.04] tracking-tight md:text-6xl"
-          >
-            Saúde e bem-estar{" "}
-            <span className="text-gradient-hero">entregues na sua porta</span>
-          </motion.h1>
-
-          <motion.p
-            variants={upV}
-            className="max-w-md text-base text-white/85 md:text-lg"
-          >
-            Medicamentos isentos de prescrição, dermocosméticos e cuidados
-            diários, com condições e horários publicados de forma transparente.
-          </motion.p>
-
-          <motion.form
-            variants={upV}
-            action="/catalogo"
-            method="get"
-            role="search"
-            className="flex max-w-md gap-2 rounded-2xl border border-white/30 bg-white/95 p-2 shadow-xl backdrop-blur-md"
-          >
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
-              <input
-                name="q"
-                placeholder="O que você precisa hoje?"
-                aria-label="Buscar produtos"
-                className="h-11 w-full rounded-xl bg-transparent pl-10 pr-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
-              />
+    <section className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-[var(--shadow-soft)]">
+      <div className="grid lg:grid-cols-[1.35fr_0.65fr]">
+        <div className="space-y-6 p-6 sm:p-10 lg:p-12">
+          <p className="flex items-center gap-2 text-sm font-bold text-brand-700 dark:text-brand-300">
+            <Pill aria-hidden="true" className="size-5" /> {storeName} · sua farmácia online
+          </p>
+          <h1 className="max-w-2xl text-balance text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
+            Cuidado para o seu dia. <span className="text-brand-700 dark:text-brand-300">Perto de você.</span>
+          </h1>
+          <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+            Medicamentos isentos de prescrição, dermocosméticos e cuidados diários.
+            Consulte disponibilidade, preços e entrega na sua unidade.
+          </p>
+          <form action="/catalogo" method="get" role="search" aria-label="Busca na loja"
+            className="flex max-w-xl flex-wrap gap-2 rounded-2xl border border-border bg-background p-2">
+            <div className="relative min-w-0 flex-[1_1_12rem]">
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+              <input name="q" placeholder="O que você precisa hoje?" aria-label="Buscar produtos"
+                className="h-12 w-full rounded-xl bg-transparent pl-10 pr-2 text-base text-foreground placeholder:text-muted-foreground" />
             </div>
-            <Button type="submit" variant="primary" className="shrink-0">
-              Buscar
-            </Button>
-          </motion.form>
-
-          <motion.div variants={upV} className="flex flex-wrap gap-2">
-            {trust.map(({ icon: Icon, label, iconCls }) => (
-              <span
-                key={label}
-                className="glass inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3.5 py-1.5 text-sm font-medium text-white/90"
-              >
-                <Icon className={`size-4 ${iconCls}`} /> {label}
-              </span>
-            ))}
-          </motion.div>
-        </motion.div>
-
-        {/* Cartão de destaque: só anima a ENTRADA (uma vez), sem loop contínuo. */}
-        <div className="relative hidden md:block">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.85, y: 30 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ ...SPRING_SOFT, delay: 0.35 }}
-            className="conic-glow glass rounded-[1.75rem] border border-white/20 p-5"
-          >
-            <div className="rounded-2xl bg-white p-5 text-slate-900 shadow-xl">
-              <div className="flex items-center gap-3">
-                <span className="grid size-12 place-items-center rounded-2xl bg-brand-50 text-brand-600">
-                  <Pill className="size-6" />
-                </span>
-                <div>
-                  <p className="text-sm font-bold">Ofertas da semana</p>
-                  <p className="text-xs text-slate-500">Produtos selecionados</p>
-                </div>
-              </div>
-              <div className="mt-4 flex items-center justify-between gap-4">
-                <p className="text-sm text-slate-600">
-                  Consulte os produtos e preços válidos agora.
-                </p>
-                {/* Cartão ilustrativo — o CTA leva às ofertas reais (um botão
-                    "morto" aqui parecia travado para quem clicava). */}
-                <Button asChild size="sm" variant="primary">
-                  <a href="/catalogo?promo=1">Ver ofertas</a>
-                </Button>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Chip flutuante de entrega — vidro escuro para manter o texto legível
-              mesmo sobreposto ao cartão branco. */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ ...SPRING_SOFT, delay: 0.6 }}
-            className="absolute -bottom-7 -left-4 z-10 flex items-center gap-2.5 rounded-2xl border border-white/25 bg-brand-950/55 px-4 py-3 text-white shadow-xl backdrop-blur-md animate-float"
-          >
-            <span className="grid size-9 place-items-center rounded-xl bg-brand-400/30">
-              <Timer className="size-5" />
+            <Button type="submit" variant="primary" className="min-h-12 flex-1 sm:flex-none">Buscar</Button>
+          </form>
+          <div className="flex flex-wrap gap-x-5 gap-y-3 text-sm leading-relaxed text-muted-foreground">
+            <span className="inline-flex items-center gap-2"><ShieldCheck aria-hidden="true" className="size-5 shrink-0 text-info" /> Total confirmado antes da compra</span>
+            <span className="inline-flex items-center gap-2"><Truck aria-hidden="true" className="size-5 shrink-0 text-info" />
+              {freeShippingMin > 0 ? `Frete grátis a partir de ${formatBRL(freeShippingMin)}` : "Entrega conforme seu CEP"}
             </span>
-            <div className="text-sm leading-tight">
-              <p className="font-bold">Entrega expressa</p>
-              <p className="text-xs text-white/80">consulte prazo pelo CEP</p>
-            </div>
-          </motion.div>
+          </div>
         </div>
+        <aside className="flex flex-col justify-center gap-6 border-t border-border bg-info-surface p-6 text-info sm:p-10 lg:border-l lg:border-t-0">
+          <div className="flex items-center gap-3"><span className="grid size-12 shrink-0 place-items-center rounded-2xl border border-current/20"><Truck aria-hidden="true" className="size-6" /></span><p className="text-sm font-semibold">Da sua unidade<br />até a sua porta</p></div>
+          <h2 className="text-2xl font-bold leading-tight">Escolha com calma.<br />Receba com praticidade.</h2>
+          <p className="text-base leading-relaxed">Informe seu CEP no checkout para conferir as opções e os prazos disponíveis. Acompanhe cada etapa pela sua conta.</p>
+          <Link href="/catalogo?promo=1" className="inline-flex min-h-11 items-center gap-2 self-start rounded-lg font-bold underline underline-offset-4">
+            Explorar ofertas <ArrowUpRight aria-hidden="true" className="size-5" />
+          </Link>
+        </aside>
       </div>
     </section>
   );

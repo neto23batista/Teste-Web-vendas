@@ -6,7 +6,7 @@ test.describe("Vitrine", () => {
     await page.goto("/");
 
     await expect(
-      page.getByRole("heading", { level: 1, name: /Saúde e bem-estar/ })
+      page.getByRole("heading", { level: 1, name: /Cuidado para o seu dia/ })
     ).toBeVisible();
 
     // Lanes com cards de produto (carrossel).

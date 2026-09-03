@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export type ConfirmationReason = {
@@ -46,7 +46,9 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
           onPointerDownOutside={(event) => event.preventDefault()}
           aria-busy={props.pending}
         >
-          <Dialog.Title className="text-lg font-bold">{props.title}</Dialog.Title>
+          <Dialog.Title className="flex items-center gap-2 text-lg font-bold">
+            {props.destructive && <TriangleAlert aria-hidden="true" className="size-6 shrink-0 text-danger-500" />}{props.title}
+          </Dialog.Title>
           <Dialog.Description className="mt-2 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
             {props.description}
           </Dialog.Description>
@@ -79,6 +81,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button ref={cancelRef} variant="outline" disabled={props.pending} onClick={props.onClose}>Cancelar</Button>
               <Button type="submit" variant={props.destructive ? "danger" : "primary"} disabled={props.pending} aria-describedby={props.error ? statusId : undefined}>
+                {props.destructive && !props.pending && <TriangleAlert aria-hidden="true" className="size-4" />}
                 {props.pending && <Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />}
                 {props.pending ? "Processando…" : props.confirmLabel}
               </Button>

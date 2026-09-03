@@ -41,7 +41,7 @@ export function Reveal({
 }: DivProps) {
   return (
     <motion.div
-      initial="hidden"
+      initial={false}
       whileInView="visible"
       viewport={{ once: true, amount }}
       variants={variants}
@@ -55,7 +55,7 @@ export function Reveal({
 export function RevealGroup({ amount = 0.15, className, ...props }: DivProps) {
   return (
     <motion.div
-      initial="hidden"
+      initial={false}
       whileInView="visible"
       viewport={{ once: true, amount }}
       variants={container}

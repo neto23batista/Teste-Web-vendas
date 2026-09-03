@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, LayoutGrid, ShoppingBag, User } from "lucide-react";
-import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { CartBadge } from "@/components/store/cart/cart-badge";
 
@@ -31,7 +30,7 @@ export function BottomNav({ cartCount = 0 }: { cartCount?: number }) {
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex flex-col items-center gap-1 py-2.5 text-[0.7rem] font-medium transition-colors",
+                  "flex min-h-16 flex-col items-center gap-1 rounded-2xl px-1 py-2 text-[0.8125rem] font-semibold transition-colors",
                   active
                     ? "text-brand-600 dark:text-brand-400"
                     : "text-muted-foreground"
@@ -40,20 +39,16 @@ export function BottomNav({ cartCount = 0 }: { cartCount?: number }) {
                 <span className="relative grid size-9 place-items-center rounded-xl">
                   {/* Indicador compartilhado que desliza entre as abas */}
                   {active && (
-                    <motion.span
-                      layoutId="bottom-nav-active"
-                      transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                    <span
                       className="absolute inset-0 rounded-xl bg-brand-50 dark:bg-brand-600/20"
                     />
                   )}
-                  <motion.span
-                    whileTap={{ scale: 0.82 }}
-                    transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                  <span
                     className="relative z-10 grid place-items-center"
                   >
                     <Icon className="size-5" />
                     {badge && <CartBadge count={cartCount} />}
-                  </motion.span>
+                  </span>
                 </span>
                 {label}
               </Link>

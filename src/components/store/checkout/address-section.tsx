@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Field, Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { CheckoutAddress } from "./types";
@@ -25,14 +25,7 @@ export function CheckoutAddressSection({
   handleCepBlur: () => Promise<void>;
 }) {
   return (
-    <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
-      <h2 className="flex items-center gap-2.5 font-bold">
-        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-extrabold text-white">
-          1
-        </span>
-        <MapPin className="size-5 text-brand-600 dark:text-brand-400" />{" "}
-        Endereço de entrega
-      </h2>
+    <div className="space-y-4">
 
       <div className="space-y-2">
         {addresses.map((a) => (
@@ -51,7 +44,7 @@ export function CheckoutAddressSection({
               value={a.id}
               checked={addressId === a.id}
               onChange={() => setAddressId(a.id)}
-              className="mt-1 size-4 accent-brand-600"
+              className="mt-1 size-5 shrink-0 accent-brand-600"
             />
             <div className="text-sm">
               <p className="font-semibold">
@@ -100,6 +93,7 @@ export function CheckoutAddressSection({
               id="recipient"
               name="recipient"
               placeholder="Nome de quem recebe"
+              required autoComplete="shipping name"
             />
           </Field>
           <Field
@@ -116,35 +110,37 @@ export function CheckoutAddressSection({
               name="zip"
               placeholder="00000-000"
               inputMode="numeric"
+              required autoComplete="shipping postal-code" pattern="[0-9]{5}-?[0-9]{3}"
               value={newZip}
               onChange={(e) => setNewZip(e.target.value)}
               onBlur={handleCepBlur}
             />
           </Field>
           <Field label="Rua" htmlFor="street">
-            <Input id="street" name="street" placeholder="Av. Paulista" />
+            <Input id="street" name="street" placeholder="Av. Paulista" required autoComplete="shipping address-line1" />
           </Field>
           <Field label="Número" htmlFor="number">
-            <Input id="number" name="number" placeholder="1000" />
+            <Input id="number" name="number" placeholder="1000 ou S/N" required />
           </Field>
           <Field label="Complemento" htmlFor="complement">
             <Input
               id="complement"
               name="complement"
               placeholder="Apto 12 (opcional)"
+              autoComplete="shipping address-line2"
             />
           </Field>
           <Field label="Bairro" htmlFor="district">
-            <Input id="district" name="district" placeholder="Centro" />
+            <Input id="district" name="district" placeholder="Centro" required />
           </Field>
           <Field label="Cidade" htmlFor="city">
-            <Input id="city" name="city" placeholder="São Paulo" />
+            <Input id="city" name="city" placeholder="São Paulo" required autoComplete="shipping address-level2" />
           </Field>
           <Field label="Estado (UF)" htmlFor="state">
-            <Input id="state" name="state" placeholder="SP" maxLength={2} />
+            <Input id="state" name="state" placeholder="SP" maxLength={2} required pattern="[a-zA-Z]{2}" autoComplete="shipping address-level1" />
           </Field>
         </div>
       )}
-    </section>
+    </div>
   );
 }

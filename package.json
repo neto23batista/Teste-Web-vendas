@@ -18,6 +18,7 @@
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
+    "test:design": "playwright test e2e/design-quality.spec.ts",
     "ops:lots": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ops/lot-balance-report.ts",
     "check:ratelimit": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/quality/check-ratelimit.ts",
     "postinstall": "prisma generate",
@@ -45,7 +46,7 @@
     "framer-motion": "^12.40.0",
     "ioredis": "^5.11.1",
     "lucide-react": "^1.17.0",
-    "next": "16.3.2",
+    "next": "16.3.3",
     "next-auth": "5.0.0-beta.32",
     "next-themes": "^0.4.6",
     "qrcode": "^1.5.4",
@@ -58,6 +59,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
@@ -66,7 +68,7 @@
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",
     "eslint": "^9",
-    "eslint-config-next": "16.3.2",
+    "eslint-config-next": "16.3.3",
     "playwright-core": "^1.60.0",
     "prisma": "^6.19.3",
     "tailwindcss": "^4",

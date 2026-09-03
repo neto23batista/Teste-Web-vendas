@@ -14,14 +14,7 @@ export function CheckoutDeliverySection({
   setDelivery: (method: DeliveryMethod) => void;
 }) {
   return (
-    <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
-      <h2 className="flex items-center gap-2.5 font-bold">
-        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-extrabold text-white">
-          2
-        </span>
-        <Truck className="size-5 text-brand-600 dark:text-brand-400" /> Como
-        quer receber
-      </h2>
+    <div className="space-y-4">
       <input type="hidden" name="deliveryMethod" value={delivery} />
       <div className="grid gap-3 sm:grid-cols-2">
         {options.map((o) => {
@@ -55,7 +48,7 @@ export function CheckoutDeliverySection({
                 />
                 <span className="text-sm font-bold">{o.label}</span>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">{o.eta}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{o.eta}</p>
               <p className="mt-1.5 text-sm font-extrabold">
                 {o.price === 0 ? (
                   <span className="text-success-600">Grátis</span>
@@ -67,6 +60,6 @@ export function CheckoutDeliverySection({
           );
         })}
       </div>
-    </section>
+    </div>
   );
 }

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useOperation } from "@/hooks/use-operation";
 import { useConfirmAction } from "@/hooks/use-confirm-action";
 import Link from "next/link";
-import Image from "next/image";
+import { ProductImage } from "@/components/store/product-image";
 import { useRouter } from "next/navigation";
 import { Pause, Play, ShoppingBag, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -76,17 +76,7 @@ export function SubscriptionCard({ sub }: { sub: SubscriptionCardData }) {
           href={`/produto/${sub.product.slug}`}
           className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-3xl"
         >
-          {sub.product.image ? (
-            <Image
-              src={sub.product.image}
-              alt=""
-              width={56}
-              height={56}
-              className="size-14 object-cover"
-            />
-          ) : (
-            <span aria-hidden>{sub.product.emoji ?? "💊"}</span>
-          )}
+          <ProductImage src={sub.product.image} name={sub.product.name} sizes="56px" className="size-14" />
         </Link>
         <div className="min-w-0 flex-1">
           <Link

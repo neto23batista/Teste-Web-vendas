@@ -64,13 +64,11 @@ export function ProductForm({
             <Field label="Nome do produto" htmlFor="name">
               <Input id="name" name="name" defaultValue={p?.name} required />
             </Field>
-            <div className="grid gap-4 sm:grid-cols-[1fr_6rem]">
+            <div className="grid gap-4">
               <Field label="Descrição curta" htmlFor="shortDescription">
                 <Input id="shortDescription" name="shortDescription" defaultValue={p?.shortDescription ?? ""} />
               </Field>
-              <Field label="Emoji" htmlFor="emoji">
-                <Input id="emoji" name="emoji" defaultValue={p?.emoji ?? ""} placeholder="💊" />
-              </Field>
+              <input type="hidden" name="emoji" value={p?.emoji ?? ""} />
             </div>
             <Field label="Princípio ativo" htmlFor="activeIngredient">
               <Input
@@ -92,14 +90,14 @@ export function ProductForm({
             <Field
               label="Imagens (URLs)"
               htmlFor="imageUrls"
-              hint="Uma URL HTTPS por linha (até 8), somente images.unsplash.com ou images.pexels.com. A primeira é a principal."
+              hint="Até 8 fotos, uma por linha. Use /products/nome.webp para fotos próprias ou HTTPS em images.unsplash.com / images.pexels.com. A primeira é a principal. Publique somente a embalagem exata, com autorização de uso."
             >
               <textarea
                 id="imageUrls"
                 name="imageUrls"
                 rows={3}
                 defaultValue={(p?.images ?? []).map((i) => i.url).join("\n")}
-                placeholder="https://images.unsplash.com/photo-..."
+                placeholder="/products/sku-embalagem-frente.webp"
                 className="w-full rounded-xl border border-border bg-card p-4 text-sm outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
               />
             </Field>

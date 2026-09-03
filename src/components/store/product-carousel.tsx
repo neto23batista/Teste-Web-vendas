@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import useEmblaCarousel from "embla-carousel-react";
-import { useReducedMotion } from "framer-motion";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { ArrowRight, ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import { ProductCard } from "@/components/store/product-card";
 import type { ProductCard as ProductCardData } from "@/lib/catalog";
@@ -29,8 +29,8 @@ export function ProductCarousel({
     duration: 30,
   });
   const paused = React.useRef(false);
-  const [playing, setPlaying] = React.useState(true);
-  const reduceMotion = useReducedMotion();
+  const [playing, setPlaying] = React.useState(false);
+  const reduceMotion = usePrefersReducedMotion();
   const autoplayActive = playing && !reduceMotion;
 
   // Autoplay (sem plugin): mesmo padrão do PromoCarousel.
@@ -73,7 +73,7 @@ export function ProductCarousel({
                 ? "Pausar rotação de produtos"
                 : "Retomar rotação de produtos"
           }
-          aria-pressed={!autoplayActive}
+          aria-pressed={autoplayActive}
           disabled={!!reduceMotion}
           onClick={() => setPlaying((current) => !current)}
           className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-60"

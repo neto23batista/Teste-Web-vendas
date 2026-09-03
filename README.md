@@ -66,6 +66,7 @@ O mapa dos domínios e as regras de dependência estão em
 | `npm test`                    | Testes unitários, de ações e renderização de componentes |
 | `npm run test:integration`    | Concorrência e rollback em PostgreSQL descartável        |
 | `npm run test:e2e`            | Testes de navegador; escrita exige ambiente isolado      |
+| `npm run test:design`         | Design, axe, temas, zoom, teclado e HTML sem JavaScript  |
 | `npm run db:migrate:deploy`   | Aplica migrações existentes no banco configurado         |
 | `npm run db:migrate`          | Cria/aplica migrações durante desenvolvimento            |
 | `npm run db:seed`             | Recria dados demo; exige confirmação e recusa produção   |
@@ -78,6 +79,8 @@ No PowerShell, prefira `npm.cmd` no lugar de `npm`.
 ## Documentação de referência
 
 - [Arquitetura e convenções](docs/ARCHITECTURE.md)
+- [Sistema de design e gates de UI](docs/DESIGN-SYSTEM.md)
+- [Resultados e limites da revisão de design](docs/DESIGN-VALIDATION.md)
 - [Ambiente local e testes](docs/DEVELOPMENT.md)
 - [Pagamentos e homologação](docs/PAYMENTS.md)
 - [Operação e procedimentos sensíveis](docs/OPERATIONS.md)

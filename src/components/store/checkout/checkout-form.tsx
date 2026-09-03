@@ -14,6 +14,7 @@ import { CheckoutAddressSection } from "./address-section";
 import { CheckoutDeliverySection } from "./delivery-section";
 import { CheckoutPaymentSection } from "./payment-section";
 import { CheckoutSummary } from "./summary";
+import { CheckoutStep } from "./step";
 import type { CheckoutFormProps } from "./types";
 
 export function CheckoutForm({
@@ -34,6 +35,22 @@ export function CheckoutForm({
   const cepVersion = React.useRef(0);
   const errorRef = React.useRef<HTMLDivElement>(null);
   const formRef = React.useRef<HTMLFormElement>(null);
+  const [openStep, setOpenStep] = React.useState<number | null>(1);
+  const [validationError, setValidationError] = React.useState("");
+  function goToStep(step: number) {
+    setOpenStep(step);
+    requestAnimationFrame(() => document.getElementById(`checkout-step-${step}-heading`)?.focus());
+  }
+  function continueStep(step: number) {
+    const controls = formRef.current?.querySelectorAll<HTMLInputElement>(`[data-checkout-step="${step}"] input`);
+    const invalid = Array.from(controls ?? []).find((control) => !control.checkValidity());
+    if (invalid) { invalid.reportValidity(); return; }
+    if (step < 3) goToStep(step + 1);
+    else {
+      setOpenStep(null);
+      requestAnimationFrame(() => document.getElementById("checkout-review")?.focus());
+    }
+  }
   const [state, formAction, pending] = useActionState(async (previous: Awaited<ReturnType<typeof placeOrder>> | undefined, form: FormData) => {
     try { return await placeOrder(previous, form); }
     finally { submissionLock.current = false; }
@@ -107,14 +124,29 @@ export function CheckoutForm({
       ref={formRef}
       action={formAction}
       aria-busy={pending}
+      onInvalidCapture={(event) => {
+        event.preventDefault();
+        const target = event.target as HTMLInputElement;
+        const first = formRef.current?.querySelector("input:invalid, select:invalid, textarea:invalid");
+        if (target !== first) return;
+        setValidationError("Confira o campo indicado antes de continuar. Seus dados foram preservados.");
+        const step = target.closest<HTMLElement>("[data-checkout-step]")?.dataset.checkoutStep;
+        if (step) {
+          setOpenStep(Number(step));
+          requestAnimationFrame(() => target.focus());
+        }
+      }}
+      onInput={() => { if (validationError) setValidationError(""); }}
       onSubmit={(event) => {
         if (submissionLock.current || !quote || quoteState.quoteRefreshing) event.preventDefault();
         else submissionLock.current = true;
       }}
-      className="grid gap-6 lg:grid-cols-[1fr_22rem]"
+      className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]"
     >
       <input type="hidden" name="checkoutAttempt" value={checkoutAttempt} />
-      <fieldset disabled={pending} className="min-w-0 space-y-6">
+      <fieldset disabled={pending} className="min-w-0 space-y-4">
+        <legend className="sr-only">Dados para finalizar a compra</legend>
+        {validationError && <p role="alert" className="rounded-xl border border-danger-500/30 bg-danger-500/10 p-4 text-sm font-medium text-danger-500">{validationError}</p>}
         {state?.error && (
           <div
             ref={errorRef}
@@ -126,6 +158,9 @@ export function CheckoutForm({
             <button type="button" onClick={() => router.refresh()} className="min-h-11 underline">Atualizar dados</button>
           </div>
         )}
+        <CheckoutStep number={1} title="Endereço de entrega" open={openStep === 1}
+          summary={isNew ? "Novo endereço · seus dados são preservados ao recolher" : (() => { const a = addresses.find((a) => a.id === addressId); return a ? `${a.recipient} · ${a.street}, ${a.number} · ${a.city}/${a.state}` : "Selecione um endereço"; })()}
+          onToggle={() => setOpenStep(openStep === 1 ? null : 1)} onContinue={() => continueStep(1)} continueLabel="Continuar para entrega">
         <CheckoutAddressSection
           addresses={addresses}
           addressId={addressId}
@@ -136,38 +171,47 @@ export function CheckoutForm({
           cepLoading={cepLoading}
           handleCepBlur={handleCepBlur}
         />
+        </CheckoutStep>
+        <CheckoutStep number={2} title="Como quer receber" open={openStep === 2}
+          summary={options.find((option) => option.method === delivery)?.label ?? "Selecione a entrega"}
+          onToggle={() => setOpenStep(openStep === 2 ? null : 2)} onContinue={() => continueStep(2)} continueLabel="Continuar para pagamento">
         <CheckoutDeliverySection
           options={options}
           delivery={delivery}
           setDelivery={setDelivery}
         />
+        </CheckoutStep>
+        <CheckoutStep number={3} title="Forma de pagamento" open={openStep === 3}
+          summary={method === "cash" ? "Dinheiro na entrega" : method === "pix" ? "Pix · sujeito à confirmação" : "Cartão de crédito"}
+          onToggle={() => setOpenStep(openStep === 3 ? null : 3)} onContinue={() => continueStep(3)} continueLabel="Revisar pedido">
         <CheckoutPaymentSection
           availability={availability}
           method={method}
           setMethod={setMethod}
           hasCpf={hasCpf}
         />
+        </CheckoutStep>
         {/* Observações */}
-        <section className="space-y-3 rounded-2xl border border-border bg-card p-5">
-          <h2
+        <details className="space-y-3 rounded-2xl border border-border bg-card p-4 sm:p-5">
+          <summary
             id="checkout-notes-label"
-            className="flex items-center gap-2 font-bold"
+            className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg font-bold"
           >
             <MessageSquareText className="size-5 text-brand-600 dark:text-brand-400" />{" "}
             Observações{" "}
             <span className="text-sm font-medium text-muted-foreground">
               (opcional)
             </span>
-          </h2>
+          </summary>
           <textarea
             name="notes"
             aria-labelledby="checkout-notes-label"
             rows={3}
             maxLength={500}
             placeholder="Ex.: entregar na portaria, interfone 12, troco para R$ 100…"
-            className="w-full resize-y rounded-xl border border-border bg-card px-4 py-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
+            className="w-full resize-y rounded-xl border border-border bg-card px-4 py-3 text-base sm:text-sm transition placeholder:text-muted-foreground focus:border-brand-400"
           />
-        </section>
+        </details>
       </fieldset>
       <CheckoutSummary
         {...quoteState}

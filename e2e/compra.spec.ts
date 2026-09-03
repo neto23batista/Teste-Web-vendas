@@ -31,7 +31,8 @@ test.describe("Fluxo de compra", () => {
     await expect(
       page.getByRole("button", { name: "Finalizar pedido" })
     ).toBeVisible({ timeout: 30_000 });
-    await page.getByText("Dinheiro na entrega").click();
+    await page.getByRole("button", { name: /Forma de pagamento/ }).click();
+    await page.getByRole("radio", { name: /Dinheiro na entrega/ }).check();
     await page.getByRole("button", { name: "Finalizar pedido" }).click();
 
     // Deve chegar na página do pedido.

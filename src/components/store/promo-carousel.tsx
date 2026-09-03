@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import useEmblaCarousel from "embla-carousel-react";
-import { useReducedMotion } from "framer-motion";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import {
   BadgePercent,
   Leaf,
@@ -36,9 +36,9 @@ const AUTOPLAY_MS = 5000;
 export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) {
   const slides: Slide[] = [
     {
-      badge: "Só esta semana",
-      title: "Ofertas com até 40% OFF",
-      text: "Medicamentos, vitaminas e dermocosméticos com desconto de verdade.",
+      badge: "Na sua unidade",
+      title: "Ofertas para o seu dia",
+      text: "Confira produtos selecionados e os preços disponíveis agora.",
       cta: "Ver ofertas",
       href: "/catalogo?promo=1",
       icon: BadgePercent,
@@ -51,11 +51,11 @@ export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) 
       cta: "Ver genéricos",
       href: "/catalogo?generic=1",
       icon: Leaf,
-      bg: "bg-gradient-to-br from-accent-600 via-accent-500 to-brand-500",
+      bg: "bg-sky-900",
     },
     {
       badge: "Entrega",
-      title: `Frete grátis acima de ${formatBRL(freeShippingMin)}`,
+      title: freeShippingMin > 0 ? `Frete grátis a partir de ${formatBRL(freeShippingMin)}` : "Entrega conforme seu CEP",
       text: "Prazo e disponibilidade calculados conforme seu CEP e a unidade selecionada.",
       cta: "Começar a comprar",
       href: "/catalogo",
@@ -67,8 +67,8 @@ export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) 
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, align: "start" });
   const [selected, setSelected] = useState(0);
   const paused = useRef(false);
-  const [playing, setPlaying] = useState(true);
-  const reduceMotion = useReducedMotion();
+  const [playing, setPlaying] = useState(false);
+  const reduceMotion = usePrefersReducedMotion();
   const autoplayActive = playing && !reduceMotion;
 
   useEffect(() => {
@@ -118,7 +118,7 @@ export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) 
                 <Link
                   href={s.href}
                   className={cn(
-                    "group relative block overflow-hidden rounded-3xl px-6 py-8 text-white grain md:px-10 md:py-10",
+                    "group relative block h-full overflow-hidden rounded-3xl px-6 py-8 text-white grain md:px-10 md:py-10",
                     s.bg
                   )}
                 >
@@ -147,6 +147,7 @@ export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) 
         </div>
       </div>
 
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
       <button
         type="button"
         aria-label={
@@ -156,17 +157,17 @@ export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) 
               ? "Pausar banners"
               : "Retomar banners"
         }
-        aria-pressed={!autoplayActive}
+        aria-pressed={autoplayActive}
         disabled={!!reduceMotion}
         onClick={() => setPlaying((current) => !current)}
-        className="absolute bottom-2.5 left-3 inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-black/35 px-3 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-black/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-70 md:bottom-3 md:left-5"
+        className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground transition hover:bg-muted disabled:cursor-not-allowed"
       >
         {autoplayActive ? <Pause className="size-4" /> : <Play className="size-4" />}
         {reduceMotion ? "Movimento reduzido" : autoplayActive ? "Pausar" : "Retomar"}
       </button>
 
       {/* dots */}
-      <div className="absolute bottom-3 right-4 flex gap-1.5 md:bottom-4 md:right-6">
+      <div className="flex gap-2" aria-label="Selecionar promoção">
         {slides.map((s, i) => (
           <button
             key={s.title}
@@ -175,11 +176,12 @@ export function PromoCarousel({ freeShippingMin }: { freeShippingMin: number }) 
             aria-current={selected === i}
             onClick={() => goTo(i)}
             className={cn(
-              "h-2 rounded-full transition-all duration-300",
-              selected === i ? "w-6 bg-white" : "w-2 bg-white/45 hover:bg-white/70"
+              "grid size-11 place-items-center rounded-xl border text-sm font-bold transition-colors",
+              selected === i ? "border-brand-600 bg-brand-600 text-white" : "border-border bg-card text-foreground hover:bg-muted"
             )}
-          />
+          >{i + 1}</button>
         ))}
+      </div>
       </div>
     </section>
   );

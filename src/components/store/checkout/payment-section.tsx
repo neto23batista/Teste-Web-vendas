@@ -13,7 +13,7 @@ const METHOD_INFO: Record<
   PaymentMethodId,
   { label: string; desc: string; icon: typeof QrCode }
 > = {
-  pix: { label: "Pix", desc: "Aprovação imediata", icon: QrCode },
+  pix: { label: "Pix", desc: "Aguarde a confirmação do pagamento", icon: QrCode },
   card: {
     label: "Cartão de crédito",
     desc: "Pagamento seguro pelo Stripe",
@@ -42,13 +42,7 @@ export function CheckoutPaymentSection({
     ...METHOD_INFO[id],
   }));
   return (
-    <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
-      <h2 className="flex items-center gap-2.5 font-bold">
-        <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-extrabold text-white">
-          3
-        </span>
-        Forma de pagamento
-      </h2>
+    <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
         {methods.map((m) => (
           <label
@@ -94,7 +88,7 @@ export function CheckoutPaymentSection({
               )}
             />
             <p className="mt-2 text-sm font-bold">{m.label}</p>
-            <p className="text-xs text-muted-foreground">{m.desc}</p>
+            <p className="text-sm text-muted-foreground">{m.desc}</p>
           </label>
         ))}
       </div>
@@ -116,6 +110,6 @@ export function CheckoutPaymentSection({
           />
         </Field>
       )}
-    </section>
+    </div>
   );
 }

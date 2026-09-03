@@ -7,7 +7,7 @@ type Cat = { id: string; name: string; slug: string; icon: string | null };
 
 export function CategoryStrip({ categories }: { categories: Cat[] }) {
   return (
-    <RevealGroup className="no-scrollbar -mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:grid md:grid-cols-8 md:gap-3 md:overflow-visible md:px-0">
+    <RevealGroup className="no-scrollbar -mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:grid md:grid-cols-5 lg:grid-cols-9 md:gap-3 md:overflow-visible md:px-0">
       {categories.map((c) => {
         const Icon = categoryIcon(c.icon);
         return (
@@ -24,7 +24,7 @@ export function CategoryStrip({ categories }: { categories: Cat[] }) {
               >
                 <Icon className="size-6 md:size-7" strokeWidth={2.1} />
               </span>
-              <span className="line-clamp-2 text-[0.7rem] font-semibold leading-tight text-foreground/90 md:text-xs">
+              <span className="line-clamp-2 text-[0.8125rem] font-semibold leading-tight text-foreground/90 md:text-xs">
                 {c.name}
               </span>
             </Link>

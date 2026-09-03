@@ -66,6 +66,7 @@ export default async function RootLayout({
   return (
     <html
       lang="pt-BR"
+      data-scroll-behavior="smooth"
       className={`${hanken.variable} ${spaceGrotesk.variable}`}
       suppressHydrationWarning
     >

@@ -19,7 +19,7 @@ export function Brand({
       aria-label={`${APP_NAME} — início`}
       className={cn("group inline-flex items-center gap-2.5", className)}
     >
-      <span className="grid size-10 place-items-center rounded-2xl gradient-brand text-white shadow-[var(--shadow-glow)] transition-transform group-hover:scale-105">
+      <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-brand-600 text-white shadow-[var(--shadow-soft)]">
         <Plus className="size-5" strokeWidth={3} />
       </span>
       <span

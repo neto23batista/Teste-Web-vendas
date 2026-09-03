@@ -105,7 +105,7 @@ export function AdminSidebar({
               aria-label={`${count > 99 ? "mais de 99" : count} pendências`}
               className={cn(
                 "ml-auto grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-xs font-bold tabular-nums",
-                active ? "bg-white/25 text-white" : "bg-danger-500 text-white"
+                active ? "bg-white/25 text-white" : "bg-destructive text-destructive-foreground"
               )}
             >
               {count > 99 ? "99+" : count}

@@ -4,7 +4,7 @@ import type { ProductCard as ProductCardData } from "@/lib/catalog";
 
 export function ProductGrid({ products }: { products: ProductCardData[] }) {
   return (
-    <RevealGroup className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+    <RevealGroup className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))] gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
       {products.map((p) => (
         <RevealItem key={p.id} className="h-full">
           <ProductCard product={p} />

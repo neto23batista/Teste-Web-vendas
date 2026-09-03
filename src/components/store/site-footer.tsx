@@ -20,9 +20,9 @@ import {
 
 const trust = [
   { icon: ShieldCheck, label: "Controles de acesso" },
-  { icon: Stethoscope, label: "Dados regulatórios publicados" },
+  { icon: Stethoscope, label: "Informações regulatórias" },
   { icon: CreditCard, label: "Formas informadas no checkout" },
-  { icon: Truck, label: "Entrega rápida" },
+  { icon: Truck, label: "Prazos conforme seu CEP" },
 ];
 
 export async function SiteFooter() {
@@ -49,7 +49,7 @@ export async function SiteFooter() {
   const regulatoryReady = missingRegulatory.length === 0;
 
   return (
-    <footer className="mt-16 border-t border-border bg-card pb-24 md:pb-0">
+    <footer className="mt-16 border-t border-border bg-card">
       <div
         className={
           contact.length > 0

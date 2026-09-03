@@ -52,10 +52,10 @@ export function CheckoutSummary({
     total: displayedTotal,
   } = amounts;
   return (
-    <aside className="lg:sticky lg:top-24 lg:h-fit">
+    <aside className="min-w-0 lg:sticky lg:top-24 lg:h-fit" aria-label="Resumo e confirmação">
       <fieldset disabled={pending} className="min-w-0 space-y-4 rounded-2xl border border-border bg-card p-5">
-        <h2 className="flex items-center gap-2.5 font-bold">
-          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-extrabold text-white">
+        <h2 id="checkout-review" tabIndex={-1} className="flex scroll-mt-28 items-center gap-2.5 rounded-lg font-bold">
+          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-info-surface text-sm font-extrabold text-info">
             4
           </span>
           Revisão do pedido
@@ -70,7 +70,7 @@ export function CheckoutSummary({
           />
         </Field>
         {quoteError && (
-          <p role="alert" className="text-xs font-semibold text-danger-500">
+          <p role="alert" className="text-sm font-semibold text-danger-500">
             {quoteError}
           </p>
         )}
@@ -168,7 +168,7 @@ export function CheckoutSummary({
           )}
           {pending ? "Confirmando pedido…" : "Finalizar pedido"}
         </Button>
-        <p className="text-center text-xs text-muted-foreground">
+        <p className="text-center text-sm leading-relaxed text-muted-foreground">
           Ambiente seguro · total calculado e validado no servidor
         </p>
         <noscript>

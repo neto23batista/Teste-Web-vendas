@@ -43,10 +43,8 @@
   --color-promo-600: #a86307;
   --color-promo-700: #854e08;
 
-  --color-success-500: #16a34a;
-  --color-success-600: #15803d;
+  --color-success-solid: #166534;
   --color-warn-500: #f59e0b;
-  --color-danger-500: #dc2626;
 
   --radius-xl: 1rem;
   --radius-2xl: 1.25rem;
@@ -54,8 +52,8 @@
 
   --shadow-soft: 0 1px 2px rgba(40, 8, 12, 0.05),
     0 8px 24px -8px rgba(40, 8, 12, 0.14);
-  --shadow-card: 0 1px 3px rgba(40, 8, 12, 0.08),
-    0 18px 40px -16px rgba(200, 19, 40, 0.2);
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06),
+    0 12px 32px -16px rgba(15, 23, 42, 0.18);
   --shadow-glow: 0 18px 52px -12px rgba(225, 29, 51, 0.42);
   /* Glow mais intenso para heros / cards de destaque. */
   --shadow-glow-strong: 0 28px 80px -16px rgba(200, 19, 40, 0.55);
@@ -74,35 +72,48 @@
    Tokens semânticos (trocam entre claro/escuro)
    ============================================================ */
 :root {
-  --background: #faf6f6;
-  --foreground: #1c1516;
+  --background: #f8fafb;
+  --foreground: #18242c;
   --card: #ffffff;
-  --card-foreground: #1c1516;
-  --muted: #f4eaea;
-  --muted-foreground: #6d5c5d;
-  --border: #eddfdf;
-  --input: #eddfdf;
+  --card-foreground: #18242c;
+  --muted: #edf2f5;
+  --muted-foreground: #52616d;
+  --border: #d7e0e6;
+  --input: #d7e0e6;
   --primary: #c81328;
   --primary-foreground: #ffffff;
   --accent: #0ea5e9;
   --accent-foreground: #082f49;
-  --ring: #c81328;
+  --ring: #0369a1;
+  --danger: #991b1b;
+  --destructive: #7f1d1d;
+  --destructive-foreground: #ffffff;
+  --success: #166534;
+  --info: #075985;
+  --info-surface: #e0f2fe;
+  --mobile-nav-clearance: calc(6.75rem + env(safe-area-inset-bottom));
 }
 
 .dark {
-  --background: #130e0f;
-  --foreground: #f4eeee;
-  --card: #1e1717;
-  --card-foreground: #f4eeee;
-  --muted: #271d1e;
-  --muted-foreground: #b0a1a2;
-  --border: #362728;
-  --input: #362728;
+  --background: #10181e;
+  --foreground: #f1f5f9;
+  --card: #19252e;
+  --card-foreground: #f1f5f9;
+  --muted: #243440;
+  --muted-foreground: #b5c4cf;
+  --border: #3d5160;
+  --input: #3d5160;
   --primary: #f4707c;
   --primary-foreground: #3a0308;
   --accent: #38bdf8;
   --accent-foreground: #04263a;
-  --ring: #f4707c;
+  --ring: #7dd3fc;
+  --danger: #fca5a5;
+  --destructive: #fecaca;
+  --destructive-foreground: #450a0a;
+  --success: #86efac;
+  --info: #bae6fd;
+  --info-surface: #123347;
 }
 
 @theme inline {
@@ -118,6 +129,13 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-accent-DEFAULT: var(--accent);
   --color-ring: var(--ring);
+  --color-danger-500: var(--danger);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success-500: var(--success);
+  --color-success-600: var(--success);
+  --color-info: var(--info);
+  --color-info-surface: var(--info-surface);
 }
 
 /* ============================================================
@@ -130,6 +148,7 @@
   html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
+    scroll-padding-block: 7rem var(--mobile-nav-clearance);
   }
   body {
     background-color: var(--background);
@@ -191,18 +210,9 @@
       #a81022 100%
     );
   }
-  /* Versão animada: o gradiente desliza suavemente (hero). */
+  /* Legacy class kept static: continuous motion is reserved for progress indicators. */
   .gradient-brand-animated {
-    background-image: linear-gradient(
-      120deg,
-      #8b111f 0%,
-      #c81328 28%,
-      #f9603f 52%,
-      #e11d33 78%,
-      #8b111f 100%
-    );
-    background-size: 220% 220%;
-    animation: var(--animate-gradient);
+    background: linear-gradient(135deg, #8b111f, #c81328);
   }
   /* Texto com preenchimento em gradiente da marca. */
   .text-gradient-brand {
@@ -237,34 +247,14 @@
   /* Superfície "liquid glass": translúcida sobre o tema atual (cards flutuantes,
      header, bottom-nav). Mais opaca que .glass para manter contraste do texto. */
   .glass-surface {
-    background: color-mix(in oklab, var(--card) 72%, transparent);
+    background: color-mix(in oklab, var(--card) 94%, transparent);
     backdrop-filter: blur(18px) saturate(1.4);
     -webkit-backdrop-filter: blur(18px) saturate(1.4);
     border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
   }
-  /* Fundo aurora: mesh de luz da marca (teal → ciano → violeta → menta).
-     Mais vivo que a v1 — as páginas que já usam .aurora ganham o mesh novo. */
+  /* Calm surface shared by catalog, checkout and operations. */
   .aurora {
-    background-image: radial-gradient(
-        40rem 40rem at 8% -10%,
-        color-mix(in oklab, #ef5f6d 30%, transparent),
-        transparent 60%
-      ),
-      radial-gradient(
-        34rem 34rem at 95% 12%,
-        color-mix(in oklab, #f9603f 26%, transparent),
-        transparent 60%
-      ),
-      radial-gradient(
-        32rem 32rem at 55% 108%,
-        color-mix(in oklab, #e69f16 22%, transparent),
-        transparent 62%
-      ),
-      radial-gradient(
-        26rem 26rem at 20% 70%,
-        color-mix(in oklab, #f79aa2 16%, transparent),
-        transparent 60%
-      );
+    background-color: var(--background);
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -275,15 +265,6 @@
   }
   .animate-fade-up {
     animation: var(--animate-fade-up);
-  }
-  .animate-float {
-    animation: var(--animate-float);
-  }
-  .animate-blob {
-    animation: var(--animate-blob);
-  }
-  .animate-glow {
-    animation: var(--animate-glow);
   }
   /* Esqueleto com brilho deslizante (melhor que o pulse puro). */
   .shimmer {
@@ -304,16 +285,14 @@
     animation: var(--animate-shimmer);
   }
 
-  /* ---- Aurora Glow premium: utilitários reaproveitados em todo o app.
-     Usam var(--primary)/var(--accent), então acompanham a marca (teal) sem
-     cores chumbadas. ---- */
+  /* Restrained interaction feedback. */
 
   /* Glow suave da marca ao passar o mouse (cards, tiles, CTAs). */
   .hover-glow {
     transition: box-shadow 0.4s ease, transform 0.4s ease, border-color 0.4s ease;
   }
   .hover-glow:hover {
-    box-shadow: var(--shadow-glow);
+    box-shadow: var(--shadow-card);
   }
 
   /* Hairline em gradiente que acende no hover — usa máscara, sem ocupar layout.
@@ -373,62 +352,10 @@
     animation: sheen-slide 0.9s ease;
   }
 
-  /* Anel de luz cônico girando atrás de um elemento de destaque (hero card). */
-  .conic-glow {
-    position: relative;
+  .text-gradient-vivid, .text-gradient-brand {
+    color: var(--primary);
+    background-image: none;
   }
-  .conic-glow::before {
-    content: "";
-    position: absolute;
-    inset: -2px;
-    border-radius: inherit;
-    background: conic-gradient(
-      from 0deg,
-      transparent 0deg,
-      color-mix(in oklab, var(--primary) 75%, transparent) 60deg,
-      transparent 140deg,
-      color-mix(in oklab, var(--accent) 65%, transparent) 240deg,
-      transparent 320deg
-    );
-    filter: blur(10px);
-    opacity: 0.6;
-    z-index: -1;
-    animation: spin-slow 8s linear infinite;
-  }
-
-  /* Texto em gradiente VIVO e animado (teal → ciano → violeta) — títulos de
-     seção sobre fundo claro/escuro. Usa a mesma animação de pan do hero. */
-  .text-gradient-vivid {
-    background-image: linear-gradient(
-      110deg,
-      #c81328 0%,
-      #f9603f 32%,
-      #e69f16 58%,
-      #e11d33 85%,
-      #c81328 100%
-    );
-    background-size: 240% 240%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    animation: var(--animate-gradient);
-  }
-  /* Variante para uso SOBRE o hero vermelho (tons claros, contraste alto). */
-  .text-gradient-hero {
-    background-image: linear-gradient(
-      105deg,
-      #fde0e2 0%,
-      #ffffff 35%,
-      #fed7aa 60%,
-      #fbcfe8 90%
-    );
-    background-size: 220% 220%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    animation: var(--animate-gradient);
-  }
-
   /* Feedback de pressão (vibe app): encolhe levemente ao tocar/clicar. */
   .press {
     transition: transform 0.15s ease;
@@ -449,7 +376,7 @@
     background: color-mix(in oklab, var(--muted) 80%, transparent);
     color: var(--muted-foreground);
     font-family: var(--font-display);
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: 700;
     line-height: 1;
     box-shadow: inset 0 -1.5px 0 color-mix(in oklab, var(--border) 80%, transparent);
@@ -464,15 +391,7 @@
     border-radius: 9999px;
     background: #22c55e;
   }
-  .glow-dot::after {
-    content: "";
-    position: absolute;
-    inset: -3px;
-    border-radius: inherit;
-    background: #22c55e;
-    opacity: 0.4;
-    animation: ping-soft 1.8s ease-out infinite;
-  }
+
 
   /* Grão sutil para superfícies "caras" (hero, banners). */
   .grain {
@@ -603,4 +522,21 @@
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Shared photography placeholder adapts to cards and compact rows. */
+.product-placeholder { container-type: inline-size; }
+@container (max-width: 110px) {
+  .product-placeholder-caption { display: none; }
+}
+@media (max-width: 767px) {
+  body:has([data-store-shell]) { padding-bottom: var(--mobile-nav-clearance); }
+  body:has([data-sticky-buy-bar]) { padding-bottom: calc(var(--mobile-nav-clearance) + 5.5rem); }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea { font-size: 1rem; }
+}
+@media (forced-colors: active) {
+  .gradient-brand, .gradient-promo, .gradient-brand-animated { background: Canvas; color: CanvasText; border: 1px solid ButtonText; }
+  .text-gradient-hero, .text-gradient-brand, .text-gradient-vivid { color: CanvasText; background: none; }
+  button, input, select, textarea { border: 1px solid ButtonText; }
+  :focus-visible { outline: 3px solid Highlight; box-shadow: none; }
 }
