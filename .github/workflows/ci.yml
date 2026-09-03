@@ -31,7 +31,7 @@ jobs:
       PAYMENTS_ENABLED: "false"
       EMAIL_ENABLED: "false"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -83,7 +83,7 @@ jobs:
       SEED_CUSTOMER_PASSWORD: "ci-customer-password"
       PW_WEB_COMMAND: "npx next start -p 3210"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
