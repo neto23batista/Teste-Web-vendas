@@ -14,10 +14,10 @@ Obrigatórias para o boot:
 | `AUTH_SECRET` | segredo do Auth.js, gerado com `npx auth secret` |
 | `MFA_ENCRYPTION_KEY` | chave exclusiva que protege os segredos TOTP com AES-GCM |
 | `MFA_RECOVERY_PEPPER` | segredo exclusivo usado no HMAC dos recovery codes |
-| `APP_ENV=production` | identifica produção em hospedagem própria; a Vercel usa `VERCEL_ENV` |
+| `APP_ENV` | **obrigatória** em build de produção: `production`, `preview`, `staging`, `development` ou `test`. Sem declaração o boot falha. Na Vercel, `VERCEL_ENV` já cumpre esse papel |
 | `STORAGE_DRIVER` + storage privado | `s3` + `S3_BUCKET` na Vercel; `local` exige `UPLOAD_DIR` em volume persistente self-hosted |
-| `PAYMENTS_ENABLED` | `false` até a homologação; `true` exige os dois segredos Stripe |
-| `EMAIL_ENABLED` | `false` sem provedor; `true` exige `RESEND_API_KEY` + `MAIL_FROM` |
+| `PAYMENTS_ENABLED` | opt-in: só `true` liga a cobrança, e exige os dois segredos Stripe. Ausente ou escrita errada = desligado |
+| `EMAIL_ENABLED` | opt-in: só `true` envia de verdade, e exige `RESEND_API_KEY` + `MAIL_FROM`. Ausente ou escrita errada = desligado |
 
 Necessárias conforme os recursos habilitados:
 

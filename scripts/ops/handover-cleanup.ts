@@ -57,6 +57,10 @@ async function main() {
         tx,
         prescriptionFiles.map(({ fileUrl }) => fileUrl)
       );
+      // A trilha é somente-anexação no banco (trigger AuditLog_append_only).
+      // Zerá-la só é permitido declarando a intenção na própria sessão — é o
+      // que separa a entrega deliberada do projeto de um DELETE acidental.
+      await tx.$executeRawUnsafe("SET LOCAL app.allow_audit_purge = 'on'");
       await tx.auditLog.deleteMany();
       await tx.subscription.deleteMany();
       await tx.favorite.deleteMany();

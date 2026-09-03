@@ -112,16 +112,35 @@ acesso restrito.
   recusada. Investigue ajustes legados e confira o saldo físico antes de corrigir;
   não apague lotes nem acrescente estoque apenas para contornar o bloqueio.
 
+## Portabilidade de dados (LGPD)
+
+- A exportação é **assíncrona**: o titular solicita em Conta > Privacidade e o
+  arquivo é montado pelo cron de retenção. Montar o histórico inteiro dentro da
+  requisição pressionava a instância, e truncar o resultado não cumpriria o
+  direito.
+- Um pedido por titular a cada 24 h. A solicitação fica registrada na auditoria.
+- O arquivo vive em storage privado por 7 dias e depois é apagado pela retenção.
+  O download passa pela rota autenticada, que confere o dono — a chave do objeto
+  nunca é exposta.
+
 ## Devoluções e comprovação de entrega
 
 - Solicitações de devolução validam propriedade do pedido, saldo por item,
   quantidades inteiras e itens duplicados. Novas solicitações do mesmo pedido
   são serializadas no PostgreSQL antes do cálculo do saldo devolvível.
 - Aprovação e recebimento usam transições condicionais. Outra tentativa não
-  deve repetir a reposição nem registrar sucesso de uma operação já concluída.
+  deve repetir a operação nem registrar sucesso de algo já concluído.
+- **O recebimento não devolve nada ao estoque.** Ele registra apenas quanto
+  chegou fisicamente; os itens entram em QUARENTENA. Medicamento que voltou da
+  casa do cliente só volta à prateleira depois da conferência sanitária.
+- A conferência tem duas saídas: **liberar** (as unidades voltam ao LOTE de
+  origem, o mesmo que a venda consumiu) ou **descartar**. Sem lote de origem
+  rastreável, ou com o lote vencido, a liberação é recusada pelo sistema — a
+  saída é descartar ou registrar um lote novo em Compras, com a validade
+  conferida na embalagem. Não contorne isso com ajuste manual de estoque.
 - O recebimento físico é confirmado separadamente do reembolso. Se a liquidação
   estiver indisponível, o painel informa que os itens já foram recebidos e que
-  a liquidação precisa ser retomada. Não repita a reposição de estoque.
+  a liquidação precisa ser retomada. Não repita a conferência de recebimento.
 - Despacho e entrega devem usar **Entregas**, com entregador da mesma unidade e
   comprovante do destinatário. O seletor genérico de status em Pedidos não pode
   efetuar essas transições sem as informações obrigatórias.

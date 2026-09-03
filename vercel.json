@@ -11,8 +11,9 @@
       "schedule": "30 3 * * *"
     },
     {
+      "//": "De hora em hora: a reserva de estoque dura 25h e uma passada diaria deixava pedido pago preso e estoque bloqueado alem do SLA. A lease em JobLease impede sobreposicao.",
       "path": "/api/cron/payments",
-      "schedule": "0 4 * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }

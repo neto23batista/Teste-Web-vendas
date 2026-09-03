@@ -24,6 +24,12 @@ jobs:
       AUTH_TRUST_HOST: "true"
       NEXT_PUBLIC_APP_NAME: "FarmaVida"
       NEXT_PUBLIC_BASE_URL: "http://localhost:3000"
+      # A declaração de ambiente é obrigatória em build de produção: sem ela o
+      # boot falha de propósito, para que ninguém suba a loja pública sem os
+      # controles rígidos ligados.
+      APP_ENV: "test"
+      PAYMENTS_ENABLED: "false"
+      EMAIL_ENABLED: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -67,6 +73,9 @@ jobs:
       AUTH_URL: "http://localhost:3210"
       NEXT_PUBLIC_APP_NAME: "FarmaVida"
       NEXT_PUBLIC_BASE_URL: "http://localhost:3210"
+      APP_ENV: "test"
+      PAYMENTS_ENABLED: "false"
+      EMAIL_ENABLED: "false"
       E2E_ALLOW_WRITES: "I_UNDERSTAND_THIS_IS_A_DISPOSABLE_DATABASE"
       ALLOW_DESTRUCTIVE_SEED: "I_UNDERSTAND_THIS_WILL_DELETE_DATA"
       SEED_OWNER_PASSWORD: "ci-owner-password"

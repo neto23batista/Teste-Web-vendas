@@ -18,6 +18,7 @@
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
+    "ops:lots": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/ops/lot-balance-report.ts",
     "check:ratelimit": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/quality/check-ratelimit.ts",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
