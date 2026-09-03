@@ -11,7 +11,6 @@
       "schedule": "30 3 * * *"
     },
     {
-      "//": "Diario por limite do plano Hobby, que so aceita uma execucao por dia. A cadencia desejada e de hora em hora: a reserva de estoque dura 25h e uma passada diaria deixa pedido pago preso e estoque bloqueado alem do SLA. No Pro, troque para 0 * * * * — a lease em JobLease ja impede sobreposicao. O webhook continua sendo a confirmacao financeira imediata; este cron e a rede de seguranca.",
       "path": "/api/cron/payments",
       "schedule": "0 4 * * *"
     }
