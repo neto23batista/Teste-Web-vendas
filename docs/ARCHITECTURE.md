@@ -7,7 +7,10 @@ instrumentação.
 
 ## Responsabilidades
 
-- `src/app/`: páginas, layouts, Route Handlers e composição dos fluxos.
+- `src/app/`: páginas/layouts de composição; Route Handlers são entradas de back-end.
+- `src/server/queries/`: queries `server-only`, com guards e escopo de unidade/titular; entregam modelos de apresentação serializados às páginas.
+- `src/client/api/`: adaptadores por domínio, transporte HTTP/BFF, normalização de erros e compatibilidade das Server Actions.
+- `src/contracts/`: DTOs e códigos públicos independentes de Prisma/Next.js.
 - `src/actions/admin/`: operações da equipe, sempre com autorização por
   perfil/unidade; catálogo, estoque, compras, pedidos, entregas e gestão.
 - `src/actions/account/`: operações do cliente autenticado e ciclo de identidade.
@@ -23,9 +26,16 @@ devem ser exportados desses arquivos; ficam em `lib/`. A diretiva não substitui
 controle de acesso, validação de payload nem transações.
 
 `lib/` não importa código de execução de `actions/`, `app/`, `components/` ou
-`hooks/`. A interface pode chamar uma Server Action pela fronteira RPC do Next,
-mas não pode carregar Prisma, segredos privados ou APIs de servidor no bundle
-do navegador. Imports exclusivos de tipos não criam dependências de execução.
+`hooks/`. Componentes/hooks não importam Server Actions diretamente: usam
+`client/api`. Os adaptadores de formulários mantêm referências explícitas
+`"use server"` para preservar redirecionamentos e a serialização do Next.
+Páginas/layouts não importam Prisma; contratos não dependem das camadas de
+interface ou servidor. O verificador de arquitetura protege essas fronteiras.
+
+O sistema continua no mesmo deploy Next.js. Esta é uma separação de camadas,
+não a publicação de um back-end autônomo. Migrar o transporte restante para
+HTTP exigirá implementar endpoints equivalentes preservando autorização,
+CSRF, idempotência e os contratos já centralizados.
 
 ## Domínios de `lib/`
 
@@ -68,11 +78,35 @@ oferta, mas não reaplica o saldo de um formulário que pode estar desatualizado
 Importações com contagem explícita geram o movimento da diferença e recusam
 saldo inferior às quantidades rastreadas em lotes.
 
-`components/store/checkout-form.tsx` coordena o estado e o envio. As seções em
+`components/store/checkout/checkout-form.tsx` coordena o estado e o envio. As seções em
 `components/store/checkout/` cuidam de endereço, entrega, pagamento e resumo;
 `hooks/use-checkout-quote.ts` coordena a cotação, descarta respostas obsoletas e
 permite nova tentativa após falha. O servidor continua sendo a autoridade sobre
 preço, frete, pontos e métodos de pagamento.
+
+## Estado, cache e organização da interface
+
+- `components/store/{cart,checkout,orders,account}` e
+  `components/admin/{inventory,orders,deliveries,finance,team}` agrupam a interação por domínio.
+- O catálogo usa cache de memória por aba/unidade de 15 segundos, limitado a
+  80 entradas. Trocas de unidade e mutações invalidam o cache e notificam os consumidores.
+  Respostas de uma geração anterior não voltam ao cache nem à tela.
+- Carrinho mantém a quantidade confirmada até a resposta; mutações têm trava
+  síncrona, feedback e sincronização RSC. Não há replay automático de mutações.
+- Pedidos, pagamentos, dados pessoais e administração usam leituras `no-store`.
+  Polling não sobrepõe requisições e pausa em abas ocultas. O PIX reage também
+  ao status financeiro e retira o código antigo quando detecta mudança.
+- Cotação usa uma revisão do servidor, deadline de 12 segundos e descarte de
+  respostas antigas. A chave idempotente de compra não muda após falha incerta;
+  uma confirmação de tentativa encerrada permite nova tentativa.
+- `ApiResult<T>` define `data` ou `code/message/reference/retryable`. Durante a
+  migração, adaptadores também preservam campos legados usados pelos formulários.
+  Strings técnicas de Stripe/Prisma não são mostradas como mensagens públicas.
+- Exportação pessoal consulta `/api/account/export?status=1` sem baixar o
+  arquivo em background. O download continua em `/api/account/export`.
+- Confirmações administrativas usam diálogo compartilhado: consequência,
+  motivo quando suportado, foco inicial seguro, retenção/restauração de foco,
+  bloqueio durante processamento e atualização após sucesso/conflito.
 
 ## Convenções e verificação
 

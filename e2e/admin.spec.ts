@@ -9,7 +9,7 @@ test.describe("Painel admin", () => {
     await expect(page).toHaveURL(/\/admin/, { timeout: 30_000 });
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
     await expect(page.getByText("Receita", { exact: true })).toBeVisible();
-    await expect(page.getByText("Pedidos por status")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pedidos por status", exact: true })).toBeVisible();
   });
 
   test("telas de estoque e assinaturas carregam", async ({ page }) => {

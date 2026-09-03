@@ -1,5 +1,9 @@
 # Validação local — 02/09/2026
 
+> Registro histórico. A implementação e os testes posteriores do front-end,
+> incluindo execução em navegador com banco temporário, estão em
+> [FRONTEND-VALIDATION.md](FRONTEND-VALIDATION.md).
+
 Registro da reorganização e das correções locais. Este documento não é uma
 aprovação de go-live nem comprova uma execução de CI, staging ou produção.
 

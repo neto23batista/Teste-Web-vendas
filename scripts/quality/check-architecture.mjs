@@ -178,6 +178,15 @@ export function checkArchitecture(files, { maxLines = 650 } = {}) {
     }
     for (const dependency of module.imports) {
       const target = resolve(file, dependency.specifier);
+      if (/^src\/(components|hooks)\//.test(file) && target?.startsWith("src/actions/")) {
+        errors.add(`${file}: interface deve consumir src/client/api, não Server Actions diretamente.`);
+      }
+      if (/^src\/app\/(.*\/)?(page|layout)\.tsx$/.test(file) && (dependency.specifier === "@prisma/client" || target === "src/lib/prisma.ts")) {
+        errors.add(`${file}: página/layout não deve importar Prisma; use src/server/queries.`);
+      }
+      if (file.startsWith("src/contracts/") && (serverPackages.has(dependency.specifier) || (target && !target.startsWith("src/contracts/")))) {
+        errors.add(`${file}: contrato compartilhado deve ser independente de servidor e interface.`);
+      }
       if (!target || dependency.typeOnly) continue;
       edges.get(file).push(target);
       if (
@@ -186,6 +195,12 @@ export function checkArchitecture(files, { maxLines = 650 } = {}) {
       ) {
         errors.add(`${file}: lib não deve depender da camada ${target}.`);
       }
+    }
+  }
+
+  for (const [file, module] of modules) {
+    if (file.startsWith("src/server/queries/") && !module.imports.some((item) => item.specifier === "server-only")) {
+      errors.add(`${file}: query privada precisa declarar server-only.`);
     }
   }
 

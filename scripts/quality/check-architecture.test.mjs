@@ -16,16 +16,37 @@ test("distingue imports de tipos de dependências de execução", () => {
   );
 });
 
-test("cliente chama Server Action sem carregar o backend", () => {
+test("cliente chama adaptador de Server Action sem carregar o backend", () => {
   assert.deepEqual(
     inspect({
       "src/components/form.tsx":
-        '"use client"; import { save } from "@/actions/account/save";',
+        '"use client"; import { save } from "@/client/api/account";',
+      "src/client/api/account.ts": 'export { save } from "@/actions/account/save";',
       "src/actions/account/save.ts":
         '"use server"; import { readFile } from "node:fs"; export async function save() {}',
     }),
     [],
   );
+});
+
+test("interface não importa Server Actions diretamente mesmo type-only", () => {
+  const errors = inspect({
+    "src/hooks/use-save.ts": 'import type { State } from "@/actions/account/save";',
+    "src/actions/account/save.ts": '"use server"; export type State = string;',
+  });
+  assert.ok(errors.some((error) => error.includes("src/client/api")));
+});
+
+test("RSC usa queries e contratos não conhecem Prisma", () => {
+  const errors = inspect({
+    "src/app/(store)/conta/page.tsx": 'import { prisma } from "@/lib/prisma";',
+    "src/lib/prisma.ts": 'export const prisma = {};',
+    "src/contracts/order.ts": 'import type { Order } from "@prisma/client";',
+    "src/server/queries/orders.ts": 'export const getOrders = () => [];',
+  });
+  assert.ok(errors.some((error) => error.includes("página/layout não deve importar Prisma")));
+  assert.ok(errors.some((error) => error.includes("contrato compartilhado")));
+  assert.ok(errors.some((error) => error.includes("query privada precisa declarar server-only")));
 });
 
 test("detecta dependência de banco indireta no cliente", () => {
