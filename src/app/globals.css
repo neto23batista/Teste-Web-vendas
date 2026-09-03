@@ -153,8 +153,9 @@
     background: color-mix(in oklab, var(--primary) 25%, transparent);
   }
   :focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 45%, transparent);
+    outline: 3px solid var(--ring);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 2px var(--background);
     border-radius: 0.5rem;
   }
   /* Scrollbar discreta */
@@ -187,7 +188,7 @@
       135deg,
       #8b111f 0%,
       #c81328 45%,
-      #f9603f 100%
+      #a81022 100%
     );
   }
   /* Versão animada: o gradiente desliza suavemente (hero). */
