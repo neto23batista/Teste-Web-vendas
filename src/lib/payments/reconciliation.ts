@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { reportError } from "@/lib/monitoring";
 import { moneyToCents } from "@/lib/money";
 import {
   cancelOrder,
@@ -23,7 +24,86 @@ export type PaymentReconciliationSummary = {
   checkedReturnRefunds: number;
   expiredOrders: number;
   errors: number;
+  /** O que ficou para a próxima execução. Ver `measureBacklog`. */
+  backlog: ReconciliationBacklog;
 };
+
+export type ReconciliationBacklog = {
+  pendingPayments: number;
+  expiredReservations: number;
+  pendingRefunds: number;
+  /** Idade do item mais velho da fila, em minutos. `null` = fila vazia. */
+  oldestPendingPaymentMinutes: number | null;
+  oldestExpiredReservationMinutes: number | null;
+};
+
+/**
+ * A reserva segura estoque por 25 h. Se um item continua na fila mais de uma
+ * hora depois de vencer, a execução não está dando conta do volume — estoque
+ * fica bloqueado além do prometido e o cliente vê "sem estoque" sem motivo.
+ * É o sinal para aumentar a frequência ou o lote, e por isso vira alerta.
+ */
+const BACKLOG_SLA_MS = 60 * 60 * 1000;
+
+const minutesSince = (date: Date | null | undefined, now: Date): number | null =>
+  date ? Math.max(0, Math.round((now.getTime() - date.getTime()) / 60_000)) : null;
+
+/**
+ * Mede o que sobrou depois da passada. Sem isso, uma fila crescendo em silêncio
+ * só aparecia quando um cliente reclamava: o resumo do job dizia quantos itens
+ * foram tratados, nunca quantos ficaram.
+ */
+async function measureBacklog(now: Date): Promise<ReconciliationBacklog> {
+  const [pendingPayments, oldestPending, expired, oldestExpired, pendingRefunds] =
+    await Promise.all([
+      prisma.payment.count({
+        where: { provider: "STRIPE", status: "PENDING", order: { status: "PENDING" } },
+      }),
+      prisma.payment.findFirst({
+        where: { provider: "STRIPE", status: "PENDING", order: { status: "PENDING" } },
+        orderBy: { createdAt: "asc" },
+        select: { createdAt: true },
+      }),
+      prisma.inventoryReservation.count({
+        where: { status: "ACTIVE", expiresAt: { lte: now } },
+      }),
+      prisma.inventoryReservation.findFirst({
+        where: { status: "ACTIVE", expiresAt: { lte: now } },
+        orderBy: { expiresAt: "asc" },
+        select: { expiresAt: true },
+      }),
+      prisma.payment.count({
+        where: {
+          provider: "STRIPE",
+          status: { in: ["REFUND_PENDING", "REFUND_FAILED"] },
+        },
+      }),
+    ]);
+
+  const backlog: ReconciliationBacklog = {
+    pendingPayments,
+    expiredReservations: expired,
+    pendingRefunds,
+    oldestPendingPaymentMinutes: minutesSince(oldestPending?.createdAt, now),
+    oldestExpiredReservationMinutes: minutesSince(oldestExpired?.expiresAt, now),
+  };
+
+  const overdue =
+    (backlog.oldestExpiredReservationMinutes ?? 0) * 60_000 > BACKLOG_SLA_MS;
+  if (overdue) {
+    reportError(
+      new Error("Fila de reconciliação acima do SLA; estoque bloqueado além do prazo."),
+      {
+        operation: "payments.reconcile.backlog",
+        expiredReservations: String(backlog.expiredReservations),
+        oldestExpiredMinutes: String(backlog.oldestExpiredReservationMinutes),
+        pendingRefunds: String(backlog.pendingRefunds),
+      },
+    );
+  }
+
+  return backlog;
+}
 
 /**
  * Rede de segurança para webhook perdido e reserva vencida. Cada transição final
@@ -40,6 +120,13 @@ export async function reconcilePaymentsAndReservations(
     checkedReturnRefunds: 0,
     expiredOrders: 0,
     errors: 0,
+    backlog: {
+      pendingPayments: 0,
+      expiredReservations: 0,
+      pendingRefunds: 0,
+      oldestPendingPaymentMinutes: null,
+      oldestExpiredReservationMinutes: null,
+    },
   };
   const now = new Date();
 
@@ -120,7 +207,16 @@ export async function reconcilePaymentsAndReservations(
     where: {
       status: "ACTIVE",
       expiresAt: { lte: now },
-      order: { status: "PENDING" },
+      order: {
+        status: "PENDING",
+        // Pedido com cobrança em quarentena fica de fora: pode haver dinheiro
+        // retido no provedor, e expirar aqui devolveria o estoque e encerraria o
+        // pedido enquanto o valor segue lá. Quem decide é a conciliação.
+        OR: [
+          { payment: { is: null } },
+          { payment: { status: { not: "QUARANTINED" } } },
+        ],
+      },
     },
     distinct: ["orderId"],
     take: limit,
@@ -202,5 +298,8 @@ export async function reconcilePaymentsAndReservations(
     }
   }
 
+  // Medido no fim, sobre o estado já tratado: o que aparece aqui é o que a
+  // próxima execução vai encontrar.
+  summary.backlog = await measureBacklog(new Date());
   return summary;
 }

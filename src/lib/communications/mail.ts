@@ -18,7 +18,10 @@ type MailInput = {
 };
 
 export function mailConfigured(): boolean {
-  const enabled = process.env.EMAIL_ENABLED?.trim().toLowerCase() !== "false";
+  // Opt-in: a variável ausente ou escrita errada deixa o envio DESLIGADO. O
+  // padrão anterior era o inverso, e um deploy sem a flag passava a disparar
+  // e-mail transacional de verdade para clientes reais sem ninguém decidir isso.
+  const enabled = process.env.EMAIL_ENABLED?.trim().toLowerCase() === "true";
   return Boolean(enabled && process.env.RESEND_API_KEY && process.env.MAIL_FROM);
 }
 

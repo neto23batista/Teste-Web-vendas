@@ -44,6 +44,8 @@ describe("mail", () => {
   });
 
   it("limita a espera e não copia o corpo de erro do provedor para logs", async () => {
+    // O envio é opt-in: ter as credenciais não basta, a flag precisa dizer sim.
+    vi.stubEnv("EMAIL_ENABLED", "true");
     vi.stubEnv("RESEND_API_KEY", "re_secret_value");
     vi.stubEnv("MAIL_FROM", "Loja <noreply@example.test>");
     const fetchMock = vi

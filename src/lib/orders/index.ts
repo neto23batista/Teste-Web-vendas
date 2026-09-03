@@ -8,9 +8,12 @@ export {
   isValidStock,
   validateOrderFinancials,
 } from "@/lib/orders/policy";
+// `createOrder` NÃO entra na fachada: ele grava o pedido sem reservar estoque,
+// cupom ou pontos, e existir aqui convidava a criar pedido por fora do checkout.
+// Quem realmente precisa dele (só os testes, hoje) importa de
+// "@/lib/orders/creation" e assume a responsabilidade explicitamente.
 export {
   generateOrderNumber,
-  createOrder,
   CheckoutReservationError,
   createCheckoutOrder,
 } from "@/lib/orders/creation";
@@ -28,6 +31,14 @@ export {
   confirmStripePayment,
   failStripePayment,
   recordStripeRefund,
+  quarantinePayment,
 } from "@/lib/orders/payment-events";
-export type { StripeRefundUpdate } from "@/lib/orders/payment-events";
-export { transferOrder } from "@/lib/orders/transfer";
+export type {
+  StripeRefundUpdate,
+  PaymentQuarantineInput,
+} from "@/lib/orders/payment-events";
+export {
+  transferOrder,
+  TRANSFERABLE_STATUSES,
+  OrderTransferConflictError,
+} from "@/lib/orders/transfer";

@@ -2,6 +2,7 @@ import type { OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { moneyToCents as exactMoneyToCents } from "@/lib/money";
 import { changeInventory } from "@/lib/inventory/movements";
+import { inLockOrder } from "@/lib/concurrency";
 import { releaseOrderInventoryReservations } from "@/lib/inventory/reservations";
 import { processOrderRefund } from "@/lib/orders/refunds";
 import {
@@ -75,7 +76,7 @@ export async function cancelOrder(
 
     if (wasFulfilled && releasedReservations === 0) {
       assertValidInventoryItems(order.items);
-      for (const item of order.items) {
+      for (const item of inLockOrder(order.items)) {
         if (!item.productId || !pharmacyId) continue;
         await changeInventory(tx, {
           productId: item.productId,
@@ -110,13 +111,22 @@ export async function cancelOrder(
       });
     }
 
-    if (order.couponCode) {
+    // A redenção é a fonte da verdade de QUAL cupom foi consumido.
+    // `order.couponCode` é só o texto gravado no momento da compra: se o cupom
+    // for renomeado depois, decrementar por código devolve a unidade ao cupom
+    // errado — ou a nenhum. Lê o vínculo, apaga por id (o DELETE condicional
+    // continua sendo o que impede devolver duas vezes) e devolve por `couponId`.
+    const redemption = await tx.couponRedemption.findUnique({
+      where: { orderId: order.id },
+      select: { couponId: true },
+    });
+    if (redemption) {
       const released = await tx.couponRedemption.deleteMany({
         where: { orderId: order.id },
       });
       if (released.count === 1) {
         await tx.coupon.updateMany({
-          where: { code: order.couponCode, usedCount: { gt: 0 } },
+          where: { id: redemption.couponId, usedCount: { gt: 0 } },
           data: { usedCount: { decrement: 1 } },
         });
       }

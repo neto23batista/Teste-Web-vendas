@@ -1,6 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import { changeInventory, InsufficientInventoryError, type InventoryMovementActor } from "@/lib/inventory/movements";
-import { inventoryLotAvailability, InventoryLotBalanceError } from "@/lib/inventory/lots";
+import {
+  inventoryLotAvailability,
+  InventoryExpiredStockError,
+  InventoryLotBalanceError,
+} from "@/lib/inventory/lots";
 
 /** Move estoque físico e seus lotes na transação iniciada pela ação administrativa. */
 export async function transferPhysicalInventory(
@@ -43,7 +47,7 @@ export async function transferPhysicalInventory(
   });
   const { dateCutoff, availableStock } = inventoryLotAvailability(source.stock, lots);
   if (qty > availableStock) {
-    throw new InventoryLotBalanceError("Estoque válido insuficiente: há unidades em lotes vencidos.");
+    throw new InventoryExpiredStockError("Estoque válido insuficiente: há unidades em lotes vencidos.");
   }
 
   await changeInventory(tx, {

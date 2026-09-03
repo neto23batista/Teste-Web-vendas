@@ -115,8 +115,12 @@ export async function getPaymentSettings(): Promise<PaymentSettings> {
   );
   // Flag explícita permite publicar a operação em dinheiro enquanto a
   // integração financeira ainda não foi homologada. Mesmo que sobrem segredos
-  // no ambiente, false mantém checkout e webhook Stripe desativados.
-  const enabled = process.env.PAYMENTS_ENABLED?.trim().toLowerCase() !== "false";
+  // no ambiente, qualquer valor que não seja "true" mantém checkout e webhook
+  // Stripe desativados.
+  //
+  // Opt-in, não opt-out: antes bastava a variável faltar ou vir escrita errada
+  // para a loja começar a cobrar. Cobrar por engano é pior do que não cobrar.
+  const enabled = process.env.PAYMENTS_ENABLED?.trim().toLowerCase() === "true";
   const secretKey = enabled ? process.env.STRIPE_SECRET_KEY?.trim() || "" : "";
   const webhookSecret = enabled
     ? process.env.STRIPE_WEBHOOK_SECRET?.trim() || ""

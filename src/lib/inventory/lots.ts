@@ -25,7 +25,23 @@ export function parseInventoryLotExpiry(value: string, now = new Date()): Date |
   return date >= inventoryLotDateCutoff(now) ? date : null;
 }
 
+/**
+ * Falha de política de lote. A mensagem é escrita para o operador do painel e
+ * NÃO deve ser exibida ao cliente sem tradução — ver `InventoryExpiredStockError`
+ * para o único caso em que a causa é explicável na loja.
+ */
 export class InventoryLotBalanceError extends Error {}
+
+/**
+ * Existe estoque físico, mas não estoque VÁLIDO: parte do saldo está em lote
+ * vencido. É regra de negócio esperada (não incidente), então o checkout mostra
+ * esta mensagem ao cliente em vez de um erro genérico.
+ *
+ * Herda de `InventoryLotBalanceError` de propósito: quem já trata a família
+ * inteira — as ações de estoque e a importação de catálogo — continua valendo
+ * sem alteração; só quem precisa separar incidente de regra testa a subclasse.
+ */
+export class InventoryExpiredStockError extends InventoryLotBalanceError {}
 
 export function inventoryLotAvailability(
   stock: number,

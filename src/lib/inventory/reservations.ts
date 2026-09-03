@@ -1,6 +1,7 @@
 import type { InventoryReservationStatus, Prisma } from "@prisma/client";
 import { changeInventory } from "@/lib/inventory/movements";
-import { inventoryLotAvailability, InventoryLotBalanceError } from "@/lib/inventory/lots";
+import { inventoryLotAvailability, InventoryExpiredStockError } from "@/lib/inventory/lots";
+import { inLockOrder } from "@/lib/concurrency";
 
 type ReservationWriter = Pick<
   Prisma.TransactionClient,
@@ -51,7 +52,7 @@ async function allocateTrackedLots(
   // A linha de Inventory já está travada pela baixa atômica da reserva.
   const { dateCutoff, availableStock } = inventoryLotAvailability(input.stockBefore, lots, input.now);
   if (input.qty > availableStock) {
-    throw new InventoryLotBalanceError("Estoque válido insuficiente: há unidades em lotes vencidos.");
+    throw new InventoryExpiredStockError("Estoque válido insuficiente: há unidades em lotes vencidos.");
   }
 
   for (const lot of lots) {
@@ -83,7 +84,10 @@ export async function reserveOrderInventory(
   }
 ) {
   const expiresAt = input.expiresAt ?? inventoryReservationExpiresAt();
-  for (const item of input.items) {
+  // Ordem canônica de lock: sem isso, dois carrinhos com os mesmos produtos em
+  // ordens opostas travam as linhas de Inventory em sequências diferentes e o
+  // PostgreSQL aborta um dos dois checkouts por deadlock.
+  for (const item of inLockOrder(input.items)) {
     if (!item.productId) {
       throw new Error(`O produto "${item.name}" não está mais disponível para reserva.`);
     }
@@ -141,7 +145,7 @@ export async function releaseOrderInventoryReservations(
   });
 
   let released = 0;
-  for (const reservation of reservations) {
+  for (const reservation of inLockOrder(reservations)) {
     const claimed = await tx.inventoryReservation.updateMany({
       where: {
         id: reservation.id,
@@ -184,7 +188,7 @@ export async function transferOrderInventoryReservations(
     include: { allocations: true },
   });
 
-  for (const reservation of reservations) {
+  for (const reservation of inLockOrder(reservations)) {
     const targetMovement = await changeInventory(tx, {
       productId: reservation.productId,
       pharmacyId: input.targetPharmacyId,

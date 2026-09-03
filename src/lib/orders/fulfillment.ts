@@ -1,11 +1,17 @@
 import type { DeliveryProofMethod, Prisma, OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  logAuditInTransaction,
+  type TransactionAuditInput,
+} from "@/lib/audit-write";
 import { reportError } from "@/lib/monitoring";
 import {
   moneyToCents as exactMoneyToCents,
   type MoneyValue,
 } from "@/lib/money";
 import { changeInventory } from "@/lib/inventory/movements";
+import { inLockOrder } from "@/lib/concurrency";
+import { reconcileLotsAfterUntrackedDecrease } from "@/lib/inventory/lot-consumption";
 import { commitOrderInventoryReservations } from "@/lib/inventory/reservations";
 import {
   validateOrderFinancials,
@@ -92,9 +98,10 @@ export async function fulfillOrder(orderId: string) {
       await commitOrderInventoryReservations(tx, order.id);
     } else {
       // Compatibilidade com pedidos criados antes da migração de reservas.
-      for (const item of order.items) {
+      // Mesma ordem de lock da reserva: este laço concorre com os checkouts.
+      for (const item of inLockOrder(order.items)) {
         if (!item.productId || !pharmacyId) continue;
-        await changeInventory(tx, {
+        const movement = await changeInventory(tx, {
           productId: item.productId,
           pharmacyId,
           delta: -item.qty,
@@ -102,6 +109,14 @@ export async function fulfillOrder(orderId: string) {
           reason: `Baixa do pedido legado ${order.number}`,
           referenceType: "ORDER",
           referenceId: order.id,
+        });
+        // A baixa acima não passa pelo fluxo de reservas e por isso não consome
+        // lote. Sem realinhar, `sum(lot.qty)` ficaria maior que o estoque e a
+        // unidade recusaria toda reserva seguinte deste produto.
+        await reconcileLotsAfterUntrackedDecrease(tx, {
+          productId: item.productId,
+          pharmacyId,
+          stockAfter: movement.stockAfter,
         });
       }
     }
@@ -178,15 +193,21 @@ export async function fulfillOrder(orderId: string) {
   return prisma.order.findUnique({ where: { id: order.id } });
 }
 
-/** Transição operacional sem efeitos financeiros especiais. */
+/**
+ * Transição operacional sem efeitos financeiros especiais.
+ *
+ * Aceita o cliente de uma transação em curso para que o chamador possa gravar a
+ * própria evidência (auditoria, nota) no mesmo commit da mudança de status.
+ */
 export async function transitionOrderStatus(
   orderId: string,
   from: OrderStatus,
   to: OrderStatus,
   extra: Prisma.OrderUncheckedUpdateManyInput = {},
+  client: Pick<Prisma.TransactionClient, "order"> = prisma,
 ): Promise<boolean> {
   if (!isValidOrderTransition(from, to)) return false;
-  const changed = await prisma.order.updateMany({
+  const changed = await client.order.updateMany({
     where: { id: orderId, status: from },
     data: {
       ...extra,
@@ -214,6 +235,12 @@ export type DeliveryProofInput = {
 export async function markOrderDelivered(
   orderId: string,
   proof?: DeliveryProofInput,
+  /**
+   * Evidência gravada no MESMO commit da entrega. O comprovante já é
+   * transacional; a trilha de auditoria passa a ser também, para que não exista
+   * entrega concluída sem registro de quem confirmou.
+   */
+  audit?: TransactionAuditInput,
 ): Promise<boolean> {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order || order.status !== "SHIPPED") return false;
@@ -240,6 +267,7 @@ export async function markOrderDelivered(
         },
       });
     }
+    if (audit) await logAuditInTransaction(tx, audit);
     if (order.paymentMethod !== "cash") return;
 
     const payment = await tx.payment.updateMany({

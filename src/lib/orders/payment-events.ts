@@ -55,12 +55,63 @@ export async function failStripePayment(
       data: { externalId: paymentIntentId },
     });
   }
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { payment: { select: { status: true } } },
+  });
   if (!order || order.status !== "PENDING") return order;
+  // Cobrança em quarentena tem valor possivelmente retido no provedor. Cancelar
+  // por um evento de falha posterior devolveria o estoque e encerraria o pedido
+  // enquanto o dinheiro segue lá — a decisão é da conciliação, não do webhook.
+  if (order.payment?.status === "QUARANTINED") return order;
   return cancelOrder(orderId, {
     paymentFailureReason: reason,
     skipProviderAction: true,
   });
+}
+
+export type PaymentQuarantineInput = {
+  orderId: string;
+  paymentIntentId: string | null;
+  paidCents: number | null;
+  expectedCents: number;
+  currency: string | null;
+};
+
+const asMoney = (cents: number | null) =>
+  cents === null ? "?" : (cents / 100).toFixed(2);
+
+/**
+ * Retira a cobrança de todo automatismo e a coloca na fila de conciliação.
+ *
+ * Divergência de valor ou moeda significa que NÃO podemos confirmar o pedido —
+ * mas o dinheiro pode ter sido capturado no provedor. Concluir o evento sem
+ * deixar rastro (o comportamento anterior) perdia o vínculo com o PaymentIntent
+ * e ainda deixava o pedido ser expirado pelo cron de reservas, devolvendo o
+ * estoque como se nada tivesse sido cobrado.
+ *
+ * Guarda o PaymentIntent, registra a divergência para o operador e marca
+ * `QUARANTINED` — estado que a reconciliação e o expirador de reservas ignoram
+ * de propósito. Não mexe em pagamento que já entrou em fluxo de reembolso: ali
+ * alguém já decidiu.
+ */
+export async function quarantinePayment(input: PaymentQuarantineInput) {
+  const detail = `Recebido ${asMoney(input.paidCents)} ${(input.currency ?? "?").toUpperCase()}; esperado ${asMoney(input.expectedCents)} BRL.`;
+  const claimed = await prisma.payment.updateMany({
+    where: {
+      orderId: input.orderId,
+      status: { notIn: ["REFUND_PENDING", "REFUND_FAILED", "REFUNDED"] },
+    },
+    data: {
+      ...(input.paymentIntentId ? { externalId: input.paymentIntentId } : {}),
+      status: "QUARANTINED",
+      failureReason:
+        "Valor ou moeda divergem do total do pedido. Conferência manual necessária.",
+      reconciliationError: detail.slice(0, 2000),
+      lastReconciledAt: new Date(),
+    },
+  });
+  return claimed.count === 1;
 }
 
 export type StripeRefundUpdate = {

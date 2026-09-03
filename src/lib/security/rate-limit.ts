@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import Redis from "ioredis";
 import { isIP } from "node:net";
 import { reportError } from "@/lib/monitoring";
+import { isLiveProduction } from "@/lib/env";
 
 /**
  * Rate limiting por janela fixa. Contador DURÁVEL (compartilhado entre as
@@ -14,8 +15,15 @@ import { reportError } from "@/lib/monitoring";
  *    onde socket TCP não existe.
  * 3. Sem nenhuma das duas (dev/VPS), cai no contador em memória.
  *
- * Se o Redis falhar/exceder o timeout, também cai em memória (fail-open
- * controlado: melhor limitar por instância do que derrubar o login da loja).
+ * Se o Redis falhar/exceder o timeout, cai em memória — mas isso deixou de ser
+ * silencioso e deixou de valer para tudo:
+ *
+ * - a queda dispara alerta (no máximo um por minuto, para não afogar o
+ *   monitoramento justamente durante o incidente);
+ * - em caminho de credencial (`{ critical: true }`) numa produção viva, a
+ *   requisição é NEGADA em vez de cair no contador por instância. Contador por
+ *   instância na Vercel multiplica o teto pelo número de instâncias, o que é o
+ *   mesmo que não ter proteção contra força bruta distribuída.
  */
 export type RateResult = { ok: boolean; retryAfter: number };
 
@@ -187,15 +195,56 @@ async function rateLimitUpstash(
   }
 }
 
+// Uma queda do Redis produziria um alerta por requisição. Um a cada minuto já
+// diz o que precisa ser dito sem afogar o monitoramento no pior momento.
+const OUTAGE_ALERT_INTERVAL_MS = 60_000;
+let lastOutageAlertAt = 0;
+
+function alertDurableOutage(): void {
+  // Sem Redis configurado não há queda: é o modo de desenvolvimento.
+  if (!rateLimitIsDurable()) return;
+  const now = Date.now();
+  if (now - lastOutageAlertAt < OUTAGE_ALERT_INTERVAL_MS) return;
+  lastOutageAlertAt = now;
+  reportError(
+    new Error("Rate limit durável indisponível; proteção degradada."),
+    { operation: "rate_limit.durable_outage" },
+  );
+}
+
+export type RateLimitOptions = {
+  /**
+   * Caminho de credencial (login, MFA, reset, troca de senha, exclusão de conta).
+   * Em produção viva, a indisponibilidade do armazenamento durável NEGA a
+   * requisição em vez de cair no contador local.
+   */
+  critical?: boolean;
+};
+
 export async function rateLimit(
   key: string,
   limit: number,
-  windowMs: number
+  windowMs: number,
+  options: RateLimitOptions = {}
 ): Promise<RateResult> {
   const durable =
     (await rateLimitUpstash(key, limit, windowMs)) ??
     (await rateLimitRedis(key, limit, windowMs));
-  return durable ?? rateLimitMemory(key, limit, windowMs);
+  if (durable) return durable;
+
+  // Cair para memória deixou de ser silencioso: numa queda do Redis o limite
+  // vira por instância, e na Vercel isso multiplica o teto pelo número de
+  // instâncias — exatamente quando a proteção mais importa.
+  alertDurableOutage();
+
+  // Em credencial, "degradar" significa abrir a porta para força bruta
+  // distribuída. Negar atrapalha quem está logando de verdade por alguns
+  // minutos; permitir custa contas invadidas.
+  if (options.critical && isLiveProduction()) {
+    return { ok: false, retryAfter: 30 };
+  }
+
+  return rateLimitMemory(key, limit, windowMs);
 }
 
 type HeaderReader = Pick<Headers, "get">;

@@ -60,12 +60,13 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("next/cache", () => ({ revalidateTag: () => {} }));
 
 import {
-  createOrder,
   createCheckoutOrder,
   fulfillOrder,
   markOrderDelivered,
   type CreateInput,
 } from "@/lib/orders";
+// Fora da fachada de propósito: cria pedido sem reserva de estoque/cupom/pontos.
+import { createOrder } from "@/lib/orders/creation";
 
 const pendingOrder = {
   id: "o1",

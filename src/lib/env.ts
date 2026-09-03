@@ -77,16 +77,37 @@ function hasValidDurableRateLimit(errors: string[]): boolean {
   return false;
 }
 
+/** Ambientes que a aplicação reconhece. Qualquer outro valor é erro de config. */
+const KNOWN_ENVIRONMENTS = new Set([
+  "production",
+  "preview",
+  "staging",
+  "development",
+  "test",
+]);
+
+/**
+ * O ambiente declarado, ou `null` quando ninguém declarou nada reconhecível.
+ * Se APP_ENV e VERCEL_ENV discordarem, "production" vence: a escolha segura é
+ * tratar a instância como pública, não como sandbox.
+ */
+export function declaredEnvironment(): string | null {
+  const declared = [process.env.APP_ENV, process.env.VERCEL_ENV]
+    .map((value) => (value ?? "").trim().toLowerCase())
+    .filter((value) => KNOWN_ENVIRONMENTS.has(value));
+  if (declared.length === 0) return null;
+  return declared.includes("production") ? "production" : declared[0]!;
+}
+
 /**
  * Sinal inequívoco de que esta instância é a loja pública real.
  * `NODE_ENV=production` também é usado em build, preview e testes, portanto
- * não basta para habilitar controles que bloqueariam ambientes de validação.
+ * não basta para habilitar controles que bloqueariam ambientes de validação —
+ * a declaração é explícita, e `assertEnv` exige que ela exista num build de
+ * produção justamente para que esquecê-la não afrouxe controle nenhum.
  */
 export function isLiveProduction(): boolean {
-  return (
-    process.env.VERCEL_ENV === "production" ||
-    process.env.APP_ENV === "production"
-  );
+  return declaredEnvironment() === "production";
 }
 
 export function assertEnv(): void {
@@ -103,6 +124,19 @@ export function assertEnv(): void {
   if (!hasReasonableSecretEntropy(parsed.data.AUTH_SECRET)) {
     throw new Error(
       "Configuração de ambiente inválida:\n- AUTH_SECRET tem baixa diversidade; gere um segredo aleatório"
+    );
+  }
+
+  // Um deploy auto-hospedado que esquecia APP_ENV/VERCEL_ENV escapava do bloco
+  // inteiro abaixo — TLS obrigatório, rate limit durável, segredo de webhook —
+  // sem nenhum aviso. Num build de produção a declaração passa a ser exigida:
+  // esquecer agora impede o boot, em vez de destravar a loja sem os controles.
+  if (process.env.NODE_ENV === "production" && declaredEnvironment() === null) {
+    throw new Error(
+      [
+        "Configuração de ambiente inválida:",
+        "- declare APP_ENV (ou VERCEL_ENV) como production, preview, staging, development ou test",
+      ].join("\n"),
     );
   }
 
